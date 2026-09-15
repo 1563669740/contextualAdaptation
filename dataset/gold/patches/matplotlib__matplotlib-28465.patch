@@ -1,0 +1,44 @@
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index 9139b2ed262f..7bb06814f389 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -2227,7 +2227,6 @@ def __init__(self, parent, subplotspec, *,
+         self.subplotpars = parent.subplotpars
+         self.dpi_scale_trans = parent.dpi_scale_trans
+         self._axobservers = parent._axobservers
+-        self.canvas = parent.canvas
+         self.transFigure = parent.transFigure
+         self.bbox_relative = Bbox.null()
+         self._redo_transform_rel_fig()
+@@ -2244,6 +2243,10 @@ def __init__(self, parent, subplotspec, *,
+         self._set_artist_props(self.patch)
+         self.patch.set_antialiased(False)
+ 
++    @property
++    def canvas(self):
++        return self._parent.canvas
++
+     @property
+     def dpi(self):
+         return self._parent.dpi
+diff --git a/lib/matplotlib/figure.pyi b/lib/matplotlib/figure.pyi
+index 21de9159d56c..b079312695c1 100644
+--- a/lib/matplotlib/figure.pyi
++++ b/lib/matplotlib/figure.pyi
+@@ -263,7 +263,6 @@ class SubFigure(FigureBase):
+     figure: Figure
+     subplotpars: SubplotParams
+     dpi_scale_trans: Affine2D
+-    canvas: FigureCanvasBase
+     transFigure: Transform
+     bbox_relative: Bbox
+     figbbox: BboxBase
+@@ -282,6 +281,8 @@ class SubFigure(FigureBase):
+         **kwargs
+     ) -> None: ...
+     @property
++    def canvas(self) -> FigureCanvasBase: ...
++    @property
+     def dpi(self) -> float: ...
+     @dpi.setter
+     def dpi(self, value: float) -> None: ...

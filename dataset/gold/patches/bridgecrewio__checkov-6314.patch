@@ -1,0 +1,22 @@
+diff --git a/checkov/terraform/checks/module/generic/RevisionVersionTag.py b/checkov/terraform/checks/module/generic/RevisionVersionTag.py
+index 0335d50c59..14626ecf02 100644
+--- a/checkov/terraform/checks/module/generic/RevisionVersionTag.py
++++ b/checkov/terraform/checks/module/generic/RevisionVersionTag.py
+@@ -7,7 +7,7 @@
+ from checkov.terraform.checks.module.base_module_check import BaseModuleCheck
+ from .RevisionHash import check as RevisionHashCheck
+ 
+-VERSION_PATTERN = re.compile(r"\?(ref=).*(\d\.\d).*")
++VERSION_PATTERN = re.compile(r"[?&](ref=).*(\d\.\d).*")
+ 
+ 
+ class RevisionVersionTag(BaseModuleCheck):
+@@ -27,7 +27,7 @@ def scan_module_conf(self, conf: dict[str, list[Any]]) -> CheckResult:
+         source = conf.get("source")
+         if source and isinstance(source, list):
+             source_url = source[0]
+-            if "?ref" in source_url and re.search(VERSION_PATTERN, source_url):
++            if ("?ref" in source_url or "&ref" in source_url) and re.search(VERSION_PATTERN, source_url):
+                 return CheckResult.PASSED
+ 
+         return CheckResult.FAILED

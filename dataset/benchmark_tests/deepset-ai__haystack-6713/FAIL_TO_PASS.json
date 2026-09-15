@@ -1,0 +1,10 @@
+[
+  "test/components/generators/test_hugging_face_local_generator.py::TestHuggingFaceLocalGenerator::test_to_dict_with_parameters",
+  "test/components/generators/test_hugging_face_local_generator.py::TestHuggingFaceLocalGenerator::test_to_dict_with_quantization_config",
+  "test/components/generators/test_hugging_face_local_generator.py::TestHuggingFaceLocalGenerator::test_from_dict",
+  "test/components/rankers/test_transformers_similarity.py::TestSimilarityRanker::test_to_dict_with_custom_init_parameters",
+  "test/components/rankers/test_transformers_similarity.py::TestSimilarityRanker::test_to_dict_with_quantization_options",
+  "test/components/rankers/test_transformers_similarity.py::TestSimilarityRanker::test_from_dict",
+  "test/components/readers/test_extractive.py::test_to_dict",
+  "test/components/readers/test_extractive.py::test_from_dict"
+]

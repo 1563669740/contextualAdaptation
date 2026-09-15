@@ -1,0 +1,3 @@
+[
+  "tests/test_lab.py::TestConfig::test_cli_params_hyphenated"
+]

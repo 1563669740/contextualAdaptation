@@ -1,0 +1,13 @@
+diff --git a/supervisor/store/git.py b/supervisor/store/git.py
+index 1cf3b05517b..f0bb3a7b085 100644
+--- a/supervisor/store/git.py
++++ b/supervisor/store/git.py
+@@ -49,7 +49,7 @@ def branch(self) -> str:
+ 
+     async def load(self) -> None:
+         """Init Git add-on repository."""
+-        if not self.path.is_dir():
++        if not (self.path / ".git").is_dir():
+             await self.clone()
+             return
+ 

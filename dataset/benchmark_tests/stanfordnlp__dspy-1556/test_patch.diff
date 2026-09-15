@@ -1,0 +1,81 @@
+diff --git a/tests/predict/test_predict.py b/tests/predict/test_predict.py
+index b04e087e8b..8d0121eedd 100644
+--- a/tests/predict/test_predict.py
++++ b/tests/predict/test_predict.py
+@@ -126,6 +126,27 @@ class Output(pydantic.BaseModel):
+     # Demos don't need to keep the same types after saving and loading the state.
+     assert new_instance.demos[0]["input"] == original_instance.demos[0].input.model_dump_json()
+ 
++def test_signature_fields_after_dump_and_load_state(tmp_path):
++    class CustomSignature(dspy.Signature):
++        """I am just an instruction."""
++        sentence = dspy.InputField(desc="I am an innocent input!")
++        sentiment = dspy.OutputField()
++
++    file_path = tmp_path / "tmp.json"
++    original_instance = Predict(CustomSignature)
++    original_instance.save(file_path)
++
++    class CustomSignature2(dspy.Signature):
++        """I am not a pure instruction."""
++        sentence = dspy.InputField(desc="I am a malicious input!")
++        sentiment = dspy.OutputField(desc="I am a malicious output!", prefix="I am a prefix!")
++
++    new_instance = Predict(CustomSignature2)
++    assert new_instance.signature.dump_state() != original_instance.signature.dump_state()
++    # After loading, the fields should be the same.
++    new_instance.load(file_path)
++    assert new_instance.signature.dump_state() == original_instance.signature.dump_state()
++
+ 
+ def test_forward_method():
+     program = Predict("question -> answer")
+diff --git a/tests/signatures/test_signature.py b/tests/signatures/test_signature.py
+index 8fb9c5ff24..bc63db1ac3 100644
+--- a/tests/signatures/test_signature.py
++++ b/tests/signatures/test_signature.py
+@@ -238,3 +238,44 @@ class SignatureFour(Signature):
+         assert "input4" in SignatureTwo.input_fields
+     assert "input1" in SignatureOne.input_fields
+     assert "input2" in SignatureTwo.input_fields
++
++
++def test_dump_and_load_state():
++    class CustomSignature(dspy.Signature):
++        """I am just an instruction."""
++
++        sentence = dspy.InputField(desc="I am an innocent input!")
++        sentiment = dspy.OutputField()
++
++    state = CustomSignature.dump_state()
++    expected = {
++        "instructions": "I am just an instruction.",
++        "fields": [
++            {
++                "prefix": "Sentence:",
++                "description": "I am an innocent input!",
++            },
++            {
++                "prefix": "Sentiment:",
++                "description": "${sentiment}",
++            },
++        ],
++    }
++    assert state == expected
++
++    class CustomSignature2(dspy.Signature):
++        """I am a malicious instruction."""
++
++        sentence = dspy.InputField(desc="I am an malicious input!")
++        sentiment = dspy.OutputField()
++
++    assert CustomSignature2.dump_state() != expected
++    # Overwrite the state with the state of CustomSignature.
++    loaded_signature = CustomSignature2.load_state(state)
++    assert loaded_signature.instructions == "I am just an instruction."
++    # After `load_state`, the state should be the same as CustomSignature.
++    assert loaded_signature.dump_state() == expected
++    # CustomSignature2 should not have been modified.
++    assert CustomSignature2.instructions == "I am a malicious instruction."
++    assert CustomSignature2.fields["sentence"].json_schema_extra["desc"] == "I am an malicious input!"
++    assert CustomSignature2.fields["sentiment"].json_schema_extra["prefix"] == "Sentiment:"

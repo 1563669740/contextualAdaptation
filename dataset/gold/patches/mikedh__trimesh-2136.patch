@@ -1,0 +1,172 @@
+diff --git a/README.md b/README.md
+index f5f921309..b4a1e760a 100644
+--- a/README.md
++++ b/README.md
+@@ -19,7 +19,7 @@ Keeping `trimesh` easy to install is a core goal, thus the *only* hard dependenc
+ pip install trimesh
+ ```
+ 
+-The minimal install can load many supported formats (STL, PLY, GLTF/GLB) into numpy arrays. More functionality is available when soft dependencies are installed. This includes things like convex hulls (`scipy`), graph operations (`networkx`), faster ray queries (`pyembree`), vector path handling (`shapely` and `rtree`), XML formats like 3DXML/XAML/3MF (`lxml`), preview windows (`pyglet`), faster cache checks (`xxhash`), etc. To install `trimesh` with the soft dependencies that generally install cleanly on Linux, OSX, and Windows using `pip`:
++The minimal install can load many supported formats (STL, PLY, GLTF/GLB) into numpy arrays. More functionality is available when soft dependencies are installed. This includes things like convex hulls (`scipy`), graph operations (`networkx`), faster ray queries (`embreex`), vector path handling (`shapely` and `rtree`), XML formats like 3DXML/XAML/3MF (`lxml`), preview windows (`pyglet`), faster cache checks (`xxhash`), etc. To install `trimesh` with the soft dependencies that generally install cleanly on Linux, OSX, and Windows using `pip`:
+ ```bash
+ pip install trimesh[easy]
+ ```
+diff --git a/pyproject.toml b/pyproject.toml
+index 0c5e9e5ac..acdcf1b32 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -5,7 +5,7 @@ requires = ["setuptools >= 61.0", "wheel"]
+ [project]
+ name = "trimesh"
+ requires-python = ">=3.7"
+-version = "4.1.1"
++version = "4.1.2"
+ authors = [{name = "Michael Dawson-Haggerty", email = "mikedh@kerfed.com"}]
+ license = {file = "LICENSE.md"}
+ description = "Import, export, process, analyze and view triangular meshes."
+diff --git a/trimesh/exchange/ply.py b/trimesh/exchange/ply.py
+index 389d2f10b..1fdb263c8 100644
+--- a/trimesh/exchange/ply.py
++++ b/trimesh/exchange/ply.py
+@@ -266,7 +266,11 @@ def export_ply(
+     if include_attributes:
+         if hasattr(mesh, "vertex_attributes"):
+             # make sure to export texture coordinates as well
+-            if hasattr(mesh, "visual") and hasattr(mesh.visual, "uv"):
++            if (
++                hasattr(mesh, "visual")
++                and hasattr(mesh.visual, "uv")
++                and np.shape(mesh.visual.uv) == (len(mesh.vertices), 2)
++            ):
+                 mesh.vertex_attributes["s"] = mesh.visual.uv[:, 0]
+                 mesh.vertex_attributes["t"] = mesh.visual.uv[:, 1]
+             _assert_attributes_valid(mesh.vertex_attributes)
+diff --git a/trimesh/util.py b/trimesh/util.py
+index 14e752e6c..e0db1992d 100644
+--- a/trimesh/util.py
++++ b/trimesh/util.py
+@@ -17,8 +17,10 @@
+ import logging
+ import random
+ import shutil
++import sys
+ import time
+ import uuid
++import warnings
+ import zipfile
+ 
+ # for type checking
+@@ -48,7 +50,7 @@
+ _IDENTITY.flags["WRITEABLE"] = False
+ 
+ 
+-def has_module(name):
++def has_module(name: str) -> bool:
+     """
+     Check to see if a module is installed by name without
+     actually importing the module.
+@@ -63,28 +65,14 @@ def has_module(name):
+     installed : bool
+       True if module is installed
+     """
+-    # this should work on Python 2.7 and 3.4+
+-    import pkgutil
+-
+-    return pkgutil.find_loader(name) is not None
+-
+-
+-try:
+-    import rtree
++    if sys.version_info >= (3, 10):
++        # pkgutil was deprecated
++        from importlib.util import find_spec
++    else:
++        # this should work on Python 2.7 and 3.4+
++        from pkgutil import find_loader as find_spec
+ 
+-    # some versions of rtree screw up indexes on stream loading
+-    # do a test here so we know if we are free to use stream loading
+-    assert (
+-        next(
+-            rtree.index.Index(
+-                [(1564, [0, 0, 0, 10, 10, 10], None)],
+-                properties=rtree.index.Property(dimension=3),
+-            ).intersection([1, 1, 1, 2, 2, 2])
+-        )
+-        == 1564
+-    )
+-except BaseException as E:
+-    rtree = E
++    return find_spec(name) is not None
+ 
+ 
+ def unitize(vectors, check_valid=False, threshold=None):
+@@ -142,22 +130,18 @@ def unitize(vectors, check_valid=False, threshold=None):
+     return unit
+ 
+ 
+-def euclidean(a, b):
++def euclidean(a, b) -> float:
+     """
+-    Euclidean distance between vectors a and b.
+-
+-    Parameters
+-    ------------
+-    a : (n,) float
+-       First vector
+-    b : (n,) float
+-       Second vector
+-
+-    Returns
+-    ------------
+-    distance : float
+-        Euclidean distance between A and B
++    DEPRECATED: use `np.linalg.norm(a - b)` instead of this.
+     """
++    warnings.warn(
++        "`trimesh.util.euclidean` is deprecated "
++        + "and will be removed in January 2025. "
++        + "replace with `np.linalg.norm(a - b)`",
++        category=DeprecationWarning,
++        stacklevel=2,
++    )
++
+     a = np.asanyarray(a, dtype=np.float64)
+     b = np.asanyarray(b, dtype=np.float64)
+     return np.sqrt(((a - b) ** 2).sum())
+@@ -199,7 +183,7 @@ def is_pathlib(obj):
+     return hasattr(obj, "absolute") and name.endswith("Path")
+ 
+ 
+-def is_string(obj):
++def is_string(obj) -> bool:
+     """
+     Check if an object is a string.
+ 
+@@ -216,7 +200,7 @@ def is_string(obj):
+     return isinstance(obj, str)
+ 
+ 
+-def is_none(obj):
++def is_none(obj) -> bool:
+     """
+     Check to see if an object is None or not.
+ 
+@@ -239,7 +223,7 @@ def is_none(obj):
+     return False
+ 
+ 
+-def is_sequence(obj):
++def is_sequence(obj) -> bool:
+     """
+     Check if an object is a sequence or not.
+ 
+@@ -1765,6 +1749,8 @@ def bounds_tree(bounds):
+     tree : Rtree
+       Tree containing bounds by index
+     """
++    import rtree
++
+     # make sure we've copied bounds
+     bounds = np.array(bounds, dtype=np.float64, copy=True)
+     if len(bounds.shape) == 3:

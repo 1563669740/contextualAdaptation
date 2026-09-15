@@ -1,0 +1,4 @@
+[
+  "xarray/tests/test_backends_datatree.py::TestNetCDF4DatatreeIO::test_decode_cf",
+  "xarray/tests/test_backends_datatree.py::TestH5NetCDFDatatreeIO::test_decode_cf"
+]

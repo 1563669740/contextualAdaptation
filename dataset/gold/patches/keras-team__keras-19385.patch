@@ -1,0 +1,675 @@
+diff --git a/keras/backend/jax/nn.py b/keras/backend/jax/nn.py
+index c0096db0b522..1051fb72bc27 100644
+--- a/keras/backend/jax/nn.py
++++ b/keras/backend/jax/nn.py
+@@ -1,4 +1,5 @@
+ import jax
++import jax.experimental.sparse as jax_sparse
+ import jax.numpy as jnp
+ import numpy as np
+ from jax import lax
+@@ -404,19 +405,55 @@ def conv_transpose(
+     )
+ 
+ 
+-def one_hot(x, num_classes, axis=-1, dtype="float32"):
++def one_hot(x, num_classes, axis=-1, dtype="float32", sparse=False):
+     x = convert_to_tensor(x)
++    if sparse:
++        if axis < 0:
++            axis = axis + len(x.shape) + 1
++        if dtype is None:
++            dtype = "float32"
++        # We deal with negative inputs by having zeros in the output although
++        # it's useless. It makes shapes static.
++        values = jnp.greater_equal(jnp.ravel(x), 0).astype(dtype)
++        values_count = values.shape[0]
++        indices = [jnp.arange(dim) for dim in x.shape]
++        indices = jnp.meshgrid(*indices, indexing="ij")
++        indices.insert(axis, jnp.maximum(x, 0))  # Deal with negative indices
++        indices = [a.reshape(values_count, 1).astype("int32") for a in indices]
++        indices = jnp.concatenate(indices, axis=1)
++        shape = list(x.shape)
++        shape.insert(axis, num_classes)
++        shape = tuple(shape)
++        return jax_sparse.BCOO(
++            (values, indices),
++            shape=shape,
++            indices_sorted=True,
++            unique_indices=True,
++        )
+     return jnn.one_hot(x, num_classes, axis=axis, dtype=dtype)
+ 
+ 
+-def multi_hot(x, num_classes, axis=-1, dtype="float32"):
++def multi_hot(x, num_classes, axis=-1, dtype="float32", sparse=False):
+     x = convert_to_tensor(x)
+     reduction_axis = 1 if len(x.shape) > 1 else 0
+-    outputs = jnp.max(
++    if sparse:
++        result = one_hot(
++            x, num_classes, axis=axis, dtype="int32", sparse=sparse
++        )
++        # JAX's BCOO does not support max reduction, use sum and compare with 0.
++        result = jax_sparse.bcoo_reduce_sum(result, axes=(reduction_axis,))
++        result = jax_sparse.bcoo_sum_duplicates(result)
++        values = jnp.greater_equal(result.data, 0).astype(dtype)
++        return jax_sparse.BCOO(
++            (values, result.indices),
++            shape=result.shape,
++            indices_sorted=True,
++            unique_indices=True,
++        )
++    return jnp.max(
+         one_hot(cast(x, "int32"), num_classes, axis=axis, dtype=dtype),
+         axis=reduction_axis,
+     )
+-    return outputs
+ 
+ 
+ def categorical_crossentropy(target, output, from_logits=False, axis=-1):
+diff --git a/keras/backend/jax/numpy.py b/keras/backend/jax/numpy.py
+index 0b878339fdb6..3d94805481fb 100644
+--- a/keras/backend/jax/numpy.py
++++ b/keras/backend/jax/numpy.py
+@@ -9,6 +9,7 @@
+ from keras.backend.common.backend_utils import canonicalize_axis
+ from keras.backend.common.backend_utils import to_tuple_or_list
+ from keras.backend.common.variables import standardize_dtype
++from keras.backend.jax import nn
+ from keras.backend.jax import sparse
+ from keras.backend.jax.core import cast
+ from keras.backend.jax.core import convert_to_tensor
+@@ -21,7 +22,25 @@ def add(x1, x2):
+     return jnp.add(x1, x2)
+ 
+ 
+-def bincount(x, weights=None, minlength=0):
++def bincount(x, weights=None, minlength=0, sparse=False):
++    if sparse:
++        reduction_axis = 1 if len(x.shape) > 1 else 0
++        maxlength = jnp.maximum(jnp.max(x) + 1, minlength)
++        one_hot_encoding = nn.one_hot(x, maxlength, sparse=sparse)
++        if weights is not None:
++            split_weights = split(
++                weights,
++                weights.shape[reduction_axis],
++                reduction_axis,
++            )
++            stacked_weights = stack(split_weights, axis=reduction_axis)
++            one_hot_encoding = one_hot_encoding * stacked_weights
++
++        outputs = jax_sparse.bcoo_reduce_sum(
++            one_hot_encoding,
++            axes=(reduction_axis,),
++        )
++        return outputs
+     if len(x.shape) == 2:
+         if weights is None:
+ 
+@@ -1069,6 +1088,26 @@ def var(x, axis=None, keepdims=False):
+ 
+ def sum(x, axis=None, keepdims=False):
+     x = convert_to_tensor(x)
++    if isinstance(x, jax_sparse.BCOO):
++        if axis is None:
++            axis = tuple(range(len(x.shape)))
++        (
++            canonical_axis,
++            keep_dims_shape,
++            broadcast_dimensions,
++        ) = sparse.axis_shape_dims_for_broadcast_in_dim(
++            axis, x.shape, insert_dims=False
++        )
++        output = jax_sparse.bcoo_reduce_sum(x, axes=canonical_axis)
++        if keepdims:
++            # `bcoo_reduce_sum` does not support keepdims, neither does
++            # sparsify(jnp.sum), so we recreate the empty dimensions.
++            output = jax_sparse.bcoo_broadcast_in_dim(
++                output,
++                shape=keep_dims_shape,
++                broadcast_dimensions=broadcast_dimensions,
++            )
++        return output
+     return jnp.sum(x, axis=axis, keepdims=keepdims)
+ 
+ 
+diff --git a/keras/backend/numpy/nn.py b/keras/backend/numpy/nn.py
+index efa7286fac5a..45ed3f05ac9c 100644
+--- a/keras/backend/numpy/nn.py
++++ b/keras/backend/numpy/nn.py
+@@ -445,7 +445,9 @@ def conv_transpose(
+     )
+ 
+ 
+-def one_hot(x, num_classes, axis=-1, dtype="float32"):
++def one_hot(x, num_classes, axis=-1, dtype="float32", sparse=False):
++    if sparse:
++        raise ValueError("Unsupported value `sparse=True` with numpy backend")
+     x = convert_to_tensor(x)
+     input_shape = x.shape
+ 
+@@ -473,7 +475,9 @@ def one_hot(x, num_classes, axis=-1, dtype="float32"):
+     return categorical
+ 
+ 
+-def multi_hot(x, num_classes, axis=-1, dtype="float32"):
++def multi_hot(x, num_classes, axis=-1, dtype="float32", sparse=False):
++    if sparse:
++        raise ValueError("Unsupported value `sparse=True` with numpy backend")
+     x = convert_to_tensor(x)
+     reduction_axis = 1 if len(x.shape) > 1 else 0
+     outputs = np.max(
+diff --git a/keras/backend/numpy/numpy.py b/keras/backend/numpy/numpy.py
+index cb5ec61ab7ce..7eb66110a217 100644
+--- a/keras/backend/numpy/numpy.py
++++ b/keras/backend/numpy/numpy.py
+@@ -260,7 +260,9 @@ def average(x, axis=None, weights=None):
+     return np.average(x, weights=weights, axis=axis)
+ 
+ 
+-def bincount(x, weights=None, minlength=0):
++def bincount(x, weights=None, minlength=0, sparse=False):
++    if sparse:
++        raise ValueError("Unsupported value `sparse=True` with numpy backend")
+     x = convert_to_tensor(x)
+     dtypes_to_resolve = [x.dtype]
+     if weights is not None:
+diff --git a/keras/backend/tensorflow/nn.py b/keras/backend/tensorflow/nn.py
+index 6d90bd7c9d43..4d6433aed51e 100644
+--- a/keras/backend/tensorflow/nn.py
++++ b/keras/backend/tensorflow/nn.py
+@@ -1,3 +1,4 @@
++import math
+ import warnings
+ 
+ import tensorflow as tf
+@@ -444,19 +445,44 @@ def conv_transpose(
+     )
+ 
+ 
+-def one_hot(x, num_classes, axis=-1, dtype="float32"):
++def one_hot(x, num_classes, axis=-1, dtype="float32", sparse=False):
+     x = convert_to_tensor(x)
++    if dtype is None:
++        dtype = "float32"
++    if sparse:
++        # We don't use `tf.sparse.bincount`, it doesn't handle negative indices
++        # and only support rank 1 and 2 tensors (`one_hot` adds a dimension).
++        if axis < 0:
++            axis = axis + len(x.shape) + 1
++        values_count = math.prod(x.shape)
++        values = tf.reshape(x, (values_count,))
++        # We deal with negative inputs by having zeros in the output although
++        # it's useless. It makes shapes static.
++        values = tf.cast(tf.greater_equal(values, 0), dtype=dtype)
++        indices = [tf.range(dim) for dim in x.shape]
++        indices = tf.meshgrid(*indices, indexing="ij")
++        indices.insert(axis, tf.maximum(x, 0))  # Deal with negative indices
++        indices = [tf.reshape(a, (values_count, 1)) for a in indices]
++        indices = [tf.cast(a, tf.int64) for a in indices]
++        indices = tf.concat(indices, axis=1)
++        shape = list(x.shape)
++        shape.insert(axis, num_classes)
++        return tf.SparseTensor(indices, values, shape)
+     return tf.one_hot(x, num_classes, axis=axis, dtype=dtype)
+ 
+ 
+-def multi_hot(x, num_classes, axis=-1, dtype="float32"):
++def multi_hot(x, num_classes, axis=-1, dtype="float32", sparse=False):
+     x = convert_to_tensor(x)
+     reduction_axis = 1 if len(x.shape) > 1 else 0
+-    outputs = tf.reduce_max(
+-        one_hot(cast(x, "int32"), num_classes, axis=axis, dtype=dtype),
+-        axis=reduction_axis,
++    one_hot_outputs = one_hot(
++        cast(x, "int32"), num_classes, axis=axis, dtype=dtype, sparse=sparse
+     )
+-    return outputs
++    if sparse:
++        # We don't use `tf.sparse.bincount`, it doesn't handle negative indices.
++        return tf.sparse.reduce_max(
++            one_hot_outputs, axis=reduction_axis, output_is_sparse=True
++        )
++    return tf.reduce_max(one_hot_outputs, axis=reduction_axis)
+ 
+ 
+ def _get_logits(output, from_logits, op_type, fn_name):
+diff --git a/keras/backend/tensorflow/numpy.py b/keras/backend/tensorflow/numpy.py
+index 9e956028191b..30479f16514e 100644
+--- a/keras/backend/tensorflow/numpy.py
++++ b/keras/backend/tensorflow/numpy.py
+@@ -16,6 +16,7 @@
+ from keras.backend.common.backend_utils import canonicalize_axis
+ from keras.backend.common.backend_utils import to_tuple_or_list
+ from keras.backend.tensorflow import sparse
++from keras.backend.tensorflow.core import cast
+ from keras.backend.tensorflow.core import convert_to_tensor
+ from keras.utils import tree
+ 
+@@ -35,7 +36,7 @@ def add(x1, x2):
+     return tf.add(x1, x2)
+ 
+ 
+-def bincount(x, weights=None, minlength=0):
++def bincount(x, weights=None, minlength=0, sparse=False):
+     x = convert_to_tensor(x)
+     dtypes_to_resolve = [x.dtype]
+     if standardize_dtype(x.dtype) not in ["int32", "int64"]:
+@@ -56,19 +57,24 @@ def bincount(x, weights=None, minlength=0):
+                 weights = tf.cast(weights, tf.float32)
+     else:
+         dtype = "int32"
+-    if isinstance(x, tf.SparseTensor):
++    if sparse or isinstance(x, tf.SparseTensor):
+         output = tf.sparse.bincount(
+             x,
+             weights=weights,
+             minlength=minlength,
+             axis=-1,
+         )
+-        output = tf.cast(output, dtype)
++        actual_length = output.shape[-1]
++        if actual_length is None:
++            actual_length = tf.shape(output)[-1]
++        output = cast(output, dtype)
+         if x.shape.rank == 1:
+-            output_shape = (minlength,)
++            output_shape = (actual_length,)
+         else:
+-            batch_size = tf.shape(output)[0]
+-            output_shape = (batch_size, minlength)
++            batch_size = output.shape[0]
++            if batch_size is None:
++                batch_size = tf.shape(output)[0]
++            output_shape = (batch_size, actual_length)
+         return tf.SparseTensor(
+             indices=output.indices,
+             values=output.values,
+@@ -946,11 +952,11 @@ def digitize(x, bins):
+     # int16, uint8, uint16, uint32
+     ori_dtype = standardize_dtype(x.dtype)
+     if ori_dtype in ("bool", "int8", "int16", "uint8", "uint16"):
+-        x = tf.cast(x, "int32")
++        x = cast(x, "int32")
+     elif ori_dtype == "uint32":
+-        x = tf.cast(x, "int64")
++        x = cast(x, "int64")
+     elif ori_dtype in ("bfloat16", "float16"):
+-        x = tf.cast(x, "float32")
++        x = cast(x, "float32")
+ 
+     if isinstance(x, tf.RaggedTensor):
+         return tf.ragged.map_flat_values(
+@@ -2032,7 +2038,11 @@ def sum(x, axis=None, keepdims=False):
+         dtype = "int32"
+     elif dtype in ("uint8", "uint16"):
+         dtype = "uint32"
+-    x = tf.cast(x, dtype)
++    x = cast(x, dtype)
++    if isinstance(x, tf.SparseTensor):
++        return tf.sparse.reduce_sum(
++            x, axis=axis, keepdims=keepdims, output_is_sparse=True
++        )
+     return tf.reduce_sum(x, axis=axis, keepdims=keepdims)
+ 
+ 
+diff --git a/keras/backend/torch/nn.py b/keras/backend/torch/nn.py
+index 6f24f8f179fe..5d0ea6cc271d 100644
+--- a/keras/backend/torch/nn.py
++++ b/keras/backend/torch/nn.py
+@@ -552,7 +552,9 @@ def conv_transpose(
+     return outputs
+ 
+ 
+-def one_hot(x, num_classes, axis=-1, dtype="float32"):
++def one_hot(x, num_classes, axis=-1, dtype="float32", sparse=False):
++    if sparse:
++        raise ValueError("Unsupported value `sparse=True` with torch backend")
+     # Axis is the output axis. By default, PyTorch, outputs to last axis.
+     # If axis is not last, change output to axis and shift remaining elements.
+     x = convert_to_tensor(x, dtype=torch.long)
+@@ -575,7 +577,9 @@ def one_hot(x, num_classes, axis=-1, dtype="float32"):
+     return output
+ 
+ 
+-def multi_hot(x, num_classes, axis=-1, dtype="float32"):
++def multi_hot(x, num_classes, axis=-1, dtype="float32", sparse=False):
++    if sparse:
++        raise ValueError("Unsupported value `sparse=True` with torch backend")
+     x = convert_to_tensor(x)
+     reduction_axis = 1 if len(x.shape) > 1 else 0
+     outputs = torch.amax(
+diff --git a/keras/backend/torch/numpy.py b/keras/backend/torch/numpy.py
+index 60499e60dce6..790f972b2a31 100644
+--- a/keras/backend/torch/numpy.py
++++ b/keras/backend/torch/numpy.py
+@@ -375,7 +375,9 @@ def average(x, axis=None, weights=None):
+     return torch.mean(x, axis)
+ 
+ 
+-def bincount(x, weights=None, minlength=0):
++def bincount(x, weights=None, minlength=0, sparse=False):
++    if sparse:
++        raise ValueError("Unsupported value `sparse=True` with torch backend")
+     x = convert_to_tensor(x)
+     dtypes_to_resolve = [x.dtype]
+     if weights is not None:
+diff --git a/keras/layers/preprocessing/category_encoding.py b/keras/layers/preprocessing/category_encoding.py
+index 120641c055c7..6c574e509978 100644
+--- a/keras/layers/preprocessing/category_encoding.py
++++ b/keras/layers/preprocessing/category_encoding.py
+@@ -1,4 +1,5 @@
+ from keras.api_export import keras_export
++from keras.backend import KerasTensor
+ from keras.layers.preprocessing.tf_data_layer import TFDataLayer
+ from keras.utils import backend_utils
+ 
+@@ -73,6 +74,8 @@ class CategoryEncoding(TFDataLayer):
+             For all output modes, currently only output up to rank 2 is
+             supported.
+             Defaults to `"multi_hot"`.
++        sparse: Whether to return a sparse tensor; for backends that support
++            sparse tensors.
+ 
+     Call arguments:
+         inputs: A 1D or 2D tensor of integer inputs.
+@@ -81,7 +84,9 @@ class CategoryEncoding(TFDataLayer):
+             Not used in `"multi_hot"` or `"one_hot"` modes.
+     """
+ 
+-    def __init__(self, num_tokens=None, output_mode="multi_hot", **kwargs):
++    def __init__(
++        self, num_tokens=None, output_mode="multi_hot", sparse=False, **kwargs
++    ):
+         super().__init__(**kwargs)
+ 
+         # Support deprecated names for output_modes.
+@@ -104,14 +109,26 @@ def __init__(self, num_tokens=None, output_mode="multi_hot", **kwargs):
+             )
+         self.num_tokens = num_tokens
+         self.output_mode = output_mode
++        self.sparse = sparse
+         self._allow_non_tensor_positional_args = True
+         self._convert_input_args = False
+ 
+     def _count(self, inputs, axis=-1, count_weights=None):
++        # We don't use `ops.bincount` here because its output has a dynamic
++        # shape (the last dimension is calculated from the highest value of
++        # `inputs`). Instead, we reimplement a narrower use case where
++        # `minlength` and `maxlength` (not supported by `ops.bincount`) are a
++        # static value and the same value of `self.num_tokens`. Also, we don't
++        # need to support indices that are negative or greater than
++        # `self.num_tokens`.
+         reduction_axis = 1 if len(inputs.shape) > 1 else 0
+ 
+         one_hot_encoding = self.backend.nn.one_hot(
+-            inputs, self.num_tokens, axis=axis, dtype=self.dtype
++            inputs,
++            self.num_tokens,
++            axis=axis,
++            dtype=self.dtype,
++            sparse=self.sparse,
+         )
+         if count_weights is not None:
+             split_weights = self.backend.numpy.split(
+@@ -132,17 +149,15 @@ def _count(self, inputs, axis=-1, count_weights=None):
+ 
+     def _encode(self, inputs, count_weights=None):
+         if self.output_mode == "multi_hot":
+-            outputs = self.backend.nn.multi_hot(
+-                inputs, self.num_tokens, dtype=self.dtype
++            return self.backend.nn.multi_hot(
++                inputs, self.num_tokens, dtype=self.dtype, sparse=self.sparse
+             )
+         elif self.output_mode == "one_hot":
+-            outputs = self.backend.nn.one_hot(
+-                inputs, self.num_tokens, dtype=self.dtype
++            return self.backend.nn.one_hot(
++                inputs, self.num_tokens, dtype=self.dtype, sparse=self.sparse
+             )
+         elif self.output_mode == "count":
+-            outputs = self._count(inputs, count_weights=count_weights)
+-
+-        return outputs
++            return self._count(inputs, count_weights=count_weights)
+ 
+     def compute_output_shape(self, input_shape):
+         if self.output_mode == "one_hot":
+@@ -152,6 +167,12 @@ def compute_output_shape(self, input_shape):
+                 return tuple(input_shape[:-1] + (self.num_tokens,))
+         return tuple(input_shape[:-1] + (self.num_tokens,))
+ 
++    def compute_output_spec(self, inputs, count_weights=None):
++        output_shape = self.compute_output_shape(inputs.shape)
++        return KerasTensor(
++            output_shape, dtype=self.compute_dtype, sparse=self.sparse
++        )
++
+     def get_config(self):
+         config = {
+             "num_tokens": self.num_tokens,
+diff --git a/keras/ops/nn.py b/keras/ops/nn.py
+index 5724f8de4569..d1a724d94070 100644
+--- a/keras/ops/nn.py
++++ b/keras/ops/nn.py
+@@ -1255,15 +1255,20 @@ def conv_transpose(
+ 
+ 
+ class OneHot(Operation):
+-    def __init__(self, num_classes, axis=-1, dtype=None):
++    def __init__(self, num_classes, axis=-1, dtype=None, sparse=False):
+         super().__init__()
+         self.num_classes = num_classes
+         self.axis = axis
+         self.dtype = dtype or backend.floatx()
++        self.sparse = sparse
+ 
+     def call(self, x):
+         return backend.nn.one_hot(
+-            x, self.num_classes, axis=self.axis, dtype=self.dtype
++            x,
++            self.num_classes,
++            axis=self.axis,
++            dtype=self.dtype,
++            sparse=self.sparse,
+         )
+ 
+     def compute_output_spec(self, x):
+@@ -1277,11 +1282,11 @@ def compute_output_spec(self, x):
+                 f"axis must be -1 or between [0, {len(x.shape)}), but "
+                 f"received {self.axis}."
+             )
+-        return KerasTensor(x_shape, dtype=self.dtype)
++        return KerasTensor(x_shape, dtype=self.dtype, sparse=self.sparse)
+ 
+ 
+ @keras_export(["keras.ops.one_hot", "keras.ops.nn.one_hot"])
+-def one_hot(x, num_classes, axis=-1, dtype=None):
++def one_hot(x, num_classes, axis=-1, dtype=None, sparse=False):
+     """Converts integer tensor `x` into a one-hot tensor.
+ 
+     The one-hot encoding is a representation where each integer value is
+@@ -1297,6 +1302,8 @@ def one_hot(x, num_classes, axis=-1, dtype=None):
+             `-1`, which represents the last axis.
+         dtype: (Optional) Data type of the output tensor. If not
+             provided, it defaults to the default data type of the backend.
++        sparse: Whether to return a sparse tensor; for backends that support
++            sparse tensors.
+ 
+     Returns:
+         Integer tensor: One-hot encoded tensor with the same shape as `x`
+@@ -1314,9 +1321,15 @@ def one_hot(x, num_classes, axis=-1, dtype=None):
+            [1. 0. 0. 0.]], shape=(4, 4), dtype=float32)
+     """
+     if any_symbolic_tensors((x,)):
+-        return OneHot(num_classes, axis=axis, dtype=dtype).symbolic_call(x)
++        return OneHot(
++            num_classes, axis=axis, dtype=dtype, sparse=sparse
++        ).symbolic_call(x)
+     return backend.nn.one_hot(
+-        x, num_classes, axis=axis, dtype=dtype or backend.floatx()
++        x,
++        num_classes,
++        axis=axis,
++        dtype=dtype or backend.floatx(),
++        sparse=sparse,
+     )
+ 
+ 
+@@ -1558,16 +1571,17 @@ class labels instead of one-hot encoded vectors. It measures the
+ 
+ class MultiHot(Operation):
+     def __init__(
+-        self, num_classes=None, axis=-1, dtype=None, name=None, **kwargs
++        self, num_classes=None, axis=-1, dtype=None, sparse=False, **kwargs
+     ):
+         if num_classes is None and "num_tokens" in kwargs:
+             num_classes = kwargs.pop("num_tokens")
+         if num_classes is None:
+             raise ValueError("Argument `num_classes` must be specified.")
+-        super().__init__(name, **kwargs)
++        super().__init__(**kwargs)
+         self.num_classes = num_classes
+         self.axis = axis
+         self.dtype = dtype or backend.floatx()
++        self.sparse = sparse
+ 
+     def call(self, inputs):
+         return backend.nn.multi_hot(
+@@ -1594,7 +1608,7 @@ def compute_output_spec(self, inputs):
+         else:
+             x_shape = [x_shape[0]] + x_shape[2:]
+ 
+-        return KerasTensor(x_shape, dtype=inputs.dtype)
++        return KerasTensor(x_shape, dtype=inputs.dtype, sparse=self.sparse)
+ 
+ 
+ @keras_export(
+@@ -1603,7 +1617,9 @@ def compute_output_spec(self, inputs):
+         "keras.ops.nn.multi_hot",
+     ]
+ )
+-def multi_hot(inputs, num_classes=None, axis=-1, dtype=None, **kwargs):
++def multi_hot(
++    inputs, num_classes=None, axis=-1, dtype=None, sparse=False, **kwargs
++):
+     """Encodes integer labels as multi-hot vectors.
+ 
+     This function encodes integer labels as multi-hot vectors, where each label
+@@ -1616,6 +1632,8 @@ def multi_hot(inputs, num_classes=None, axis=-1, dtype=None, **kwargs):
+             added. Defaults to `-1`, which corresponds to the last dimension.
+         dtype: (optional) The data type of the resulting tensor. Default
+             is backend's float type.
++        sparse: Whether to return a sparse tensor; for backends that support
++            sparse tensors.
+ 
+     Returns:
+         Tensor: The multi-hot encoded tensor.
+@@ -1633,14 +1651,14 @@ def multi_hot(inputs, num_classes=None, axis=-1, dtype=None, **kwargs):
+         raise ValueError("Argument `num_classes` must be specified.")
+ 
+     if any_symbolic_tensors((inputs,)):
+-        return MultiHot(num_classes, axis, dtype).symbolic_call(inputs)
++        return MultiHot(num_classes, axis, dtype, sparse).symbolic_call(inputs)
+ 
+-    return backend.nn.multi_hot(inputs, num_classes, axis, dtype)
++    return backend.nn.multi_hot(inputs, num_classes, axis, dtype, sparse)
+ 
+ 
+ class Moments(Operation):
+-    def __init__(self, axes, keepdims=False, synchronized=False, name=None):
+-        super().__init__(name)
++    def __init__(self, axes, keepdims=False, synchronized=False):
++        super().__init__()
+         self.axes = axes
+         self.keepdims = keepdims
+         self.synchronized = synchronized
+@@ -1709,8 +1727,8 @@ def moments(x, axes, keepdims=False, synchronized=False):
+ 
+ 
+ class BatchNorm(Operation):
+-    def __init__(self, axis, epsilon, name=None):
+-        super().__init__(name)
++    def __init__(self, axis, epsilon):
++        super().__init__()
+         self.axis = axis
+         self.epsilon = epsilon
+ 
+diff --git a/keras/ops/numpy.py b/keras/ops/numpy.py
+index c388f10263ec..f98d2cc8815f 100644
+--- a/keras/ops/numpy.py
++++ b/keras/ops/numpy.py
+@@ -1240,14 +1240,18 @@ def average(x, axis=None, weights=None):
+ 
+ 
+ class Bincount(Operation):
+-    def __init__(self, weights=None, minlength=0):
++    def __init__(self, weights=None, minlength=0, sparse=False):
+         super().__init__()
+         self.weights = weights
+         self.minlength = minlength
++        self.sparse = sparse
+ 
+     def call(self, x):
+         return backend.numpy.bincount(
+-            x, weights=self.weights, minlength=self.minlength
++            x,
++            weights=self.weights,
++            minlength=self.minlength,
++            sparse=self.sparse,
+         )
+ 
+     def compute_output_spec(self, x):
+@@ -1258,11 +1262,13 @@ def compute_output_spec(self, x):
+             dtype = dtypes.result_type(*dtypes_to_resolve)
+         else:
+             dtype = "int32"
+-        return KerasTensor(list(x.shape[:-1]) + [None], dtype=dtype)
++        return KerasTensor(
++            list(x.shape[:-1]) + [None], dtype=dtype, sparse=self.sparse
++        )
+ 
+ 
+ @keras_export(["keras.ops.bincount", "keras.ops.numpy.bincount"])
+-def bincount(x, weights=None, minlength=0):
++def bincount(x, weights=None, minlength=0, sparse=False):
+     """Count the number of occurrences of each value in a tensor of integers.
+ 
+     Args:
+@@ -1278,6 +1284,8 @@ def bincount(x, weights=None, minlength=0):
+             this number of bins in the output tensor. If greater than
+             `max(x) + 1`, each value of the output at an index higher than
+             `max(x)` is set to 0.
++        sparse: Whether to return a sparse tensor; for backends that support
++            sparse tensors.
+ 
+     Returns:
+         1D tensor where each element gives the number of occurrence(s) of its
+@@ -1298,8 +1306,12 @@ def bincount(x, weights=None, minlength=0):
+     array([0, 1, 2, 1, 0, 0], dtype=int32)
+     """
+     if any_symbolic_tensors((x,)):
+-        return Bincount(weights=weights, minlength=minlength).symbolic_call(x)
+-    return backend.numpy.bincount(x, weights=weights, minlength=minlength)
++        return Bincount(
++            weights=weights, minlength=minlength, sparse=sparse
++        ).symbolic_call(x)
++    return backend.numpy.bincount(
++        x, weights=weights, minlength=minlength, sparse=sparse
++    )
+ 
+ 
+ class BroadcastTo(Operation):
+@@ -5913,9 +5925,11 @@ def compute_output_spec(self, x):
+         # TODO: torch doesn't support uint32
+         if backend.backend() == "torch" and dtype == "uint32":
+             dtype = "int32"
++        sparse = getattr(x, "sparse", False)
+         return KerasTensor(
+             reduce_shape(x.shape, axis=self.axis, keepdims=self.keepdims),
+             dtype=dtype,
++            sparse=sparse,
+         )
+ 
+ 

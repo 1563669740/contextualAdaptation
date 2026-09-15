@@ -1,0 +1,26 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 4c276602d..309703f46 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,8 @@
+ 
+ ## Unreleased
+ 
++- fix: force_size should not skip subsequent sizes [ref](https://github.com/icloud-photos-downloader/icloud_photos_downloader/issues/955)
++
+ ## 1.23.4 (2024-09-02)
+ 
+ - fix: support plain text encoding for filename in addition to base64 [ref](https://github.com/boredazfcuk/docker-icloudpd/issues/641)
+diff --git a/src/icloudpd/base.py b/src/icloudpd/base.py
+index 30f9f71ac..96620fc74 100644
+--- a/src/icloudpd/base.py
++++ b/src/icloudpd/base.py
+@@ -893,7 +893,7 @@ def download_photo_(counter: Counter, photo: PhotoAsset) -> bool:
+                             download_size.value,
+                             photo.filename,
+                         )
+-                        return False
++                        continue
+                     if AssetVersionSize.ORIGINAL in size:
+                         continue  # that should avoid double download for original
+                     download_size = AssetVersionSize.ORIGINAL

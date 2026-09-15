@@ -1,0 +1,102 @@
+diff --git a/src/cfnlint/context/context.py b/src/cfnlint/context/context.py
+index 0773d798b7..e75efeb1b5 100644
+--- a/src/cfnlint/context/context.py
++++ b/src/cfnlint/context/context.py
+@@ -8,6 +8,7 @@
+ from abc import ABC, abstractmethod
+ from collections import deque
+ from dataclasses import InitVar, dataclass, field, fields
++from functools import lru_cache
+ from typing import Any, Deque, Iterator, Sequence, Set, Tuple
+ 
+ from cfnlint.context._mappings import Mappings
+@@ -41,6 +42,11 @@ def __post_init__(self, transforms) -> None:
+                 continue
+             self._transforms.append(transform)
+ 
++        self.has_sam_transform = lru_cache()(self.has_sam_transform)  # type: ignore
++        self.has_language_extensions_transform = lru_cache()(  # type: ignore
++            self.has_language_extensions_transform
++        )
++
+     def has_language_extensions_transform(self):
+         lang_extensions_transform = "AWS::LanguageExtensions"
+         return bool(lang_extensions_transform in self._transforms)
+@@ -282,12 +288,16 @@ class Parameter(_Ref):
+     default: Any = field(init=False)
+     allowed_values: Any = field(init=False)
+     description: str | None = field(init=False)
++    ssm_path: str | None = field(init=False, default=None)
+ 
+     parameter: InitVar[Any]
+ 
+     def __post_init__(self, parameter) -> None:
+         if not isinstance(parameter, dict):
+             raise ValueError("Parameter must be a object")
++
++        self.is_ssm_parameter = lru_cache()(self.is_ssm_parameter)  # type: ignore
++
+         self.default = None
+         self.allowed_values = []
+         self.min_value = None
+@@ -303,7 +313,8 @@ def __post_init__(self, parameter) -> None:
+ 
+         # SSM Parameter defaults and allowed values point to
+         # SSM paths not to the actual values
+-        if self.type.startswith("AWS::SSM::Parameter::"):
++        if self.is_ssm_parameter():
++            self.ssm_path = parameter.get("Default", "")
+             return
+ 
+         if self.type == "CommaDelimitedList" or self.type.startswith("List<"):
+@@ -349,6 +360,9 @@ def ref(self, context: Context) -> Iterator[Tuple[Any, deque]]:
+         if self.max_value is not None:
+             yield str(self.max_value), deque(["MaxValue"])
+ 
++    def is_ssm_parameter(self) -> bool:
++        return self.type.startswith("AWS::SSM::Parameter::")
++
+ 
+ @dataclass
+ class Resource(_Ref):
+diff --git a/src/cfnlint/rules/resources/properties/Pattern.py b/src/cfnlint/rules/resources/properties/Pattern.py
+index 1e63337f21..52b758727a 100644
+--- a/src/cfnlint/rules/resources/properties/Pattern.py
++++ b/src/cfnlint/rules/resources/properties/Pattern.py
+@@ -3,8 +3,11 @@
+ SPDX-License-Identifier: MIT-0
+ """
+ 
++from typing import Any
++
+ import regex as re
+ 
++from cfnlint.jsonschema import ValidationResult, Validator
+ from cfnlint.jsonschema._keywords import pattern
+ from cfnlint.rules import CloudFormationLintRule
+ 
+@@ -43,13 +46,22 @@ def _is_exception(self, instance: str) -> bool:
+         return False
+ 
+     # pylint: disable=unused-argument, arguments-renamed
+-    def pattern(self, validator, patrn, instance, schema):
++    def pattern(
++        self, validator: Validator, patrn: str, instance: Any, schema: Any
++    ) -> ValidationResult:
++        # https://github.com/aws-cloudformation/cfn-lint/issues/3640
++        if validator.context.transforms.has_sam_transform():
++            for _, param in validator.context.parameters.items():
++                if param.is_ssm_parameter():
++                    if param.ssm_path == instance:
++                        return
++
+         if (
+             len(validator.context.path.value_path) > 0
+             and validator.context.path.value_path[0] == "Parameters"
+         ):
+             if self.child_rules.get("W2031"):
+-                yield from self.child_rules["W2031"].pattern(
++                yield from self.child_rules["W2031"].pattern(  # type: ignore
+                     validator, patrn, instance, schema
+                 )
+             return

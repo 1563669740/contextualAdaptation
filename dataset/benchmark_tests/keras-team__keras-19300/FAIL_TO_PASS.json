@@ -1,0 +1,3 @@
+[
+  "keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_softmax_in_graph"
+]

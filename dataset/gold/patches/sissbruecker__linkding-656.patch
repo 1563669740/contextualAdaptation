@@ -1,0 +1,129 @@
+diff --git a/bookmarks/feeds.py b/bookmarks/feeds.py
+index 70628188..6c8d9f46 100644
+--- a/bookmarks/feeds.py
++++ b/bookmarks/feeds.py
+@@ -6,12 +6,12 @@
+ from django.urls import reverse
+ 
+ from bookmarks import queries
+-from bookmarks.models import Bookmark, BookmarkSearch, FeedToken
++from bookmarks.models import Bookmark, BookmarkSearch, FeedToken, UserProfile
+ 
+ 
+ @dataclass
+ class FeedContext:
+-    feed_token: FeedToken
++    feed_token: FeedToken | None
+     query_set: QuerySet[Bookmark]
+ 
+ 
+@@ -67,3 +67,39 @@ def link(self, context: FeedContext):
+ 
+     def items(self, context: FeedContext):
+         return context.query_set.filter(unread=True)
++
++
++class SharedBookmarksFeed(BaseBookmarksFeed):
++    title = "Shared bookmarks"
++    description = "All shared bookmarks"
++
++    def get_object(self, request, feed_key: str):
++        feed_token = FeedToken.objects.get(key__exact=feed_key)
++        search = BookmarkSearch(q=request.GET.get("q", ""))
++        query_set = queries.query_shared_bookmarks(
++            None, feed_token.user.profile, search, False
++        )
++        return FeedContext(feed_token, query_set)
++
++    def link(self, context: FeedContext):
++        return reverse("bookmarks:feeds.shared", args=[context.feed_token.key])
++
++    def items(self, context: FeedContext):
++        return context.query_set
++
++
++class PublicSharedBookmarksFeed(BaseBookmarksFeed):
++    title = "Public shared bookmarks"
++    description = "All public shared bookmarks"
++
++    def get_object(self, request):
++        search = BookmarkSearch(q=request.GET.get("q", ""))
++        default_profile = UserProfile()
++        query_set = queries.query_shared_bookmarks(None, default_profile, search, True)
++        return FeedContext(None, query_set)
++
++    def link(self, context: FeedContext):
++        return reverse("bookmarks:feeds.public_shared")
++
++    def items(self, context: FeedContext):
++        return context.query_set
+diff --git a/bookmarks/templates/settings/integrations.html b/bookmarks/templates/settings/integrations.html
+index 8128fc8a..c2781dea 100644
+--- a/bookmarks/templates/settings/integrations.html
++++ b/bookmarks/templates/settings/integrations.html
+@@ -49,9 +49,11 @@ <h2>REST API</h2>
+         <section class="content-area">
+             <h2>RSS Feeds</h2>
+             <p>The following URLs provide RSS feeds for your bookmarks:</p>
+-            <ul>
++            <ul style="list-style-position: outside;">
+               <li><a href="{{ all_feed_url }}">All bookmarks</a></li>
+               <li><a href="{{ unread_feed_url }}">Unread bookmarks</a></li>
++              <li><a href="{{ shared_feed_url }}">Shared bookmarks</a></li>
++              <li><a href="{{ public_shared_feed_url }}">Public shared bookmarks</a><br><span class="text-small text-gray">The public shared feed does not contain an authentication token and can be shared with other people. Only shows shared bookmarks from users who have explicitly enabled public sharing.</span></li>
+             </ul>
+             <p>
+               All URLs support appending a <code>q</code> URL parameter for specifying a search query.
+diff --git a/bookmarks/urls.py b/bookmarks/urls.py
+index 24e29e46..3b8c953b 100644
+--- a/bookmarks/urls.py
++++ b/bookmarks/urls.py
+@@ -4,7 +4,12 @@
+ 
+ from bookmarks import views
+ from bookmarks.api.routes import router
+-from bookmarks.feeds import AllBookmarksFeed, UnreadBookmarksFeed
++from bookmarks.feeds import (
++    AllBookmarksFeed,
++    UnreadBookmarksFeed,
++    SharedBookmarksFeed,
++    PublicSharedBookmarksFeed,
++)
+ from bookmarks.views import partials
+ 
+ app_name = "bookmarks"
+@@ -77,6 +82,8 @@
+     # Feeds
+     path("feeds/<str:feed_key>/all", AllBookmarksFeed(), name="feeds.all"),
+     path("feeds/<str:feed_key>/unread", UnreadBookmarksFeed(), name="feeds.unread"),
++    path("feeds/<str:feed_key>/shared", SharedBookmarksFeed(), name="feeds.shared"),
++    path("feeds/shared", PublicSharedBookmarksFeed(), name="feeds.public_shared"),
+     # Health check
+     path("health", views.health, name="health"),
+     # Manifest
+diff --git a/bookmarks/views/settings.py b/bookmarks/views/settings.py
+index 0c98f1ba..33432a41 100644
+--- a/bookmarks/views/settings.py
++++ b/bookmarks/views/settings.py
+@@ -114,6 +114,12 @@ def integrations(request):
+     unread_feed_url = request.build_absolute_uri(
+         reverse("bookmarks:feeds.unread", args=[feed_token.key])
+     )
++    shared_feed_url = request.build_absolute_uri(
++        reverse("bookmarks:feeds.shared", args=[feed_token.key])
++    )
++    public_shared_feed_url = request.build_absolute_uri(
++        reverse("bookmarks:feeds.public_shared")
++    )
+     return render(
+         request,
+         "settings/integrations.html",
+@@ -122,6 +128,8 @@ def integrations(request):
+             "api_token": api_token.key,
+             "all_feed_url": all_feed_url,
+             "unread_feed_url": unread_feed_url,
++            "shared_feed_url": shared_feed_url,
++            "public_shared_feed_url": public_shared_feed_url,
+         },
+     )
+ 

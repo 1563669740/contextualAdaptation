@@ -1,0 +1,4 @@
+[
+  "tests/components/typography/test_markdown.py::test_get_component[ul-ul]",
+  "tests/components/typography/test_markdown.py::test_get_component[ol-ol]"
+]

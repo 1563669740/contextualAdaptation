@@ -1,0 +1,41 @@
+{
+  "task_id": "jupyterlab__jupyter-ai-879",
+  "repo": "jupyterlab/jupyter-ai",
+  "pull_number": "879",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=1 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.57,
+  "base_commit": "4664a0baa2993efb2b0265d41f376dd5c902c6c8",
+  "repo_commit": "4664a0baa2993efb2b0265d41f376dd5c902c6c8",
+  "gold_commit": "267a8b9a3831942e5875635a010fea913745a927",
+  "gold_commit_count": 2,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 1,
+  "gold_loc_added": 6,
+  "gold_loc_deleted": 11,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 35,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

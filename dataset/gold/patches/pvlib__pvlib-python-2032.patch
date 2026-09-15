@@ -1,0 +1,87 @@
+diff --git a/docs/sphinx/source/whatsnew/v0.10.5.rst b/docs/sphinx/source/whatsnew/v0.10.5.rst
+index 7ee3be7613..0751366b59 100644
+--- a/docs/sphinx/source/whatsnew/v0.10.5.rst
++++ b/docs/sphinx/source/whatsnew/v0.10.5.rst
+@@ -15,6 +15,10 @@ Enhancements
+ 
+ Bug fixes
+ ~~~~~~~~~
++* Improved reliability of :py:func:`pvlib.singlediode.bishop88_mpp`,
++  :py:func:`pvlib.singlediode.bishop88_i_from_v` and
++  :py:func:`pvlib.singlediode.bishop88_v_from_i` by improving the initial
++  guess for the newton and brentq algorithms. (:issue:`2013`, :pull:`2032`)
+ * Corrected equation for Ixx0 in :py:func:`pvlib.pvsystem.sapm` (:issue:`2016`, :pull:`2019`)
+ * Fixed :py:func:`pvlib.pvsystem.retrieve_sam` silently ignoring the `path` parameter
+   when `name` was provided. Now an exception is raised requesting to only provide one
+diff --git a/pvlib/singlediode.py b/pvlib/singlediode.py
+index 6ee3593aa6..a1261f3f64 100644
+--- a/pvlib/singlediode.py
++++ b/pvlib/singlediode.py
+@@ -310,6 +310,9 @@ def fv(x, v, *a):
+     if method == 'brentq':
+         # first bound the search using voc
+         voc_est = estimate_voc(photocurrent, saturation_current, nNsVth)
++        # start iteration slightly less than NsVbi when voc_est > NsVbi, to
++        # avoid the asymptote at NsVbi
++        xp = np.where(voc_est < NsVbi, voc_est, 0.9999*NsVbi)
+ 
+         # brentq only works with scalar inputs, so we need a set up function
+         # and np.vectorize to repeatedly call the optimizer with the right
+@@ -323,7 +326,7 @@ def vd_from_brent(voc, v, iph, isat, rs, rsh, gamma, d2mutau, NsVbi,
+                           **method_kwargs)
+ 
+         vd_from_brent_vectorized = np.vectorize(vd_from_brent)
+-        vd = vd_from_brent_vectorized(voc_est, voltage, *args)
++        vd = vd_from_brent_vectorized(xp, voltage, *args)
+     elif method == 'newton':
+         x0, (voltage, *args), method_kwargs = \
+             _prepare_newton_inputs(voltage, (voltage, *args), method_kwargs)
+@@ -443,6 +446,9 @@ def bishop88_v_from_i(current, photocurrent, saturation_current,
+ 
+     # first bound the search using voc
+     voc_est = estimate_voc(photocurrent, saturation_current, nNsVth)
++    # start iteration slightly less than NsVbi when voc_est > NsVbi, to avoid
++    # the asymptote at NsVbi
++    xp = np.where(voc_est < NsVbi, voc_est, 0.9999*NsVbi)
+ 
+     def fi(x, i, *a):
+         # calculate current residual given diode voltage "x"
+@@ -461,10 +467,10 @@ def vd_from_brent(voc, i, iph, isat, rs, rsh, gamma, d2mutau, NsVbi,
+                           **method_kwargs)
+ 
+         vd_from_brent_vectorized = np.vectorize(vd_from_brent)
+-        vd = vd_from_brent_vectorized(voc_est, current, *args)
++        vd = vd_from_brent_vectorized(xp, current, *args)
+     elif method == 'newton':
+         x0, (current, *args), method_kwargs = \
+-            _prepare_newton_inputs(voc_est, (current, *args), method_kwargs)
++            _prepare_newton_inputs(xp, (current, *args), method_kwargs)
+         vd = newton(func=lambda x, *a: fi(x, current, *a), x0=x0,
+                     fprime=lambda x, *a: bishop88(x, *a, gradients=True)[3],
+                     args=args, **method_kwargs)
+@@ -579,6 +585,9 @@ def bishop88_mpp(photocurrent, saturation_current, resistance_series,
+ 
+     # first bound the search using voc
+     voc_est = estimate_voc(photocurrent, saturation_current, nNsVth)
++    # start iteration slightly less than NsVbi when voc_est > NsVbi, to avoid
++    # the asymptote at NsVbi
++    xp = np.where(voc_est < NsVbi, voc_est, 0.9999*NsVbi)
+ 
+     def fmpp(x, *a):
+         return bishop88(x, *a, gradients=True)[6]
+@@ -592,12 +601,13 @@ def fmpp(x, *a):
+                                   vbr_a, vbr, vbr_exp),
+                             **method_kwargs)
+         )
+-        vd = vec_fun(voc_est, *args)
++        vd = vec_fun(xp, *args)
+     elif method == 'newton':
+         # make sure all args are numpy arrays if max size > 1
+         # if voc_est is an array, then make a copy to use for initial guess, v0
++
+         x0, args, method_kwargs = \
+-            _prepare_newton_inputs(voc_est, args, method_kwargs)
++            _prepare_newton_inputs(xp, args, method_kwargs)
+         vd = newton(func=fmpp, x0=x0,
+                     fprime=lambda x, *a: bishop88(x, *a, gradients=True)[7],
+                     args=args, **method_kwargs)

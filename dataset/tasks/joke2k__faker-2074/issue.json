@@ -1,0 +1,13 @@
+{
+  "task_id": "joke2k__faker-2074",
+  "repo": "joke2k/faker",
+  "issue_number": "2073",
+  "issue_url": "https://github.com/joke2k/faker/issues/2073",
+  "issue_created_at": "1970-01-01 00:28:41.590451+00:00",
+  "issue_title": "Locale `hi_IN` and `en_IN` doesn't have separate male and female names",
+  "issue_body": "* Faker version: any\r\n* OS: any\r\n\r\nThe `hi_IN` & `en_IN` localization doesn't have separate male and female names along with prefixes\r\n\r\n### Steps to reproduce\r\n\r\n```py\r\n>>> from faker import Faker\r\n>>> fake = Faker(\"hi_IN\")\r\n>>> fake.first_name_male()\r\n'रचना'\r\n>>> fake.first_name_male()\r\n'इन्दु'\r\n>>> fake.first_name_male()\r\n'चन्दना'\r\n>>> fake.first_name_male()\r\n'जगदीश'\r\n>>> fake.first_name_male()\r\n'इशान'\r\n>>>\r\n>>> fake.first_name_female()\r\n'भरत'\r\n>>> fake.first_name_female()\r\n'आराध्या'\r\n>>> fake.first_name_female()\r\n'प्रदीप'\r\n>>> fake.first_name_female()\r\n'अजित'\r\n>>> fake.first_name_female()\r\n'रायन'\r\n```\r\n\r\n> Out of 5 male names, actual male names are only last 2\r\n> Out of 5 female names, actual female name is only 1 (2nd one)\r\n\r\n### Expected behavior\r\n\r\nName lists should be separate for male and female and return appropriately\r\n\r\n### Actual behavior\r\n\r\nMale and female names are mixed",
+  "problem_statement": "Locale `hi_IN` and `en_IN` doesn't have separate male and female names\n* Faker version: any\r\n* OS: any\r\n\r\nThe `hi_IN` & `en_IN` localization doesn't have separate male and female names along with prefixes\r\n\r\n### Steps to reproduce\r\n\r\n```py\r\n>>> from faker import Faker\r\n>>> fake = Faker(\"hi_IN\")\r\n>>> fake.first_name_male()\r\n'रचना'\r\n>>> fake.first_name_male()\r\n'इन्दु'\r\n>>> fake.first_name_male()\r\n'चन्दना'\r\n>>> fake.first_name_male()\r\n'जगदीश'\r\n>>> fake.first_name_male()\r\n'इशान'\r\n>>>\r\n>>> fake.first_name_female()\r\n'भरत'\r\n>>> fake.first_name_female()\r\n'आराध्या'\r\n>>> fake.first_name_female()\r\n'प्रदीप'\r\n>>> fake.first_name_female()\r\n'अजित'\r\n>>> fake.first_name_female()\r\n'रायन'\r\n```\r\n\r\n> Out of 5 male names, actual male names are only last 2\r\n> Out of 5 female names, actual female name is only 1 (2nd one)\r\n\r\n### Expected behavior\r\n\r\nName lists should be separate for male and female and return appropriately\r\n\r\n### Actual behavior\r\n\r\nMale and female names are mixed\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

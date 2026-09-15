@@ -1,0 +1,3 @@
+[
+  "packages/jupyter-ai/jupyter_ai/tests/test_config_manager.py::test_config_manager_updates_schema"
+]

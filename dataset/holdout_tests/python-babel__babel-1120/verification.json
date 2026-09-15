@@ -1,0 +1,232 @@
+{
+ "task_id": "python-babel__babel-1120",
+ "verified_utc": "2026-09-14T17:43:15Z",
+ "holdout_diff_sha256": "a8929533d1f2de9a0cab08a0692a096ae1cb1c3e349e95adef55001bc89ea8a7",
+ "node_ids": [
+  "tests/messages/test_holdout_task.py"
+ ],
+ "runs_required": 5,
+ "attempts": {
+  "base": [
+   {
+    "run": 1,
+    "rc": 1,
+    "summary": "4 failed, 1 passed in 0.32s",
+    "outcome": {
+     "counts": {
+      "passed": 1,
+      "failed": 4
+     },
+     "failed": [
+      "tests/messages/test_holdout_task.py::test_hd_single_enclosed_location_text_is_exact",
+      "tests/messages/test_holdout_task.py::test_hd_three_enclosed_locations_at_width_one",
+      "tests/messages/test_holdout_task.py::test_hd_two_enclosed_locations_at_width_one",
+      "tests/messages/test_holdout_task.py::test_hd_wrapper_never_splits_inside_an_enclosed_filename"
+     ],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": "_an_enclosed_filename.<locals>.<genexpr> at 0x0000024F866FB840>)\n\ntests\\messages\\test_holdout_task.py:115: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/messages/test_holdout_task.py::test_hd_two_enclosed_locations_at_width_one\nFAILED tests/messages/test_holdout_task.py::test_hd_three_enclosed_locations_at_width_one\nFAILED tests/messages/test_holdout_task.py::test_hd_single_enclosed_location_text_is_exact\nFAILED tests/messages/test_holdout_task.py::test_hd_wrapper_never_splits_inside_an_enclosed_filename\n4 failed, 1 passed in 0.32s\n",
+    "stderr_tail": ""
+   }
+  ],
+  "gold": [
+   {
+    "run": 1,
+    "rc": 0,
+    "summary": "5 passed in 0.16s",
+    "outcome": {
+     "counts": {
+      "passed": 5
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1120.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": ".....                                                                    [100%]\n5 passed in 0.16s\n",
+    "stderr_tail": ""
+   }
+  ],
+  "determinism": [
+   {
+    "run": 1,
+    "rc": 0,
+    "summary": "5 passed in 0.16s",
+    "outcome": {
+     "counts": {
+      "passed": 5
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1120.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": ".....                                                                    [100%]\n5 passed in 0.16s\n",
+    "stderr_tail": ""
+   },
+   {
+    "run": 2,
+    "rc": 0,
+    "summary": "5 passed in 0.19s",
+    "outcome": {
+     "counts": {
+      "passed": 5
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1120.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": ".....                                                                    [100%]\n5 passed in 0.19s\n",
+    "stderr_tail": ""
+   },
+   {
+    "run": 3,
+    "rc": 0,
+    "summary": "5 passed in 0.16s",
+    "outcome": {
+     "counts": {
+      "passed": 5
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1120.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": ".....                                                                    [100%]\n5 passed in 0.16s\n",
+    "stderr_tail": ""
+   },
+   {
+    "run": 4,
+    "rc": 0,
+    "summary": "5 passed in 0.16s",
+    "outcome": {
+     "counts": {
+      "passed": 5
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1120.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": ".....                                                                    [100%]\n5 passed in 0.16s\n",
+    "stderr_tail": ""
+   },
+   {
+    "run": 5,
+    "rc": 0,
+    "summary": "5 passed in 0.16s",
+    "outcome": {
+     "counts": {
+      "passed": 5
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1120.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": ".....                                                                    [100%]\n5 passed in 0.16s\n",
+    "stderr_tail": ""
+   }
+  ]
+ },
+ "verdict": {
+  "fails_at_base": true,
+  "passes_on_gold": true,
+  "deterministic_over_5_runs": true,
+  "distinct_outcomes": [
+   {
+    "counts": {
+     "passed": 5
+    },
+    "errored": [],
+    "failed": []
+   }
+  ],
+  "n_discriminating_tests": 4,
+  "n_tests_collected": 5,
+  "admitted": true
+ }
+}

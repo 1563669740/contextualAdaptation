@@ -1,0 +1,4 @@
+[
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_lateral_ref",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_lateral_ref_within_subquery"
+]

@@ -1,0 +1,3 @@
+[
+  "tests/test_xmp_sidecar.py::BuildXMPMetadata::test_build_metadata"
+]

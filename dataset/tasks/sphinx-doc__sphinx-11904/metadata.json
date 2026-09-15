@@ -1,0 +1,41 @@
+{
+  "task_id": "sphinx-doc__sphinx-11904",
+  "repo": "sphinx-doc/sphinx",
+  "pull_number": "11904",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "issue-template sections present (n=2)",
+  "task_type_confidence": 0.8,
+  "base_commit": "7041f11fb00d85ecc7ba8951beca6726868ad50e",
+  "repo_commit": "7041f11fb00d85ecc7ba8951beca6726868ad50e",
+  "gold_commit": "3ac2b52be9246633abe8df316307090e7e426602",
+  "gold_commit_count": 1,
+  "estimated_difficulty": "Easy",
+  "estimated_completion_time_min": 25,
+  "gold_files_changed": 1,
+  "gold_loc_added": 2,
+  "gold_loc_deleted": 0,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 1899,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

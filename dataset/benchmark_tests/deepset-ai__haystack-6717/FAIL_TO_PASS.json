@@ -1,0 +1,5 @@
+[
+  "test/components/retrievers/test_in_memory_bm25_retriever.py::TestMemoryBM25Retriever::test_retriever_valid_run",
+  "test/document_stores/test_in_memory.py::TestMemoryDocumentStore::test_bm25_retrieval_with_updated_docs",
+  "test/document_stores/test_in_memory.py::TestMemoryDocumentStore::test_bm25_retrieval_default_filter_for_text_and_dataframes"
+]

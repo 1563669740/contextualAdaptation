@@ -1,0 +1,6 @@
+[
+  "tests/integrations/docker/test_Docker__subprocess_env.py::test_subprocess_env[None-subprocess_env0]",
+  "tests/integrations/docker/test_Docker__subprocess_env.py::test_subprocess_env[env1-subprocess_env1]",
+  "tests/integrations/docker/test_Docker__subprocess_env.py::test_subprocess_env[env2-subprocess_env2]",
+  "tests/integrations/docker/test_Docker__subprocess_env.py::test_subprocess_env[env3-subprocess_env3]"
+]

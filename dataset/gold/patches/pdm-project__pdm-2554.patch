@@ -1,0 +1,402 @@
+diff --git a/docs/docs/usage/config.md b/docs/docs/usage/config.md
+index 84d7e1b4d0..e89f59a754 100644
+--- a/docs/docs/usage/config.md
++++ b/docs/docs/usage/config.md
+@@ -73,11 +73,11 @@ pdm config python.providers pyenv,asdf  # pyenv and asdf
+ 
+ ## Allow prereleases in resolution result
+ 
+-By default, `pdm`'s dependency resolver will ignore prereleases unless there are no stable versions for the given version range of a dependency. This behavior can be changed by setting `allow_prereleases` to `true` in `[tool.pdm]` table:
++By default, `pdm`'s dependency resolver will ignore prereleases unless there are no stable versions for the given version range of a dependency. This behavior can be changed by setting `allow-prereleases` to `true` in `[tool.pdm.resolution]` table:
+ 
+ ```toml
+-[tool.pdm]
+-allow_prereleases = true
++[tool.pdm.resolution]
++allow-prereleases = true
+ ```
+ 
+ ## Configure the package indexes
+diff --git a/docs/docs/usage/dependency.md b/docs/docs/usage/dependency.md
+index 948b95c81a..cecee317c7 100644
+--- a/docs/docs/usage/dependency.md
++++ b/docs/docs/usage/dependency.md
+@@ -474,8 +474,8 @@ certifi 2023.7.22
+ Include the following setting in `pyproject.toml` to enable:
+ 
+ ```toml
+-[tool.pdm]
+-allow_prereleases = true
++[tool.pdm.resolution]
++allow-prereleases = true
+ ```
+ 
+ ## Set acceptable format for locking or installing
+diff --git a/news/2552.feature.1.md b/news/2552.feature.1.md
+new file mode 100644
+index 0000000000..436680c40d
+--- /dev/null
++++ b/news/2552.feature.1.md
+@@ -0,0 +1,1 @@
++Prereleases will be allowed if a prerelease version is pinned in the lockfile. This can be disabled by passing `--stable` option.
+diff --git a/news/2552.feature.2.md b/news/2552.feature.2.md
+new file mode 100644
+index 0000000000..6c0ed898eb
+--- /dev/null
++++ b/news/2552.feature.2.md
+@@ -0,0 +1,1 @@
++Rename the `preferred_pins` argument of provider classes to `locked_candidates`, and deprecate the old name.
+diff --git a/news/2552.feature.3.md b/news/2552.feature.3.md
+new file mode 100644
+index 0000000000..f7690bc74d
+--- /dev/null
++++ b/news/2552.feature.3.md
+@@ -0,0 +1,1 @@
++Change `tracked_names` argument to keyword-only. Move `allow_prereleases` setting to `tool.pdm.resolution` table.
+diff --git a/src/pdm/cli/commands/add.py b/src/pdm/cli/commands/add.py
+index 0eb44b2210..bde2d9f305 100644
+--- a/src/pdm/cli/commands/add.py
++++ b/src/pdm/cli/commands/add.py
+@@ -97,7 +97,7 @@ def do_add(
+         no_editable: bool = False,
+         no_self: bool = False,
+         dry_run: bool = False,
+-        prerelease: bool = False,
++        prerelease: bool | None = None,
+         fail_fast: bool = False,
+         hooks: HookManager | None = None,
+     ) -> None:
+diff --git a/src/pdm/cli/commands/update.py b/src/pdm/cli/commands/update.py
+index 2b1bb44c04..39561b6f6e 100644
+--- a/src/pdm/cli/commands/update.py
++++ b/src/pdm/cli/commands/update.py
+@@ -101,7 +101,7 @@ def do_update(
+         sync: bool = True,
+         no_editable: bool = False,
+         no_self: bool = False,
+-        prerelease: bool = False,
++        prerelease: bool | None = None,
+         fail_fast: bool = False,
+         hooks: HookManager | None = None,
+     ) -> None:
+@@ -124,8 +124,8 @@ def do_update(
+         updated_deps: dict[str, dict[str, Requirement]] = defaultdict(dict)
+         locked_groups = project.lockfile.groups
+         if not packages:
+-            if prerelease:
+-                raise PdmUsageError("--prerelease must be used with packages given")
++            if prerelease is not None:
++                raise PdmUsageError("--prerelease/--stable must be used with packages given")
+             selection.validate()
+             for group in selection:
+                 updated_deps[group] = all_dependencies[group]
+diff --git a/src/pdm/cli/options.py b/src/pdm/cli/options.py
+index c6f518a631..b334b88850 100644
+--- a/src/pdm/cli/options.py
++++ b/src/pdm/cli/options.py
+@@ -378,13 +378,18 @@ def ignore_python_option(
+     os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
+ 
+ 
+-prerelease_option = Option(
++prerelease_option = ArgumentGroup("prerelease", is_mutually_exclusive=True)
++prerelease_option.add_argument(
+     "--pre",
+     "--prerelease",
+     action="store_true",
+     dest="prerelease",
++    default=None,
+     help="Allow prereleases to be pinned",
+ )
++prerelease_option.add_argument(
++    "--stable", action="store_false", dest="prerelease", help="Only allow stable versions to be pinned"
++)
+ unconstrained_option = Option(
+     "-u",
+     "--unconstrained",
+diff --git a/src/pdm/formats/pipfile.py b/src/pdm/formats/pipfile.py
+index 1272e75ed1..279da2d70b 100644
+--- a/src/pdm/formats/pipfile.py
++++ b/src/pdm/formats/pipfile.py
+@@ -51,10 +51,10 @@ def convert(project: Project, filename: PathLike, options: Namespace | None) ->
+     with open(filename, "rb") as fp:
+         data = tomllib.load(fp)
+     result = {}
+-    settings = {}
++    settings: dict[str, Any] = {}
+     backend = project.backend
+-    if "pipenv" in data:
+-        settings["allow_prereleases"] = data["pipenv"].get("allow_prereleases", False)
++    if "pipenv" in data and "allow_prereleases" in data["pipenv"]:
++        settings.setdefault("resolution", {})["allow-prereleases"] = data["pipenv"]["allow_prereleases"]
+     if "requires" in data:
+         python_version = data["requires"].get("python_full_version") or data["requires"].get("python_version")
+         result["requires-python"] = f">={python_version}"
+diff --git a/src/pdm/models/requirements.py b/src/pdm/models/requirements.py
+index c4d6a730de..38360eae9a 100644
+--- a/src/pdm/models/requirements.py
++++ b/src/pdm/models/requirements.py
+@@ -81,7 +81,7 @@ class Requirement:
+     extras: Sequence[str] | None = None
+     specifier: SpecifierSet | None = None
+     editable: bool = False
+-    prerelease: bool = False
++    prerelease: bool | None = None
+     groups: list[str] = dataclasses.field(default_factory=list)
+ 
+     def __post_init__(self) -> None:
+diff --git a/src/pdm/project/core.py b/src/pdm/project/core.py
+index 31c63978b5..a1649fe628 100644
+--- a/src/pdm/project/core.py
++++ b/src/pdm/project/core.py
+@@ -345,10 +345,6 @@ def iter_groups(self) -> Iterable[str]:
+     def all_dependencies(self) -> dict[str, dict[str, Requirement]]:
+         return {group: self.get_dependencies(group) for group in self.iter_groups()}
+ 
+-    @property
+-    def allow_prereleases(self) -> bool | None:
+-        return self.pyproject.settings.get("allow_prereleases")
+-
+     @property
+     def default_source(self) -> RepositoryConfig:
+         """Get the default source from the pypi setting"""
+@@ -426,33 +422,42 @@ def get_provider(
+         :returns: The provider object
+         """
+ 
+-        from pdm.resolver.providers import BaseProvider, ReusePinProvider, get_provider
++        from pdm.resolver.providers import BaseProvider, get_provider, provider_arguments
+ 
+         repository = self.get_repository(ignore_compatibility=ignore_compatibility)
+-        allow_prereleases = self.allow_prereleases
+         locked_repository: LockedRepository | None = None
+-        if strategy != "all" or for_install:
+-            try:
+-                locked_repository = self.locked_repository
+-            except Exception:
+-                if for_install:
+-                    raise
++        try:
++            locked_repository = self.locked_repository
++        except Exception:  # pragma: no cover
++            if for_install:
++                raise
++            if strategy != "all":
+                 self.core.ui.warn("Unable to reuse the lock file as it is not compatible with PDM")
+ 
+-        if locked_repository is None:
+-            return BaseProvider(repository, allow_prereleases, direct_minimal_versions=direct_minimal_versions)
+         if for_install:
+-            return BaseProvider(locked_repository, allow_prereleases, direct_minimal_versions=direct_minimal_versions)
++            assert locked_repository is not None
++            return BaseProvider(
++                locked_repository, direct_minimal_versions=direct_minimal_versions, locked_candidates={}
++            )
+         provider_class = get_provider(strategy)
+-        assert issubclass(provider_class, ReusePinProvider)
+-        tracked_names = [strip_extras(name)[0] for name in tracked_names or ()]
+-        return provider_class(
+-            locked_repository.all_candidates,
+-            tracked_names,
+-            repository,
+-            allow_prereleases,
+-            direct_minimal_versions=direct_minimal_versions,
+-        )
++        params: dict[str, Any] = {}
++        if strategy != "all":
++            params["tracked_names"] = [strip_extras(name)[0] for name in tracked_names or ()]
++        locked_candidates = {} if locked_repository is None else locked_repository.all_candidates
++        accepted_args = provider_arguments(provider_class)
++        if "locked_candidates" in accepted_args:
++            params["locked_candidates"] = locked_candidates
++        elif "preferred_pins" in accepted_args:  # pragma: no cover
++            deprecation_warning(
++                "`preferred_pins` has been moved to keyword-only argument `locked_candidates`", stacklevel=1
++            )
++            params["preferred_pins"] = locked_candidates
++        else:  # pragma: no cover
++            deprecation_warning(
++                "Missing `locked_candidates` argument from the provider class, it will be populated automatically",
++                stacklevel=1,
++            )
++        return provider_class(repository=repository, direct_minimal_versions=direct_minimal_versions, **params)
+ 
+     def get_reporter(
+         self,
+diff --git a/src/pdm/project/project_file.py b/src/pdm/project/project_file.py
+index b2c397ec0d..222d97f4c8 100644
+--- a/src/pdm/project/project_file.py
++++ b/src/pdm/project/project_file.py
+@@ -2,6 +2,7 @@
+ 
+ import hashlib
+ import json
++import warnings
+ from typing import Any, Mapping
+ 
+ from tomlkit import TOMLDocument, items
+@@ -66,6 +67,17 @@ def resolution(self) -> Mapping[str, Any]:
+         """
+         return self.settings.get("resolution", {})
+ 
++    @property
++    def allow_prereleases(self) -> bool | None:
++        if "allow_prereleases" in self.settings:  # pragma: no cover
++            warnings.warn(
++                "'tool.pdm.allow_prereleases' is deprecated, use 'tool.pdm.resolution.allow-prereleases' instead.",
++                FutureWarning,
++                stacklevel=3,
++            )
++            return self.settings["allow_prereleases"]
++        return self.resolution.get("allow-prereleases")
++
+     def content_hash(self, algo: str = "sha256") -> str:
+         """Generate a hash of the sensible content of the pyproject.toml file.
+         When the hash changes, it means the project needs to be relocked.
+diff --git a/src/pdm/resolver/providers.py b/src/pdm/resolver/providers.py
+index 7e408c2c64..a14dca2638 100644
+--- a/src/pdm/resolver/providers.py
++++ b/src/pdm/resolver/providers.py
+@@ -1,9 +1,11 @@
+ from __future__ import annotations
+ 
++import inspect
+ import os
+ from typing import TYPE_CHECKING, Callable, cast
+ 
+ from packaging.specifiers import InvalidSpecifier, SpecifierSet
++from packaging.version import InvalidVersion, Version
+ from resolvelib import AbstractProvider, RequirementsConflicted
+ from resolvelib.resolvers import Criterion
+ 
+@@ -32,6 +34,18 @@ def get_provider(strategy: str) -> type[BaseProvider]:
+     return _PROVIDER_REGISTORY[strategy]
+ 
+ 
++def provider_arguments(provider: type[BaseProvider]) -> set[str]:
++    arguments: set[str] = set()
++    for cls in provider.__mro__:
++        if "__init__" not in cls.__dict__:
++            continue
++        params = inspect.signature(cls).parameters
++        arguments.update({k for k, v in params.items() if v.kind not in (v.VAR_POSITIONAL, v.VAR_KEYWORD)})
++        if not any(p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD) for p in params.values()):
++            break
++    return arguments
++
++
+ def register_provider(strategy: str) -> Callable[[type[BaseProvider]], type[BaseProvider]]:
+     def wrapper(cls: type[BaseProvider]) -> type[BaseProvider]:
+         _PROVIDER_REGISTORY[strategy] = cls
+@@ -48,20 +62,33 @@ def __init__(
+         allow_prereleases: bool | None = None,
+         overrides: dict[str, str] | None = None,
+         direct_minimal_versions: bool = False,
++        locked_candidates: dict[str, Candidate] | None = None,
+     ) -> None:
+-        if overrides is not None:
++        if overrides is not None:  # pragma: no cover
+             deprecation_warning(
+                 "The `overrides` argument is deprecated and will be removed in the future.", stacklevel=2
+             )
++        if allow_prereleases is not None:  # pragma: no cover
++            deprecation_warning(
++                "The `allow_prereleases` argument is deprecated and will be removed in the future.", stacklevel=2
++            )
+         project = repository.environment.project
++        if locked_candidates is None:  # pragma: no cover
++            try:
++                locked_repository = project.locked_repository
++            except Exception:
++                locked_candidates = {}
++            else:
++                locked_candidates = locked_repository.all_candidates
+         self.repository = repository
+-        self.allow_prereleases = allow_prereleases  # Root allow_prereleases value
++        self.allow_prereleases = project.pyproject.allow_prereleases  # Root allow_prereleases value
+         self.fetched_dependencies: dict[tuple[str, str | None], list[Requirement]] = {}
+         self.overrides: Mapping[str, str] = {
+             normalize_name(k): v for k, v in project.pyproject.resolution.get("overrides", {}).items()
+         }
+         self.excludes = {normalize_name(k) for k in project.pyproject.resolution.get("excludes", [])}
+         self.direct_minimal_versions = direct_minimal_versions
++        self.locked_candidates = locked_candidates
+         self._known_depth: dict[str, int] = {}
+ 
+     def requirement_preference(self, requirement: Requirement) -> Comparable:
+@@ -75,7 +102,9 @@ def requirement_preference(self, requirement: Requirement) -> Comparable:
+         is_named = requirement.is_named
+         is_pinned = requirement.is_pinned
+         is_prerelease = (
+-            requirement.prerelease or requirement.specifier is not None and bool(requirement.specifier.prereleases)
++            bool(requirement.prerelease)
++            or requirement.specifier is not None
++            and bool(requirement.specifier.prereleases)
+         )
+         specifier_parts = len(requirement.specifier) if requirement.specifier else 0
+         return (not editable, is_named, not is_pinned, not is_prerelease, -specifier_parts)
+@@ -158,9 +187,21 @@ def _find_candidates(self, requirement: Requirement) -> Iterable[Candidate]:
+                 can.prepare(self.repository.environment).metadata
+             return [can]
+         else:
++            prerelease = requirement.prerelease
++            if prerelease is None and (key := requirement.identify()) in self.locked_candidates:
++                # keep the prerelease if it is locked
++                candidate = self.locked_candidates[key]
++                if candidate.version is not None:
++                    try:
++                        parsed_version = Version(candidate.version)
++                    except InvalidVersion:  # pragma: no cover
++                        pass
++                    else:
++                        if parsed_version.is_prerelease:
++                            prerelease = True
+             return self.repository.find_candidates(
+                 requirement,
+-                requirement.prerelease or self.allow_prereleases,
++                self.allow_prereleases if prerelease is None else prerelease,
+                 minimal_version=self.direct_minimal_versions and self._is_direct_requirement(requirement),
+             )
+ 
+@@ -279,22 +320,15 @@ class ReusePinProvider(BaseProvider):
+     where already-pinned candidates in lockfile should be preferred.
+     """
+ 
+-    def __init__(
+-        self,
+-        preferred_pins: dict[str, Candidate],
+-        tracked_names: Iterable[str],
+-        *args: Any,
+-        **kwargs: Any,
+-    ) -> None:
++    def __init__(self, *args: Any, tracked_names: Iterable[str], **kwargs: Any) -> None:
+         super().__init__(*args, **kwargs)
+-        self.preferred_pins = preferred_pins
+         self.tracked_names = set(tracked_names)
+ 
+     def get_reuse_candidate(self, identifier: str, requirement: Requirement | None) -> Candidate | None:
+         bare_name = strip_extras(identifier)[0]
+         if bare_name in self.tracked_names:
+             return None
+-        pin = self.preferred_pins.get(identifier)
++        pin = self.locked_candidates.get(identifier)
+         if pin is None:
+             return None
+         if requirement is not None:
+@@ -368,14 +402,8 @@ def get_preference(
+ class ReuseInstalledProvider(ReusePinProvider):
+     """A provider that reuses installed packages if possible."""
+ 
+-    def __init__(
+-        self,
+-        preferred_pins: dict[str, Candidate],
+-        tracked_names: Iterable[str],
+-        *args: Any,
+-        **kwargs: Any,
+-    ) -> None:
+-        super().__init__(preferred_pins, tracked_names, *args, **kwargs)
++    def __init__(self, *args: Any, **kwargs: Any) -> None:
++        super().__init__(*args, **kwargs)
+         self.installed = self.repository.environment.get_working_set()
+ 
+     def get_reuse_candidate(self, identifier: str, requirement: Requirement | None) -> Candidate | None:

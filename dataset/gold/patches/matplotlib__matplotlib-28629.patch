@@ -1,0 +1,13 @@
+diff --git a/lib/matplotlib/axis.py b/lib/matplotlib/axis.py
+index 483c9a3db15f..158d4a02ee61 100644
+--- a/lib/matplotlib/axis.py
++++ b/lib/matplotlib/axis.py
+@@ -1362,7 +1362,7 @@ def get_tightbbox(self, renderer=None, *, for_layout_only=False):
+         collapsed to near zero.  This allows tight/constrained_layout to ignore
+         too-long labels when doing their layout.
+         """
+-        if not self.get_visible():
++        if not self.get_visible() or for_layout_only and not self.get_in_layout():
+             return
+         if renderer is None:
+             renderer = self.figure._get_renderer()

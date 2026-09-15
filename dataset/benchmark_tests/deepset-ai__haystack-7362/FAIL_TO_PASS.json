@@ -1,0 +1,6 @@
+[
+  "test/components/converters/test_pypdf_to_document.py::TestPyPDFToDocument::test_init",
+  "test/components/converters/test_pypdf_to_document.py::TestPyPDFToDocument::test_to_dict",
+  "test/components/converters/test_pypdf_to_document.py::TestPyPDFToDocument::test_from_dict",
+  "test/components/converters/test_pypdf_to_document.py::TestPyPDFToDocument::test_from_dict_with_converter_name"
+]

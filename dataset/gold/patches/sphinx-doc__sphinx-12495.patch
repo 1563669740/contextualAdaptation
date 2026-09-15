@@ -1,0 +1,49 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 26214a18220..c36233573a3 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -86,6 +86,9 @@ Bugs fixed
+ * #12331: Resolve data-URI-image-extraction regression from v7.3.0 affecting
+   builders without native support for data-URIs in their output format.
+   Patch by James Addison.
++* #12494: Fix invalid genindex.html file produced with translated docs
++  (regression in 7.1.0).
++  Patch by Nicolas Peugnet.
+ 
+ Testing
+ -------
+diff --git a/sphinx/domains/std/__init__.py b/sphinx/domains/std/__init__.py
+index 504c950272a..f2cdbc0e81a 100644
+--- a/sphinx/domains/std/__init__.py
++++ b/sphinx/domains/std/__init__.py
+@@ -272,7 +272,7 @@ def split_term_classifiers(line: str) -> tuple[str, str | None]:
+     return term, first_classifier
+ 
+ 
+-def make_glossary_term(env: BuildEnvironment, textnodes: Iterable[Node], index_key: str,
++def make_glossary_term(env: BuildEnvironment, textnodes: Iterable[Node], index_key: str | None,
+                        source: str, lineno: int, node_id: str | None, document: nodes.document,
+                        ) -> nodes.term:
+     # get a text-only representation of the term and register it
+@@ -395,7 +395,7 @@ def run(self) -> list[Node]:
+ 
+                 # use first classifier as a index key
+                 term = make_glossary_term(self.env, textnodes,
+-                                          first_classifier, source, lineno,  # type: ignore[arg-type]
++                                          first_classifier, source, lineno,
+                                           node_id=None, document=self.state.document)
+                 term.rawsource = line
+                 system_messages.extend(sysmsg)
+diff --git a/sphinx/transforms/i18n.py b/sphinx/transforms/i18n.py
+index c9fb4a25caf..35e1a086abb 100644
+--- a/sphinx/transforms/i18n.py
++++ b/sphinx/transforms/i18n.py
+@@ -411,7 +411,7 @@ def apply(self, **kwargs: Any) -> None:
+                         self.app, term or '', source, node.line, self.config, settings,  # type: ignore[arg-type]
+                     )
+                     updater.patch = make_glossary_term(
+-                        self.env, patch, first_classifier or '',
++                        self.env, patch, first_classifier,
+                         source, node.line, _id, self.document,  # type: ignore[arg-type]
+                     )
+                     processed = True

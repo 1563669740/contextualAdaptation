@@ -1,0 +1,222 @@
+diff --git a/doc/users/next_whats_new/histogram_vectorized_parameters.rst b/doc/users/next_whats_new/histogram_vectorized_parameters.rst
+new file mode 100644
+index 000000000000..7b9c04e71739
+--- /dev/null
++++ b/doc/users/next_whats_new/histogram_vectorized_parameters.rst
+@@ -0,0 +1,46 @@
++Vectorized ``hist`` style parameters
++------------------------------------
++
++The parameters *hatch*, *edgecolor*, *facecolor*, *linewidth* and *linestyle*
++of the `~matplotlib.axes.Axes.hist` method are now vectorized.
++This means that you can pass in individual parameters for each histogram
++when the input *x* has multiple datasets.
++
++
++.. plot::
++    :include-source: true
++    :alt: Four charts, each displaying stacked histograms of three Poisson distributions. Each chart differentiates the histograms using various parameters: top left uses different linewidths, top right uses different hatches, bottom left uses different edgecolors, and bottom right uses different facecolors. Each histogram on the left side also has a different edgecolor.
++
++    import matplotlib.pyplot as plt
++    import numpy as np
++    np.random.seed(19680801)
++
++    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(9, 9))
++
++    data1 = np.random.poisson(5, 1000)
++    data2 = np.random.poisson(7, 1000)
++    data3 = np.random.poisson(10, 1000)
++
++    labels = ["Data 1", "Data 2", "Data 3"]
++
++    ax1.hist([data1, data2, data3], bins=range(17), histtype="step", stacked=True,
++             edgecolor=["red", "green", "blue"], linewidth=[1, 2, 3])
++    ax1.set_title("Different linewidths")
++    ax1.legend(labels)
++
++    ax2.hist([data1, data2, data3], bins=range(17), histtype="barstacked",
++             hatch=["/", ".", "*"])
++    ax2.set_title("Different hatch patterns")
++    ax2.legend(labels)
++
++    ax3.hist([data1, data2, data3], bins=range(17), histtype="bar", fill=False,
++             edgecolor=["red", "green", "blue"], linestyle=["--", "-.", ":"])
++    ax3.set_title("Different linestyles")
++    ax3.legend(labels)
++
++    ax4.hist([data1, data2, data3], bins=range(17), histtype="barstacked",
++             facecolor=["red", "green", "blue"])
++    ax4.set_title("Different facecolors")
++    ax4.legend(labels)
++
++    plt.show()
+diff --git a/galleries/examples/statistics/histogram_multihist.py b/galleries/examples/statistics/histogram_multihist.py
+index f1957dc38939..b9a9c5f0bf26 100644
+--- a/galleries/examples/statistics/histogram_multihist.py
++++ b/galleries/examples/statistics/histogram_multihist.py
+@@ -15,7 +15,7 @@
+ select these parameters:
+ http://docs.astropy.org/en/stable/visualization/histogram.html
+ """
+-
++# %%
+ import matplotlib.pyplot as plt
+ import numpy as np
+ 
+@@ -45,6 +45,94 @@
+ fig.tight_layout()
+ plt.show()
+ 
++# %%
++# -----------------------------------
++# Setting properties for each dataset
++# -----------------------------------
++#
++# You can style the histograms individually by passing a list of values to the
++# following parameters:
++#
++# * edgecolor
++# * facecolor
++# * hatch
++# * linewidth
++# * linestyle
++#
++#
++# edgecolor
++# .........
++
++fig, ax = plt.subplots()
++
++edgecolors = ['green', 'red', 'blue']
++
++ax.hist(x, n_bins, fill=False, histtype="step", stacked=True,
++        edgecolor=edgecolors, label=edgecolors)
++ax.legend()
++ax.set_title('Stacked Steps with Edgecolors')
++
++plt.show()
++
++# %%
++# facecolor
++# .........
++
++fig, ax = plt.subplots()
++
++facecolors = ['green', 'red', 'blue']
++
++ax.hist(x, n_bins, histtype="barstacked", facecolor=facecolors, label=facecolors)
++ax.legend()
++ax.set_title("Bars with different Facecolors")
++
++plt.show()
++
++# %%
++# hatch
++# .....
++
++fig, ax = plt.subplots()
++
++hatches = [".", "o", "x"]
++
++ax.hist(x, n_bins, histtype="barstacked", hatch=hatches, label=hatches)
++ax.legend()
++ax.set_title("Hatches on Stacked Bars")
++
++plt.show()
++
++# %%
++# linewidth
++# .........
++
++fig, ax = plt.subplots()
++
++linewidths = [1, 2, 3]
++edgecolors = ["green", "red", "blue"]
++
++ax.hist(x, n_bins, fill=False, histtype="bar", linewidth=linewidths,
++        edgecolor=edgecolors, label=linewidths)
++ax.legend()
++ax.set_title("Bars with Linewidths")
++
++plt.show()
++
++# %%
++# linestyle
++# .........
++
++fig, ax = plt.subplots()
++
++linestyles = ['-', ':', '--']
++
++ax.hist(x, n_bins, fill=False, histtype='bar', linestyle=linestyles,
++        edgecolor=edgecolors, label=linestyles)
++ax.legend()
++ax.set_title('Bars with Linestyles')
++
++plt.show()
++
+ # %%
+ #
+ # .. admonition:: References
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index 52c99b125d36..07393b1028d2 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -6937,7 +6937,13 @@ def hist(self, x, bins=None, range=None, density=False, weights=None,
+             DATA_PARAMETER_PLACEHOLDER
+ 
+         **kwargs
+-            `~matplotlib.patches.Patch` properties
++            `~matplotlib.patches.Patch` properties. The following properties
++            additionally accept a sequence of values corresponding to the
++            datasets in *x*:
++            *edgecolors*, *facecolors*, *lines*, *linestyles*, *hatches*.
++
++            .. versionadded:: 3.10
++               Allowing sequences of values in above listed Patch properties.
+ 
+         See Also
+         --------
+@@ -7210,15 +7216,35 @@ def hist(self, x, bins=None, range=None, density=False, weights=None,
+         # If None, make all labels None (via zip_longest below); otherwise,
+         # cast each element to str, but keep a single str as it.
+         labels = [] if label is None else np.atleast_1d(np.asarray(label, str))
++
++        if histtype == "step":
++            edgecolors = itertools.cycle(np.atleast_1d(kwargs.get('edgecolor',
++                                                                  colors)))
++        else:
++            edgecolors = itertools.cycle(np.atleast_1d(kwargs.get("edgecolor", None)))
++
++        facecolors = itertools.cycle(np.atleast_1d(kwargs.get('facecolor', colors)))
++        hatches = itertools.cycle(np.atleast_1d(kwargs.get('hatch', None)))
++        linewidths = itertools.cycle(np.atleast_1d(kwargs.get('linewidth', None)))
++        linestyles = itertools.cycle(np.atleast_1d(kwargs.get('linestyle', None)))
++
+         for patch, lbl in itertools.zip_longest(patches, labels):
+-            if patch:
+-                p = patch[0]
++            if not patch:
++                continue
++            p = patch[0]
++            kwargs.update({
++                'hatch': next(hatches),
++                'linewidth': next(linewidths),
++                'linestyle': next(linestyles),
++                'edgecolor': next(edgecolors),
++                'facecolor': next(facecolors),
++            })
++            p._internal_update(kwargs)
++            if lbl is not None:
++                p.set_label(lbl)
++            for p in patch[1:]:
+                 p._internal_update(kwargs)
+-                if lbl is not None:
+-                    p.set_label(lbl)
+-                for p in patch[1:]:
+-                    p._internal_update(kwargs)
+-                    p.set_label('_nolegend_')
++                p.set_label('_nolegend_')
+ 
+         if nx == 1:
+             return tops[0], bins, patches[0]

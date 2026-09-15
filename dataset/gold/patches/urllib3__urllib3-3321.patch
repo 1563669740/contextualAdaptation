@@ -1,0 +1,32 @@
+diff --git a/src/urllib3/http2/connection.py b/src/urllib3/http2/connection.py
+index 358c9fc4b0..f486145280 100644
+--- a/src/urllib3/http2/connection.py
++++ b/src/urllib3/http2/connection.py
+@@ -95,6 +95,9 @@ def __init__(
+ 
+         super().__init__(host, port, **kwargs)
+ 
++        if self._tunnel_host is not None:
++            raise NotImplementedError("Tunneling isn't supported with HTTP/2")
++
+     def _new_h2_conn(self) -> _LockedObject[h2.connection.H2Connection]:
+         config = h2.config.H2Configuration(client_side=True)
+         return _LockedObject(h2.connection.H2Connection(config=config))
+@@ -209,6 +212,17 @@ def send(self, data: typing.Any) -> None:
+                     % type(data)
+                 )
+ 
++    def set_tunnel(
++        self,
++        host: str,
++        port: int | None = None,
++        headers: typing.Mapping[str, str] | None = None,
++        scheme: str = "http",
++    ) -> None:
++        raise NotImplementedError(
++            "HTTP/2 does not support setting up a tunnel through a proxy"
++        )
++
+     def getresponse(  # type: ignore[override]
+         self,
+     ) -> HTTP2Response:

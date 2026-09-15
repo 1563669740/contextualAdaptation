@@ -1,0 +1,5 @@
+[
+  "tests/test_config/test_config.py::test_is_serializable",
+  "tests/test_config/test_config.py::test_config_pickle_circular_reference_in_list",
+  "tests/test_config/test_config.py::test_config_pickle_circular_reference_in_dict"
+]

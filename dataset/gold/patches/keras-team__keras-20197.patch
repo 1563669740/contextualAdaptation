@@ -1,0 +1,78 @@
+diff --git a/keras/src/trainers/trainer.py b/keras/src/trainers/trainer.py
+index 4c91cf21e600..7bf0ba8b7953 100644
+--- a/keras/src/trainers/trainer.py
++++ b/keras/src/trainers/trainer.py
+@@ -134,6 +134,7 @@ def compile(
+                 wrapped in a `LossScaleOptimizer`, which will dynamically
+                 scale the loss to prevent underflow.
+         """
++        self._clear_previous_trainer_metrics()
+         optimizer = optimizers.get(optimizer)
+         self.optimizer = optimizer
+         if (
+@@ -246,12 +247,23 @@ def run_eagerly(self, value):
+ 
+     @property
+     def metrics(self):
+-        metrics = [self._loss_tracker] if self.compiled else []
+-        metrics.extend(super().metrics)
+-        if self.compiled and self._compile_metrics is not None:
+-            metrics += [self._compile_metrics]
+-        if self.compiled and self._compile_loss is not None:
+-            metrics.extend(self._compile_loss.metrics)
++        # Order: loss tracker, individual loss trackers, compiled metrics,
++        # custom metrcis, sublayer metrics.
++        metrics = []
++        if self.compiled:
++            if self._loss_tracker is not None:
++                metrics.append(self._loss_tracker)
++            if self._compile_metrics is not None:
++                metrics.append(self._compile_metrics)
++            if self._compile_loss is not None:
++                metrics.extend(self._compile_loss.metrics)
++        metrics.extend(self._metrics)
++        for layer in self._layers:
++            if isinstance(layer, Trainer):
++                # All Trainer-related metrics in sublayers should be ignored
++                # because a new Trainer has been instantiated.
++                continue
++            metrics.extend(layer.metrics)
+         return metrics
+ 
+     @property
+@@ -262,6 +274,35 @@ def reset_metrics(self):
+         for m in self.metrics:
+             m.reset_state()
+ 
++    def _get_own_metrics(self):
++        metrics = []
++        if hasattr(self, "_loss_tracker"):
++            metrics.append(self._loss_tracker)
++        if (
++            hasattr(self, "_compile_metrics")
++            and self._compile_metrics is not None
++        ):
++            metrics.append(self._compile_metrics)
++        if hasattr(self, "_compile_loss") and self._compile_loss is not None:
++            metrics.extend(self._compile_loss.metrics)
++        if hasattr(self, "_metrics"):
++            metrics.extend(self._metrics)
++        return metrics
++
++    def _clear_previous_trainer_metrics(self):
++        for layer in self._flatten_layers(include_self=False):
++            if not isinstance(layer, Trainer):
++                continue
++            # A sublayer might be a Trainer. In that case, we need to clear
++            # the Trainer-related metrics, as they are not usable when a
++            # new Trainer is instantiated.
++            for m in self._get_own_metrics():
++                layer._tracker.untrack(m)
++            layer._loss_tracker = None
++            layer._compile_metrics = None
++            layer._compile_loss._metrics = []
++            layer._metrics = []
++
+     def compute_loss(
+         self,
+         x=None,

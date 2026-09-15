@@ -1,0 +1,3 @@
+[
+  "tests/test_builders/test_build_latex.py::test_latex_figure_in_admonition"
+]

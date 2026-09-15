@@ -1,0 +1,14 @@
+diff --git a/control/iosys.py b/control/iosys.py
+index 110552138..29f5bfefb 100644
+--- a/control/iosys.py
++++ b/control/iosys.py
+@@ -314,6 +314,9 @@ def _repr_latex_(self):
+     def _repr_html_(self):
+         # Defaults to using __repr__; override in subclasses
+         return None
++    
++    def _repr_markdown_(self):
++        return self._repr_html_()
+ 
+     @property
+     def repr_format(self):

@@ -1,0 +1,16 @@
+[
+  "tests/middleware/test_base.py::test_run_background_tasks_even_if_client_disconnects[asyncio]",
+  "tests/middleware/test_base.py::test_do_not_block_on_background_tasks[asyncio]",
+  "tests/middleware/test_base.py::test_run_context_manager_exit_even_if_client_disconnects[asyncio]",
+  "tests/middleware/test_base.py::test_read_request_stream_in_dispatch_wrapping_app_calls_body[asyncio]",
+  "tests/middleware/test_base.py::test_multiple_middlewares_stacked_client_disconnected[asyncio]",
+  "tests/middleware/test_base.py::test_poll_for_disconnect_repeated[asyncio-True]",
+  "tests/middleware/test_base.py::test_poll_for_disconnect_repeated[asyncio-False]",
+  "tests/middleware/test_base.py::test_run_background_tasks_even_if_client_disconnects[trio]",
+  "tests/middleware/test_base.py::test_do_not_block_on_background_tasks[trio]",
+  "tests/middleware/test_base.py::test_run_context_manager_exit_even_if_client_disconnects[trio]",
+  "tests/middleware/test_base.py::test_read_request_stream_in_dispatch_wrapping_app_calls_body[trio]",
+  "tests/middleware/test_base.py::test_multiple_middlewares_stacked_client_disconnected[trio]",
+  "tests/middleware/test_base.py::test_poll_for_disconnect_repeated[trio-True]",
+  "tests/middleware/test_base.py::test_poll_for_disconnect_repeated[trio-False]"
+]

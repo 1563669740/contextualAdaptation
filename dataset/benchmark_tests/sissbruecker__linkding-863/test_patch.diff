@@ -1,0 +1,158 @@
+diff --git a/bookmarks/tests/test_custom_css.py b/bookmarks/tests/test_custom_css.py
+deleted file mode 100644
+index ce0e91ea..00000000
+--- a/bookmarks/tests/test_custom_css.py
++++ /dev/null
+@@ -1,21 +0,0 @@
+-from django.test import TestCase
+-from django.urls import reverse
+-
+-from bookmarks.tests.helpers import BookmarkFactoryMixin
+-
+-
+-class CustomCssTestCase(TestCase, BookmarkFactoryMixin):
+-    def setUp(self):
+-        self.client.force_login(self.get_or_create_test_user())
+-
+-    def test_does_not_render_custom_style_tag_by_default(self):
+-        response = self.client.get(reverse("bookmarks:index"))
+-        self.assertNotContains(response, "<style>")
+-
+-    def test_renders_custom_style_tag_if_user_has_custom_css(self):
+-        profile = self.get_or_create_test_user().profile
+-        profile.custom_css = "body { background-color: red; }"
+-        profile.save()
+-
+-        response = self.client.get(reverse("bookmarks:index"))
+-        self.assertContains(response, "<style>body { background-color: red; }</style>")
+diff --git a/bookmarks/tests/test_custom_css_view.py b/bookmarks/tests/test_custom_css_view.py
+new file mode 100644
+index 00000000..e5d4c070
+--- /dev/null
++++ b/bookmarks/tests/test_custom_css_view.py
+@@ -0,0 +1,28 @@
++from django.test import TestCase
++from django.urls import reverse
++
++from bookmarks.tests.helpers import BookmarkFactoryMixin
++
++
++class CustomCssViewTestCase(TestCase, BookmarkFactoryMixin):
++    def setUp(self) -> None:
++        user = self.get_or_create_test_user()
++        self.client.force_login(user)
++
++    def test_with_empty_css(self):
++        response = self.client.get(reverse("bookmarks:custom_css"))
++        self.assertEqual(response.status_code, 200)
++        self.assertEqual(response["Content-Type"], "text/css")
++        self.assertEqual(response.headers["Cache-Control"], "public, max-age=2592000")
++        self.assertEqual(response.content.decode(), "")
++
++    def test_with_custom_css(self):
++        css = "body { background-color: red; }"
++        self.user.profile.custom_css = css
++        self.user.profile.save()
++
++        response = self.client.get(reverse("bookmarks:custom_css"))
++        self.assertEqual(response.status_code, 200)
++        self.assertEqual(response["Content-Type"], "text/css")
++        self.assertEqual(response.headers["Cache-Control"], "public, max-age=2592000")
++        self.assertEqual(response.content.decode(), css)
+diff --git a/bookmarks/tests/test_layout.py b/bookmarks/tests/test_layout.py
+index e7fb2636..70122c02 100644
+--- a/bookmarks/tests/test_layout.py
++++ b/bookmarks/tests/test_layout.py
+@@ -2,10 +2,10 @@
+ from django.urls import reverse
+ 
+ from bookmarks.models import GlobalSettings
+-from bookmarks.tests.helpers import BookmarkFactoryMixin
++from bookmarks.tests.helpers import BookmarkFactoryMixin, HtmlTestMixin
+ 
+ 
+-class LayoutTestCase(TestCase, BookmarkFactoryMixin):
++class LayoutTestCase(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
+ 
+     def setUp(self) -> None:
+         user = self.get_or_create_test_user()
+@@ -63,3 +63,38 @@ def test_metadata_should_respect_prefetch_links_setting(self):
+             html,
+             count=0,
+         )
++
++    def test_does_not_link_custom_css_when_empty(self):
++        response = self.client.get(reverse("bookmarks:index"))
++        html = response.content.decode()
++        soup = self.make_soup(html)
++
++        link = soup.select_one("link[rel='stylesheet'][href*='custom_css']")
++        self.assertIsNone(link)
++
++    def test_does_link_custom_css_when_not_empty(self):
++        profile = self.get_or_create_test_user().profile
++        profile.custom_css = "body { background-color: red; }"
++        profile.save()
++
++        response = self.client.get(reverse("bookmarks:index"))
++        html = response.content.decode()
++        soup = self.make_soup(html)
++
++        link = soup.select_one("link[rel='stylesheet'][href*='custom_css']")
++        self.assertIsNotNone(link)
++
++    def test_custom_css_link_href(self):
++        profile = self.get_or_create_test_user().profile
++        profile.custom_css = "body { background-color: red; }"
++        profile.save()
++
++        response = self.client.get(reverse("bookmarks:index"))
++        html = response.content.decode()
++        soup = self.make_soup(html)
++
++        link = soup.select_one("link[rel='stylesheet'][href*='custom_css']")
++        expected_url = (
++            reverse("bookmarks:custom_css") + f"?hash={profile.custom_css_hash}"
++        )
++        self.assertEqual(link["href"], expected_url)
+diff --git a/bookmarks/tests/test_settings_general_view.py b/bookmarks/tests/test_settings_general_view.py
+index 534b952c..10f5cf72 100644
+--- a/bookmarks/tests/test_settings_general_view.py
++++ b/bookmarks/tests/test_settings_general_view.py
+@@ -1,3 +1,4 @@
++import hashlib
+ import random
+ from unittest.mock import patch, Mock
+ 
+@@ -217,6 +218,31 @@ def test_update_profile_should_not_be_called_without_respective_form_action(self
+         self.assertEqual(self.user.profile.theme, UserProfile.THEME_AUTO)
+         self.assertSuccessMessage(html, "Profile updated", count=0)
+ 
++    def test_update_profile_updates_custom_css_hash(self):
++        form_data = self.create_profile_form_data(
++            {
++                "custom_css": "body { background-color: #000; }",
++            }
++        )
++        self.client.post(reverse("bookmarks:settings.update"), form_data, follow=True)
++        self.user.profile.refresh_from_db()
++
++        expected_hash = hashlib.md5(form_data["custom_css"].encode("utf-8")).hexdigest()
++        self.assertEqual(expected_hash, self.user.profile.custom_css_hash)
++
++        form_data["custom_css"] = "body { background-color: #fff; }"
++        self.client.post(reverse("bookmarks:settings.update"), form_data, follow=True)
++        self.user.profile.refresh_from_db()
++
++        expected_hash = hashlib.md5(form_data["custom_css"].encode("utf-8")).hexdigest()
++        self.assertEqual(expected_hash, self.user.profile.custom_css_hash)
++
++        form_data["custom_css"] = ""
++        self.client.post(reverse("bookmarks:settings.update"), form_data, follow=True)
++        self.user.profile.refresh_from_db()
++
++        self.assertEqual("", self.user.profile.custom_css_hash)
++
+     def test_enable_favicons_should_schedule_icon_update(self):
+         with patch.object(
+             tasks, "schedule_bookmarks_without_favicons"

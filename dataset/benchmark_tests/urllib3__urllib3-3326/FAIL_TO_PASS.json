@@ -1,0 +1,7 @@
+[
+  "test/test_ssl.py::TestSSL::test_create_urllib3_context_pha[False-True-VerifyMode.CERT_NONE]",
+  "test/test_ssl.py::TestSSL::test_create_urllib3_context_pha[False-True-VerifyMode.CERT_OPTIONAL]",
+  "test/contrib/test_pyopenssl.py::TestSSL::test_create_urllib3_context_pha[False-True-VerifyMode.CERT_NONE]",
+  "test/contrib/test_pyopenssl.py::TestSSL::test_create_urllib3_context_pha[False-True-VerifyMode.CERT_OPTIONAL]",
+  "test/with_dummyserver/test_proxy_poolmanager.py::TestHTTPProxyManager::test_forwarding_proxy_request_timeout[https-https-True]"
+]

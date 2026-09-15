@@ -1,0 +1,13 @@
+diff --git a/sphinx/search/__init__.py b/sphinx/search/__init__.py
+index 99c934a0f06..42b45e113ad 100644
+--- a/sphinx/search/__init__.py
++++ b/sphinx/search/__init__.py
+@@ -392,7 +392,7 @@ def freeze(self) -> dict[str, Any]:
+         objnames = self._objnames
+ 
+         alltitles: dict[str, list[tuple[int, str]]] = {}
+-        for docname, titlelist in self._all_titles.items():
++        for docname, titlelist in sorted(self._all_titles.items()):
+             for title, titleid in titlelist:
+                 alltitles.setdefault(title, []).append((fn2index[docname], titleid))
+ 

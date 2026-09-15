@@ -1,0 +1,85 @@
+diff --git a/haystack/components/agents/agent.py b/haystack/components/agents/agent.py
+index 783900a4ae..ebebcae34b 100644
+--- a/haystack/components/agents/agent.py
++++ b/haystack/components/agents/agent.py
+@@ -4,7 +4,7 @@
+ 
+ import inspect
+ from copy import deepcopy
+-from typing import Any, Dict, List, Optional
++from typing import Any, Dict, List, Optional, Union
+ 
+ from haystack import component, default_from_dict, default_to_dict, logging, tracing
+ from haystack.components.generators.chat.types import ChatGenerator
+@@ -16,7 +16,7 @@
+ from haystack.dataclasses.state import State, _schema_from_dict, _schema_to_dict, _validate_schema
+ from haystack.dataclasses.state_utils import merge_lists
+ from haystack.dataclasses.streaming_chunk import StreamingCallbackT
+-from haystack.tools import Tool, deserialize_tools_or_toolset_inplace
++from haystack.tools import Tool, Toolset, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
+ from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+ from haystack.utils.deserialization import deserialize_chatgenerator_inplace
+ 
+@@ -61,7 +61,7 @@ def __init__(
+         self,
+         *,
+         chat_generator: ChatGenerator,
+-        tools: Optional[List[Tool]] = None,
++        tools: Optional[Union[List[Tool], Toolset]] = None,
+         system_prompt: Optional[str] = None,
+         exit_conditions: Optional[List[str]] = None,
+         state_schema: Optional[Dict[str, Any]] = None,
+@@ -73,7 +73,7 @@ def __init__(
+         Initialize the agent component.
+ 
+         :param chat_generator: An instance of the chat generator that your agent should use. It must support tools.
+-        :param tools: List of Tool objects available to the agent
++        :param tools: List of Tool objects or a Toolset that the agent can use.
+         :param system_prompt: System prompt for the agent.
+         :param exit_conditions: List of conditions that will cause the agent to return.
+             Can include "text" if the agent should return when it generates a message without tool calls,
+@@ -166,7 +166,7 @@ def to_dict(self) -> Dict[str, Any]:
+         return default_to_dict(
+             self,
+             chat_generator=component_to_dict(obj=self.chat_generator, name="chat_generator"),
+-            tools=[t.to_dict() for t in self.tools],
++            tools=serialize_tools_or_toolset(self.tools),
+             system_prompt=self.system_prompt,
+             exit_conditions=self.exit_conditions,
+             # We serialize the original state schema, not the resolved one to reflect the original user input
+diff --git a/haystack/components/tools/tool_invoker.py b/haystack/components/tools/tool_invoker.py
+index 7b26233208..43bc383f14 100644
+--- a/haystack/components/tools/tool_invoker.py
++++ b/haystack/components/tools/tool_invoker.py
+@@ -184,15 +184,17 @@ def __init__(
+ 
+         # Convert Toolset to list for internal use
+         if isinstance(tools, Toolset):
+-            tools = list(tools)
++            converted_tools = list(tools)
++        else:
++            converted_tools = tools
+ 
+-        _check_duplicate_tool_names(tools)
+-        tool_names = [tool.name for tool in tools]
++        _check_duplicate_tool_names(converted_tools)
++        tool_names = [tool.name for tool in converted_tools]
+         duplicates = {name for name in tool_names if tool_names.count(name) > 1}
+         if duplicates:
+             raise ValueError(f"Duplicate tool names found: {duplicates}")
+ 
+-        self._tools_with_names = dict(zip(tool_names, tools))
++        self._tools_with_names = dict(zip(tool_names, converted_tools))
+         self.raise_on_failure = raise_on_failure
+         self.convert_result_to_json_string = convert_result_to_json_string
+ 
+diff --git a/releasenotes/notes/add-toolset-to-agent-d4a14822c4aed001.yaml b/releasenotes/notes/add-toolset-to-agent-d4a14822c4aed001.yaml
+new file mode 100644
+index 0000000000..159f4379ae
+--- /dev/null
++++ b/releasenotes/notes/add-toolset-to-agent-d4a14822c4aed001.yaml
+@@ -0,0 +1,4 @@
++---
++features:
++  - |
++    Agent now supports a List of Tools or a Toolset as input.

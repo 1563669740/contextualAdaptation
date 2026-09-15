@@ -1,0 +1,28 @@
+diff --git a/keras/src/ops/numpy_test.py b/keras/src/ops/numpy_test.py
+index ab730608fc4f..267efa657311 100644
+--- a/keras/src/ops/numpy_test.py
++++ b/keras/src/ops/numpy_test.py
+@@ -1445,6 +1445,7 @@ def test_tanh(self):
+ 
+     def test_tile(self):
+         x = KerasTensor((None, 3))
++        self.assertEqual(knp.tile(x, 2).shape, (None, 6))
+         self.assertEqual(knp.tile(x, [2]).shape, (None, 6))
+         self.assertEqual(knp.tile(x, [1, 2]).shape, (None, 6))
+         self.assertEqual(knp.tile(x, [2, 1, 2]).shape, (2, None, 6))
+@@ -1969,6 +1970,7 @@ def test_tanh(self):
+ 
+     def test_tile(self):
+         x = KerasTensor((2, 3))
++        self.assertEqual(knp.tile(x, 2).shape, (2, 6))
+         self.assertEqual(knp.tile(x, [2]).shape, (2, 6))
+         self.assertEqual(knp.tile(x, [1, 2]).shape, (2, 6))
+         self.assertEqual(knp.tile(x, [2, 1, 2]).shape, (2, 2, 6))
+@@ -4119,6 +4121,7 @@ def test_tanh(self):
+ 
+     def test_tile(self):
+         x = np.array([[1, 2, 3], [3, 2, 1]])
++        self.assertAllClose(knp.tile(x, 2), np.tile(x, 2))
+         self.assertAllClose(knp.tile(x, [2, 3]), np.tile(x, [2, 3]))
+         self.assertAllClose(knp.Tile([2, 3])(x), np.tile(x, [2, 3]))
+ 

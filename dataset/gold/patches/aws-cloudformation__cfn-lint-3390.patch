@@ -1,0 +1,84 @@
+diff --git a/src/cfnlint/jsonschema/_resolvers_cfn.py b/src/cfnlint/jsonschema/_resolvers_cfn.py
+index b9cf63cd3b..d5c1eb3028 100644
+--- a/src/cfnlint/jsonschema/_resolvers_cfn.py
++++ b/src/cfnlint/jsonschema/_resolvers_cfn.py
+@@ -11,7 +11,7 @@
+ 
+ import regex as re
+ 
+-from cfnlint.helpers import AVAILABILITY_ZONES
++from cfnlint.helpers import AVAILABILITY_ZONES, REGEX_SUB_PARAMETERS
+ from cfnlint.jsonschema import ValidationError, Validator
+ from cfnlint.jsonschema._typing import ResolutionResult
+ from cfnlint.jsonschema._utils import equal
+@@ -313,7 +313,21 @@ def sub(validator: Validator, instance: Any) -> ResolutionResult:
+         return
+ 
+     # its a string
+-    yield from _sub_string(validator, instance)
++    sub_parameters = REGEX_SUB_PARAMETERS.findall(instance)
++    parameters = {}
++    for parameter in sub_parameters:
++        if "." in parameter:
++            parameters[parameter] = {"Fn::GetAtt": parameter}
++        else:
++            parameters[parameter] = {"Ref": parameter}
++    for resolved_parameters in _sub_parameter_expansion(validator, parameters):
++        resolved_validator = validator.evolve(
++            context=validator.context.evolve(
++                ref_values=resolved_parameters,
++            )
++        )
++        yield from _sub_string(resolved_validator, instance)
++        # yield from _sub_string(validator, instance)
+ 
+ 
+ def if_(validator: Validator, instance: Any) -> ResolutionResult:
+diff --git a/src/cfnlint/rules/functions/_BaseFn.py b/src/cfnlint/rules/functions/_BaseFn.py
+index fffb050e55..cc48f886eb 100644
+--- a/src/cfnlint/rules/functions/_BaseFn.py
++++ b/src/cfnlint/rules/functions/_BaseFn.py
+@@ -62,20 +62,34 @@ def resolve(
+     ) -> ValidationResult:
+         key, _ = self.key_value(instance)
+ 
++        return_err: ValidationError | None = None
+         for value, v, resolve_err in validator.resolve_value(instance):
+             if resolve_err:
+                 yield resolve_err
+                 continue
+-            for err in self.fix_errors(
+-                v.descend(
+-                    instance=value,
+-                    schema=s,
+-                    path=key,
++            errs = list(
++                self.fix_errors(
++                    v.descend(
++                        instance=value,
++                        schema=s,
++                        path=key,
++                    )
+                 )
+-            ):
+-                err.message = err.message.replace(f"{value!r}", f"{instance!r}")
+-                err.message = f"{err.message} when {self.fn.name!r} is resolved"
+-                yield err
++            )
++
++            if not errs:
++                return
++
++            return_err = errs[0]
++
++        if return_err:
++            return_err.message = return_err.message.replace(
++                f"{value!r}", f"{instance!r}"
++            )
++            return_err.message = (
++                f"{return_err.message} when {self.fn.name!r} is resolved"
++            )
++            yield return_err
+ 
+     def _resolve_ref(self, validator, schema) -> Any:
+ 

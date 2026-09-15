@@ -1,0 +1,22 @@
+diff --git a/tests/functional/s/slots_checks.py b/tests/functional/s/slots_checks.py
+index 5a0bc0630c..e0c76dbe45 100644
+--- a/tests/functional/s/slots_checks.py
++++ b/tests/functional/s/slots_checks.py
+@@ -187,3 +187,17 @@ class ClassWithEmptySlotsAndAnnotation:
+     __slots__ = ()
+ 
+     a: int
++
++
++# https://github.com/pylint-dev/pylint/issues/9814
++class SlotsManipulationTest:
++    __slots__ = ["a", "b", "c"]
++
++
++class TestChild(SlotsManipulationTest):
++    __slots__ += ["d", "e", "f"]  # pylint: disable=undefined-variable
++
++
++t = TestChild()
++
++print(t.__slots__)

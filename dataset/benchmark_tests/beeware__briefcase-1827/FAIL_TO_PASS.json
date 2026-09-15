@@ -1,0 +1,21 @@
+[
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[Hello",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[helloworld]",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[helloWorld]",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[hello42world]",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[42helloworld]",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[hello_world]",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[hello-world]",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[_helloworld]",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[/helloworld]",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[Hallo",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[Bonjour",
+  "tests/commands/new/test_validate_formal_name.py::test_valid_formal_name[\\u4f60\\u597d",
+  "tests/commands/new/test_validate_formal_name.py::test_invalid_formal_name[]",
+  "tests/commands/new/test_validate_formal_name.py::test_invalid_formal_name[",
+  "tests/commands/new/test_validate_formal_name.py::test_invalid_formal_name[\\t]",
+  "tests/commands/new/test_validate_formal_name.py::test_invalid_formal_name[/]",
+  "tests/commands/new/test_validate_formal_name.py::test_invalid_formal_name[']",
+  "tests/commands/new/test_validate_formal_name.py::test_invalid_formal_name[\\\\]",
+  "tests/commands/new/test_validate_formal_name.py::test_invalid_formal_name[/'\\\\]"
+]

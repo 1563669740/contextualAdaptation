@@ -1,0 +1,4 @@
+[
+  "tests/predict/test_predict.py::test_chainable_load",
+  "tests/predict/test_predict.py::test_load_state_chaining"
+]

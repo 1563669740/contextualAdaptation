@@ -1,0 +1,4 @@
+[
+  "bookmarks/tests/test_custom_css_view.py::CustomCssViewTestCase::test_with_custom_css",
+  "bookmarks/tests/test_custom_css_view.py::CustomCssViewTestCase::test_with_empty_css"
+]

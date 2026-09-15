@@ -1,0 +1,26 @@
+diff --git a/changelog/1240.bugfix.rst b/changelog/1240.bugfix.rst
+new file mode 100644
+index 00000000..e94ff704
+--- /dev/null
++++ b/changelog/1240.bugfix.rst
+@@ -0,0 +1,2 @@
++``twine`` now catches ``configparser.Error`` to prevent accidental
++leaks of secret tokens or passwords to the user's console.
+diff --git a/twine/utils.py b/twine/utils.py
+index 2bc56d0b..2ea9ca9f 100644
+--- a/twine/utils.py
++++ b/twine/utils.py
+@@ -159,6 +159,13 @@ def get_repository_from_config(
+             f"Missing '{repository}' section from {config_file}.\n"
+             f"More info: https://packaging.python.org/specifications/pypirc/ "
+         )
++    except configparser.Error:
++        # NOTE: We intentionally fully mask the configparser exception here,
++        # since it could leak tokens and other sensitive values.
++        raise exceptions.InvalidConfiguration(
++            f"Malformed configuration in {config_file}.\n"
++            f"More info: https://packaging.python.org/specifications/pypirc/ "
++        )
+ 
+     config["repository"] = normalize_repository_url(cast(str, config["repository"]))
+     return config

@@ -1,0 +1,64 @@
+diff --git a/docs/sphinx/source/whatsnew/v0.11.1.rst b/docs/sphinx/source/whatsnew/v0.11.1.rst
+index 7c8f01743e..afd1cc7215 100644
+--- a/docs/sphinx/source/whatsnew/v0.11.1.rst
++++ b/docs/sphinx/source/whatsnew/v0.11.1.rst
+@@ -30,6 +30,10 @@ Enhancements
+ * Added function for calculating wind speed at different heights,
+   :py:func:`pvlib.atmosphere.windspeed_powerlaw`.
+   (:issue:`2118`, :pull:`2124`)
++* Implemented closed-form solution for alpha in :py:func:`pvlib.clearsky.detect_clearsky`, 
++  obviating the call to scipy.optimize that was prone to runtime errors and minimizing
++  computation. (:issue:`2171`, :issue:`2216`, :pull:`2217`).
++
+ 
+ Bug fixes
+ ~~~~~~~~~
+@@ -74,3 +78,4 @@ Contributors
+ * Marcos R. Escudero (:ghuser:`marc-resc`)
+ * Bernat Nicolau (:ghuser:`BernatNicolau`)
+ * Eduardo Sarquis (:ghuser:`EduardoSarquis`)
++* Andrew B Godbehere (:ghuser:`agodbehere`)
+\ No newline at end of file
+diff --git a/pvlib/clearsky.py b/pvlib/clearsky.py
+index 62d83bc1f4..1a32b664ab 100644
+--- a/pvlib/clearsky.py
++++ b/pvlib/clearsky.py
+@@ -9,7 +9,6 @@
+ 
+ import numpy as np
+ import pandas as pd
+-from scipy.optimize import minimize_scalar
+ from scipy.linalg import hankel
+ import h5py
+ 
+@@ -874,25 +873,11 @@ def detect_clearsky(measured, clearsky, times=None, infer_limits=False,
+         clear_meas = meas[clear_samples]
+         clear_clear = clear[clear_samples]
+ 
+-        def rmse(alpha):
+-            return np.sqrt(np.mean((clear_meas - alpha*clear_clear)**2))
+-
+-        optimize_result = minimize_scalar(rmse)
+-        if not optimize_result.success:
+-            try:
+-                message = "Optimizer exited unsuccessfully: " \
+-                           + optimize_result.message
+-            except AttributeError:
+-                message = "Optimizer exited unsuccessfully: \
+-                           No message explaining the failure was returned. \
+-                           If you would like to see this message, please \
+-                           update your scipy version (try version 1.8.0 \
+-                           or beyond)."
+-            raise RuntimeError(message)
+-
+-        else:
+-            alpha = optimize_result.x
+-
++        # Compute arg min of MSE between model and observations
++        C = (clear_clear**2).sum()
++        if not (pd.isna(C) or C == 0):  # safety check
++            # only update alpha if C is strictly positive
++            alpha = (clear_meas * clear_clear).sum() / C
+         if round(alpha*10000) == round(previous_alpha*10000):
+             break
+     else:

@@ -1,0 +1,111 @@
+diff --git a/AUTHORS b/AUTHORS
+index 4d34d2ba9b4..5ae80eb02d3 100644
+--- a/AUTHORS
++++ b/AUTHORS
+@@ -245,6 +245,7 @@ Levon Saldamli
+ Lewis Cowles
+ Llandy Riveron Del Risco
+ Loic Esteve
++lovetheguitar
+ Lukas Bednar
+ Luke Murphy
+ Maciek Fijalkowski
+diff --git a/changelog/12281.feature.rst b/changelog/12281.feature.rst
+new file mode 100644
+index 00000000000..c6e8e3b3098
+--- /dev/null
++++ b/changelog/12281.feature.rst
+@@ -0,0 +1,8 @@
++Added support for keyword matching in marker expressions.
++
++Now tests can be selected by marker keyword arguments.
++Supported values are :class:`int`, (unescaped) :class:`str`, :class:`bool` & :data:`None`.
++
++See :ref:`marker examples <marker_keyword_expression_example>` for more information.
++
++-- by :user:`lovetheguitar`
+diff --git a/doc/en/example/markers.rst b/doc/en/example/markers.rst
+index c04d2a078dd..159ff2cd1d7 100644
+--- a/doc/en/example/markers.rst
++++ b/doc/en/example/markers.rst
+@@ -25,10 +25,12 @@ You can "mark" a test function with custom metadata like this:
+         pass  # perform some webtest test for your app
+ 
+ 
++    @pytest.mark.device(serial="123")
+     def test_something_quick():
+         pass
+ 
+ 
++    @pytest.mark.device(serial="abc")
+     def test_another():
+         pass
+ 
+@@ -71,6 +73,28 @@ Or the inverse, running all tests except the webtest ones:
+ 
+     ===================== 3 passed, 1 deselected in 0.12s ======================
+ 
++.. _`marker_keyword_expression_example`:
++
++Additionally, you can restrict a test run to only run tests matching one or multiple marker
++keyword arguments, e.g. to run only tests marked with ``device`` and the specific ``serial="123"``:
++
++.. code-block:: pytest
++
++    $ pytest -v -m 'device(serial="123")'
++    =========================== test session starts ============================
++    platform linux -- Python 3.x.y, pytest-8.x.y, pluggy-1.x.y -- $PYTHON_PREFIX/bin/python
++    cachedir: .pytest_cache
++    rootdir: /home/sweet/project
++    collecting ... collected 4 items / 3 deselected / 1 selected
++
++    test_server.py::test_something_quick PASSED                          [100%]
++
++    ===================== 1 passed, 3 deselected in 0.12s ======================
++
++.. note:: Only keyword argument matching is supported in marker expressions.
++
++.. note:: Only :class:`int`, (unescaped) :class:`str`, :class:`bool` & :data:`None` values are supported in marker expressions.
++
+ Selecting tests based on their node ID
+ --------------------------------------
+ 
+diff --git a/doc/en/how-to/usage.rst b/doc/en/how-to/usage.rst
+index 705fa009ed5..05ee0460019 100644
+--- a/doc/en/how-to/usage.rst
++++ b/doc/en/how-to/usage.rst
+@@ -76,11 +76,19 @@ Specifying a specific parametrization of a test:
+ 
+ **Run tests by marker expressions**
+ 
++To run all tests which are decorated with the ``@pytest.mark.slow`` decorator:
++
+ .. code-block:: bash
+ 
+     pytest -m slow
+ 
+-Will run all tests which are decorated with the ``@pytest.mark.slow`` decorator.
++
++To run all tests which are decorated with the annotated ``@pytest.mark.slow(phase=1)`` decorator,
++with the ``phase`` keyword argument set to ``1``:
++
++.. code-block:: bash
++
++    pytest -m slow(phase=1)
+ 
+ For more information see :ref:`marks <mark>`.
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 14f69bc3422..e0ed2b90061 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -358,6 +358,9 @@ markers = [
+     "foo",
+     "bar",
+     "baz",
++    "number_mark",
++    "builtin_matchers_mark",
++    "str_mark",
+     # conftest.py reorders tests moving slow ones to the end of the list
+     "slow",
+     # experimental mark for all tests using pexpect

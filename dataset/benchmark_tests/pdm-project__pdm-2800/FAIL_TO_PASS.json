@@ -1,0 +1,12 @@
+[
+  "tests/cli/test_install.py::test_install_all_with_excluded_groups[-G",
+  "tests/cli/test_install.py::test_install_all_with_excluded_groups[--with",
+  "tests/cli/test_install.py::test_install_all_with_excluded_groups[--without",
+  "tests/cli/test_install.py::test_sync_all_with_excluded_groups[-G",
+  "tests/cli/test_install.py::test_sync_all_with_excluded_groups[--with",
+  "tests/cli/test_install.py::test_sync_all_with_excluded_groups[--without",
+  "tests/cli/test_lock.py::test_lock_all_with_excluded_groups[-G",
+  "tests/cli/test_lock.py::test_lock_all_with_excluded_groups[--with",
+  "tests/cli/test_lock.py::test_lock_all_with_excluded_groups[--without",
+  "tests/test_utils.py::test_exclude_optional_groups_from_all[args2-golden2]"
+]

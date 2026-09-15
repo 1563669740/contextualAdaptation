@@ -1,0 +1,29 @@
+diff --git a/doc/api/next_api_changes/behavior/28501-OV.rst b/doc/api/next_api_changes/behavior/28501-OV.rst
+new file mode 100644
+index 000000000000..cc816e55f696
+--- /dev/null
++++ b/doc/api/next_api_changes/behavior/28501-OV.rst
+@@ -0,0 +1,5 @@
++The offset string associated with ConciseDateFormatter will now invert when the axis is inverted
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++Previously, when the axis was inverted, the offset string associated with ConciseDateFormatter would not change,
++so the offset string indicated the axis was oriented in the wrong direction. Now, when the axis is inverted, the offset
++string is oriented correctly.
+diff --git a/lib/matplotlib/dates.py b/lib/matplotlib/dates.py
+index c12d9f31ba4b..15de61f69df7 100644
+--- a/lib/matplotlib/dates.py
++++ b/lib/matplotlib/dates.py
+@@ -796,7 +796,12 @@ def format_ticks(self, values):
+ 
+         if show_offset:
+             # set the offset string:
+-            self.offset_string = tickdatetime[-1].strftime(offsetfmts[level])
++            if (self._locator.axis and
++                    self._locator.axis.__name__ in ('xaxis', 'yaxis')
++                    and self._locator.axis.get_inverted()):
++                self.offset_string = tickdatetime[0].strftime(offsetfmts[level])
++            else:
++                self.offset_string = tickdatetime[-1].strftime(offsetfmts[level])
+             if self._usetex:
+                 self.offset_string = _wrap_in_tex(self.offset_string)
+         else:

@@ -1,0 +1,255 @@
+diff --git a/docs/changelog/3235.bugfix.rst b/docs/changelog/3235.bugfix.rst
+new file mode 100644
+index 000000000..cbd369baa
+--- /dev/null
++++ b/docs/changelog/3235.bugfix.rst
+@@ -0,0 +1,2 @@
++Fix crash with fresh subprocess, if the build backend is setuptools automatically enable fresh subprocesses for
++build backend calls - by :user:`gaborbernat`.
+diff --git a/docs/config.rst b/docs/config.rst
+index a52358f6d..351190a1a 100644
+--- a/docs/config.rst
++++ b/docs/config.rst
+@@ -797,7 +797,7 @@ Python virtual environment packaging
+ .. conf::
+    :keys: fresh_subprocess
+    :version_added: 4.14.0
+-   :default: False
++   :default: True if build backend is setuptools otherwise False
+ 
+    A flag controlling if each call to the build backend should be done in a fresh subprocess or not (especially older
+    build backends such as ``setuptools`` might require this to discover newly provisioned dependencies).
+diff --git a/src/tox/config/main.py b/src/tox/config/main.py
+index a073911bb..a409aaa0a 100644
+--- a/src/tox/config/main.py
++++ b/src/tox/config/main.py
+@@ -40,7 +40,7 @@ def __init__(  # noqa: PLR0913
+             self._overrides[override.namespace].append(override)
+ 
+         self._src = config_source
+-        self._key_to_conf_set: dict[tuple[str, str], ConfigSet] = OrderedDict()
++        self._key_to_conf_set: dict[tuple[str, str, str], ConfigSet] = OrderedDict()
+         self._core_set: CoreConfigSet | None = None
+         self.memory_seed_loaders: defaultdict[str, list[MemoryLoader]] = defaultdict(list)
+ 
+@@ -131,7 +131,7 @@ def get_section_config(  # noqa: PLR0913
+         for_env: str | None,
+         loaders: Sequence[Loader[Any]] | None = None,
+     ) -> T:
+-        key = section.key, for_env or ""
++        key = section.key, for_env or "", "-".join(base or [])
+         try:
+             return self._key_to_conf_set[key]  # type: ignore[return-value] # expected T but found ConfigSet
+         except KeyError:
+@@ -154,7 +154,7 @@ def get_env(
+         """
+         Return the configuration for a given tox environment (will create if not exist yet).
+ 
+-        :param item: the name of the environment
++        :param item: the name of the environment is
+         :param package: a flag indicating if the environment is of type packaging or not (only used for creation)
+         :param loaders: loaders to use for this configuration (only used for creation)
+         :return: the tox environments config
+@@ -170,7 +170,7 @@ def get_env(
+ 
+     def clear_env(self, name: str) -> None:
+         section, _, __ = self._src.get_tox_env_section(name)
+-        del self._key_to_conf_set[(section.key, name)]
++        self._key_to_conf_set = {k: v for k, v in self._key_to_conf_set.items() if k[0] == section.key and k[1] == name}
+ 
+ 
+ ___all__ = [
+diff --git a/src/tox/config/of_type.py b/src/tox/config/of_type.py
+index 99d3d19dd..a53456c82 100644
+--- a/src/tox/config/of_type.py
++++ b/src/tox/config/of_type.py
+@@ -58,6 +58,10 @@ def __call__(
+     def __eq__(self, o: object) -> bool:
+         return type(self) == type(o) and super().__eq__(o) and self.value == o.value  # type: ignore[attr-defined]
+ 
++    def __repr__(self) -> str:
++        values = ((k, v) for k, v in vars(self).items() if v is not None)
++        return f"{type(self).__name__}({', '.join(f'{k}={v}' for k, v in values)})"
++
+ 
+ _PLACE_HOLDER = object()
+ 
+@@ -111,7 +115,7 @@ def __call__(
+         return cast(T, self._cache)
+ 
+     def __repr__(self) -> str:
+-        values = ((k, v) for k, v in vars(self).items() if k != "post_process" and v is not None)
++        values = ((k, v) for k, v in vars(self).items() if k not in {"post_process", "_cache"} and v is not None)
+         return f"{type(self).__name__}({', '.join(f'{k}={v}' for k, v in values)})"
+ 
+     def __eq__(self, o: object) -> bool:
+diff --git a/src/tox/config/sets.py b/src/tox/config/sets.py
+index d15a59134..ebb46be69 100644
+--- a/src/tox/config/sets.py
++++ b/src/tox/config/sets.py
+@@ -94,19 +94,17 @@ def _add_conf(self, keys: Sequence[str], definition: ConfigDefinition[V]) -> Con
+         key = keys[0]
+         if key in self._defined:
+             self._on_duplicate_conf(key, definition)
+-        else:
+-            self._keys[key] = None
+-            for item in keys:
+-                self._alias[item] = key
+-            for key in keys:
+-                self._defined[key] = definition
++
++        self._keys[key] = None
++        for item in keys:
++            self._alias[item] = key
++        for key in keys:
++            self._defined[key] = definition
+         return definition
+ 
+     def _on_duplicate_conf(self, key: str, definition: ConfigDefinition[V]) -> None:
+-        earlier = self._defined[key]
+-        if definition != earlier:  # pragma: no branch
+-            msg = f"config {key} already defined"
+-            raise ValueError(msg)
++        msg = f"duplicate configuration definition for {self.name}:\nhas: {self._defined[key]}\nnew: {definition}"
++        raise ValueError(msg)
+ 
+     def __getitem__(self, item: str) -> Any:
+         """
+diff --git a/src/tox/execute/pep517_backend.py b/src/tox/execute/pep517_backend.py
+index 06032ba24..8d8bf8e91 100644
+--- a/src/tox/execute/pep517_backend.py
++++ b/src/tox/execute/pep517_backend.py
+@@ -91,6 +91,7 @@ def close(self) -> None:
+                     execute.process.wait(timeout=0.1)  # pragma: no cover
+                 except TimeoutExpired:  # pragma: no cover
+                     execute.process.terminate()  # pragma: no cover  # if does not stop on its own kill it
++            self._local_execute = None
+         self.is_alive = False
+ 
+ 
+diff --git a/src/tox/session/env_select.py b/src/tox/session/env_select.py
+index 9d6c25c2f..4d5327eed 100644
+--- a/src/tox/session/env_select.py
++++ b/src/tox/session/env_select.py
+@@ -239,12 +239,12 @@ def _env_name_to_active(self) -> dict[str, bool]:
+     def _defined_envs(self) -> dict[str, _ToxEnvInfo]:  # noqa: C901, PLR0912
+         # The problem of classifying run/package environments:
+         # There can be two type of tox environments: run or package. Given a tox environment name there's no easy way to
+-        # find out which it is.  Intuitively a run environment is any environment that's not used for packaging by
+-        # another run environment. To find out what are the packaging environments for a run environment you have to
+-        # first construct it. This implies a two phase solution: construct all environments and query their packaging
+-        # environments. The run environments are the ones not marked as of packaging type. This requires being able
+-        # to change tox environments type, if it was earlier discovered as a run environment and is marked as packaging
+-        # we need to redefine it, e.g. when it shows up in config as [testenv:.package] and afterwards by a run env is
++        # find out which it is.  Intuitively, a run environment is any environment not used for packaging by another run
++        # environment. To find out what are the packaging environments for a run environment, you have to first
++        # construct it. This implies a two-phase solution: construct all environments and query their packaging
++        # environments. The run environments are the ones not marked as of packaging type. This requires being able to
++        # change tox environments types, if it was earlier discovered as a run environment and is marked as packaging,
++        # we need to redefine it. E.g., when it shows up in config as [testenv:.package] and afterward by a run env is
+         # marked as package_env.
+ 
+         if self._defined_envs_ is None:  # noqa: PLR1702
+@@ -267,7 +267,7 @@ def _defined_envs(self) -> dict[str, _ToxEnvInfo]:  # noqa: C901, PLR0912
+                     try:
+                         run_env.package_env = self._build_pkg_env(pkg_name_type, name, env_name_to_active)
+                     except Exception as exception:  # noqa: BLE001
+-                        # if it's not a run environment,  wait to see if ends up being a packaging one -> rollback
++                        # if it's not a run environment, wait to see if ends up being a packaging one -> rollback
+                         failed[name] = exception
+                         for key in self._pkg_env_counter - start_package_env_use_counter:
+                             del self._defined_envs_[key]
+@@ -320,6 +320,7 @@ def _build_run_env(self, name: str) -> RunToxEnv | None:
+         journal = self._journal.get_env_journal(name)
+         args = ToxEnvCreateArgs(env_conf, self._state.conf.core, self._state.conf.options, journal, self._log_handler)
+         run_env = runner(args)
++        run_env.register_config()
+         self._manager.tox_add_env_config(env_conf, self._state)
+         return run_env
+ 
+@@ -363,6 +364,7 @@ def _get_package_env(self, packager: str, name: str, is_active: bool) -> Package
+         journal = self._journal.get_env_journal(name)
+         args = ToxEnvCreateArgs(pkg_conf, self._state.conf.core, self._state.conf.options, journal, self._log_handler)
+         pkg_env: PackageToxEnv = package_type(args)
++        pkg_env.register_config()
+         self._defined_envs_[name] = _ToxEnvInfo(pkg_env, is_active)
+         self._manager.tox_add_env_config(pkg_conf, self._state)
+         return pkg_env
+diff --git a/src/tox/tox_env/api.py b/src/tox/tox_env/api.py
+index 367209306..260252a68 100644
+--- a/src/tox/tox_env/api.py
++++ b/src/tox/tox_env/api.py
+@@ -68,8 +68,6 @@ def __init__(self, create_args: ToxEnvCreateArgs) -> None:
+         self._interrupted = False
+         self._log_id = 0
+ 
+-        self.register_config()
+-
+     @property
+     def cache(self) -> Info:
+         return Info(self.env_dir)
+diff --git a/src/tox/tox_env/python/virtual_env/package/pyproject.py b/src/tox/tox_env/python/virtual_env/package/pyproject.py
+index 1b0aa5670..ef28a167e 100644
+--- a/src/tox/tox_env/python/virtual_env/package/pyproject.py
++++ b/src/tox/tox_env/python/virtual_env/package/pyproject.py
+@@ -107,8 +107,19 @@ def __init__(self, create_args: ToxEnvCreateArgs) -> None:
+         self._package_dependencies: list[Requirement] | None = None
+         self._package_name: str | None = None
+         self._pkg_lock = RLock()  # can build only one package at a time
+-        self.root = self.conf["package_root"]
+         self._package_paths: set[Path] = set()
++        self._root: Path | None = None
++
++    @property
++    def root(self) -> Path:
++        if self._root is None:
++            self._root = self.conf["package_root"]
++        return self._root
++
++    @root.setter
++    def root(self, value: Path) -> None:
++        self._root = value
++        self._frontend_ = None  # force recreating the frontend with new root
+ 
+     @staticmethod
+     def id() -> str:
+@@ -117,8 +128,7 @@ def id() -> str:
+     @property
+     def _frontend(self) -> Pep517VirtualEnvFrontend:
+         if self._frontend_ is None:
+-            fresh = cast(bool, self.conf["fresh_subprocess"])
+-            self._frontend_ = Pep517VirtualEnvFrontend(self.root, self, fresh_subprocess=fresh)
++            self._frontend_ = Pep517VirtualEnvFrontend(self.root, self)
+         return self._frontend_
+ 
+     def register_config(self) -> None:
+@@ -140,7 +150,7 @@ def register_config(self) -> None:
+         self.conf.add_config(
+             keys=["fresh_subprocess"],
+             of_type=bool,
+-            default=False,
++            default=self._frontend.backend.split(".")[0] == "setuptools",
+             desc="create a fresh subprocess for every backend request",
+         )
+ 
+@@ -377,10 +387,9 @@ def id() -> str:
+ 
+ 
+ class Pep517VirtualEnvFrontend(Frontend):
+-    def __init__(self, root: Path, env: Pep517VenvPackager, *, fresh_subprocess: bool) -> None:
++    def __init__(self, root: Path, env: Pep517VenvPackager) -> None:
+         super().__init__(*Frontend.create_args_from_folder(root))
+         self._tox_env = env
+-        self._fresh_subprocess = fresh_subprocess
+         self._backend_executor_: LocalSubProcessPep517Executor | None = None
+         into: dict[str, Any] = {}
+ 
+@@ -435,7 +444,7 @@ def _send_msg(
+             if outcome is not None:  # pragma: no branch
+                 outcome.assert_success()
+         finally:
+-            if self._fresh_subprocess:
++            if self._tox_env.conf["fresh_subprocess"]:
+                 self.backend_executor.close()
+ 
+     def _unexpected_response(  # noqa: PLR0913

@@ -1,0 +1,917 @@
+diff --git a/docs/_newsfragments/1367.newandimproved.rst b/docs/_newsfragments/1367.newandimproved.rst
+new file mode 100644
+index 000000000..e4b4e5c09
+--- /dev/null
++++ b/docs/_newsfragments/1367.newandimproved.rst
+@@ -0,0 +1,3 @@
++The new implementation of :ref:`media type utilities <mediatype_util>`
++(Falcon was using the ``python-mimeparse`` library before) now always favors
++the exact media type match, if one is available.
+diff --git a/docs/_newsfragments/864.breakingchange.rst b/docs/_newsfragments/864.breakingchange.rst
+new file mode 100644
+index 000000000..0c518bc1c
+--- /dev/null
++++ b/docs/_newsfragments/864.breakingchange.rst
+@@ -0,0 +1,36 @@
++Falcon is no longer vendoring the
++`python-mimeparse <https://github.com/falconry/python-mimeparse>`__ library;
++the relevant functionality has instead been reimplemented in the framework
++itself, fixing a handful of long-standing bugs in the new implementation.
++
++If you use standalone
++`python-mimeparse <https://github.com/falconry/python-mimeparse>`__ in your
++project, do not worry! We will continue to maintain it as a separate package
++under the Falconry umbrella (we took over about 3 years ago).
++
++The following new behaviors are considered breaking changes:
++
++* Previously, the iterable passed to
++  :meth:`req.client_prefers <falcon.Request.client_prefers>` had to be sorted in
++  the order of increasing desirability.
++  :func:`~falcon.mediatypes.best_match`, and by proxy
++  :meth:`~falcon.Request.client_prefers`, now consider the provided media types
++  to be sorted in the (more intuitive, we hope) order of decreasing
++  desirability.
++
++* Unlike ``python-mimeparse``, the new
++  :ref:`media type utilities <mediatype_util>` consider media types with
++  different values for the same parameters as non-matching.
++
++  One theoretically possible scenario where this change can affect you is only
++  installing a :ref:`media <media>` handler for a content type with parameters;
++  it then may not match media types with conflicting values (that used to match
++  before Falcon 4.0).
++  If this turns out to be the case, also
++  :ref:`install the same handler <custom_media_handlers>` for the generic
++  ``type/subtype`` without parameters.
++
++The new functions,
++:func:`falcon.mediatypes.quality` and :func:`falcon.mediatypes.best_match`,
++otherwise have the same signature as the corresponding methods from
++``python-mimeparse``.
+diff --git a/docs/api/util.rst b/docs/api/util.rst
+index f15a3b444..254b4cb60 100644
+--- a/docs/api/util.rst
++++ b/docs/api/util.rst
+@@ -33,10 +33,14 @@ HTTP Status
+ .. autofunction:: falcon.http_status_to_code
+ .. autofunction:: falcon.code_to_http_status
+ 
++.. _mediatype_util:
++
+ Media types
+ -----------
+ 
+ .. autofunction:: falcon.parse_header
++.. autofunction:: falcon.mediatypes.quality
++.. autofunction:: falcon.mediatypes.best_match
+ 
+ Async
+ -----
+diff --git a/docs/ext/rfc.py b/docs/ext/rfc.py
+index abe13499b..3633d6ce0 100644
+--- a/docs/ext/rfc.py
++++ b/docs/ext/rfc.py
+@@ -22,6 +22,7 @@
+ 
+ import re
+ 
++IETF_DOCS = 'https://datatracker.ietf.org/doc/html'
+ RFC_PATTERN = re.compile(r'RFC (\d{4}), Section ([\d\.]+)')
+ 
+ 
+@@ -39,11 +40,10 @@ def _process_line(line):
+     section = m.group(2)
+ 
+     template = (
+-        '`RFC {rfc}, Section {section} '
+-        '<https://tools.ietf.org/html/rfc{rfc}#section-{section}>`_'
++        '`RFC {rfc}, Section {section} <{ietf_docs}/rfc{rfc}#section-{section}>`__'
+     )
+ 
+-    rendered_text = template.format(rfc=rfc, section=section)
++    rendered_text = template.format(rfc=rfc, section=section, ietf_docs=IETF_DOCS)
+ 
+     return line[: m.start()] + rendered_text + line[m.end() :]
+ 
+diff --git a/falcon/__init__.py b/falcon/__init__.py
+index 5c383b774..55ea9cde4 100644
+--- a/falcon/__init__.py
++++ b/falcon/__init__.py
+@@ -84,6 +84,7 @@
+     'http_status_to_code',
+     'IS_64_BITS',
+     'is_python_func',
++    'mediatypes',
+     'misc',
+     'parse_header',
+     'reader',
+@@ -138,6 +139,8 @@
+     'HTTPUnsupportedMediaType',
+     'HTTPUriTooLong',
+     'HTTPVersionNotSupported',
++    'InvalidMediaRange',
++    'InvalidMediaType',
+     'MediaMalformedError',
+     'MediaNotFoundError',
+     'MediaValidationError',
+@@ -388,6 +391,8 @@
+ from falcon.errors import HTTPUnsupportedMediaType
+ from falcon.errors import HTTPUriTooLong
+ from falcon.errors import HTTPVersionNotSupported
++from falcon.errors import InvalidMediaRange
++from falcon.errors import InvalidMediaType
+ from falcon.errors import MediaMalformedError
+ from falcon.errors import MediaNotFoundError
+ from falcon.errors import MediaValidationError
+@@ -617,6 +622,7 @@
+ from falcon.util import http_status_to_code
+ from falcon.util import IS_64_BITS
+ from falcon.util import is_python_func
++from falcon.util import mediatypes
+ from falcon.util import misc
+ from falcon.util import parse_header
+ from falcon.util import reader
+diff --git a/falcon/app_helpers.py b/falcon/app_helpers.py
+index 86654aa1a..d83731005 100644
+--- a/falcon/app_helpers.py
++++ b/falcon/app_helpers.py
+@@ -291,12 +291,14 @@ def default_serialize_error(req: Request, resp: Response, exception: HTTPError)
+         resp: Instance of ``falcon.Response``
+         exception: Instance of ``falcon.HTTPError``
+     """
+-    predefined = [MEDIA_XML, 'text/xml', MEDIA_JSON]
++
++    predefined = [MEDIA_JSON, 'text/xml', MEDIA_XML]
+     media_handlers = [mt for mt in resp.options.media_handlers if mt not in predefined]
+-    # NOTE(caselit) add all the registered before the predefined ones. This ensures that
+-    # in case of equal match the last one (json) is selected and that the q= is taken
+-    # into consideration when selecting the media
+-    preferred = req.client_prefers(media_handlers + predefined)
++    # NOTE(caselit,vytas): Add the registered handlers after the predefined
++    #   ones. This ensures that in the case of an equal match, the first one
++    #   (JSON) is selected and that the q parameter is taken into consideration
++    #   when selecting the media handler.
++    preferred = req.client_prefers(predefined + media_handlers)
+ 
+     if preferred is None:
+         # NOTE(kgriffs): See if the client expects a custom media
+diff --git a/falcon/asgi/app.py b/falcon/asgi/app.py
+index d28c8c49a..f3b637802 100644
+--- a/falcon/asgi/app.py
++++ b/falcon/asgi/app.py
+@@ -554,7 +554,7 @@ async def __call__(  # type: ignore[override] # noqa: C901
+                     data = resp._data
+ 
+                     if data is None and resp._media is not None:
+-                        # NOTE(kgriffs): We use a special MISSING singleton since
++                        # NOTE(kgriffs): We use a special _UNSET singleton since
+                         #   None is ambiguous (the media handler might return None).
+                         if resp._media_rendered is _UNSET:
+                             opt = resp.options
+diff --git a/falcon/asgi/request.py b/falcon/asgi/request.py
+index 8442ea8bc..ebd2e382d 100644
+--- a/falcon/asgi/request.py
++++ b/falcon/asgi/request.py
+@@ -169,7 +169,7 @@ def __init__(
+ 
+         self.uri_template = None
+         # PERF(vytas): Fall back to class variable(s) when unset.
+-        # self._media = MISSING
++        # self._media = _UNSET
+         # self._media_error = None
+ 
+         # TODO(kgriffs): ASGI does not specify whether 'path' may be empty,
+diff --git a/falcon/asgi/response.py b/falcon/asgi/response.py
+index 42cc05830..1b5717444 100644
+--- a/falcon/asgi/response.py
++++ b/falcon/asgi/response.py
+@@ -207,7 +207,7 @@ async def render_body(self) -> Optional[bytes]:  # type: ignore[override]
+             data = self._data
+ 
+             if data is None and self._media is not None:
+-                # NOTE(kgriffs): We use a special MISSING singleton since
++                # NOTE(kgriffs): We use a special _UNSET singleton since
+                 #   None is ambiguous (the media handler might return None).
+                 if self._media_rendered is _UNSET:
+                     if not self.content_type:
+diff --git a/falcon/errors.py b/falcon/errors.py
+index 4acc7247d..092fff2e5 100644
+--- a/falcon/errors.py
++++ b/falcon/errors.py
+@@ -88,6 +88,8 @@ def on_get(self, req, resp):
+     'HTTPUnsupportedMediaType',
+     'HTTPUriTooLong',
+     'HTTPVersionNotSupported',
++    'InvalidMediaRange',
++    'InvalidMediaType',
+     'MediaMalformedError',
+     'MediaNotFoundError',
+     'MediaValidationError',
+@@ -111,6 +113,14 @@ class CompatibilityError(ValueError):
+     """The given method, value, or type is not compatible."""
+ 
+ 
++class InvalidMediaType(ValueError):
++    """The provided media type cannot be parsed into type/subtype."""
++
++
++class InvalidMediaRange(InvalidMediaType):
++    """The media range contains an invalid media type and/or the q value."""
++
++
+ class UnsupportedScopeError(RuntimeError):
+     """The ASGI scope type is not supported by Falcon."""
+ 
+diff --git a/falcon/http_error.py b/falcon/http_error.py
+index 508bd2524..b6c104aec 100644
+--- a/falcon/http_error.py
++++ b/falcon/http_error.py
+@@ -19,8 +19,7 @@
+ import xml.etree.ElementTree as et
+ 
+ from falcon.constants import MEDIA_JSON
+-from falcon.util import code_to_http_status
+-from falcon.util import http_status_to_code
++from falcon.util import misc
+ from falcon.util import uri
+ 
+ if TYPE_CHECKING:
+@@ -136,7 +135,7 @@ def __init__(
+         #   we'll probably switch over to making everything code-based to more
+         #   easily support HTTP/2. When that happens, should we continue to
+         #   include the reason phrase in the title?
+-        self.title = title or code_to_http_status(status)
++        self.title = title or misc.code_to_http_status(status)
+ 
+         self.description = description
+         self.headers = headers
+@@ -161,7 +160,7 @@ def status_code(self) -> int:
+         """HTTP status code normalized from the ``status`` argument passed
+         to the initializer.
+         """  # noqa: D205
+-        return http_status_to_code(self.status)
++        return misc.http_status_to_code(self.status)
+ 
+     def to_dict(
+         self, obj_type: Type[MutableMapping[str, Union[str, int, None, Link]]] = dict
+diff --git a/falcon/media/handlers.py b/falcon/media/handlers.py
+index 6b096ec91..b48a95d77 100644
+--- a/falcon/media/handlers.py
++++ b/falcon/media/handlers.py
+@@ -30,8 +30,8 @@
+ from falcon.media.multipart import MultipartFormHandler
+ from falcon.media.multipart import MultipartParseOptions
+ from falcon.media.urlencoded import URLEncodedFormHandler
++from falcon.util import mediatypes
+ from falcon.util import misc
+-from falcon.vendor import mimeparse
+ 
+ 
+ class MissingDependencyHandler(BinaryBaseHandlerWS):
+@@ -186,7 +186,7 @@ def _best_match(media_type: str, all_media_types: Sequence[str]) -> Optional[str
+     try:
+         # NOTE(jmvrbanac): Mimeparse will return an empty string if it can
+         # parse the media type, but cannot find a suitable type.
+-        result = mimeparse.best_match(all_media_types, media_type)
++        result = mediatypes.best_match(all_media_types, media_type)
+     except ValueError:
+         pass
+ 
+diff --git a/falcon/request.py b/falcon/request.py
+index 9bc38a59b..64f9312e1 100644
+--- a/falcon/request.py
++++ b/falcon/request.py
+@@ -53,10 +53,10 @@
+ from falcon.typing import ReadableIO
+ from falcon.util import deprecation
+ from falcon.util import ETag
++from falcon.util import mediatypes
+ from falcon.util import structures
+ from falcon.util.uri import parse_host
+ from falcon.util.uri import parse_query_string
+-from falcon.vendor import mimeparse
+ 
+ DEFAULT_ERROR_LOG_FORMAT = '{0:%Y-%m-%d %H:%M:%S} [FALCON] [ERROR] {1} {2}{3} => '
+ 
+@@ -1167,7 +1167,7 @@ def client_accepts(self, media_type: str) -> bool:
+ 
+         # Fall back to full-blown parsing
+         try:
+-            return mimeparse.quality(media_type, accept) != 0.0
++            return mediatypes.quality(media_type, accept) != 0.0
+         except ValueError:
+             return False
+ 
+@@ -1187,7 +1187,7 @@ def client_prefers(self, media_types: Iterable[str]) -> Optional[str]:
+ 
+         try:
+             # NOTE(kgriffs): best_match will return '' if no match is found
+-            preferred_type = mimeparse.best_match(media_types, self.accept)
++            preferred_type = mediatypes.best_match(media_types, self.accept)
+         except ValueError:
+             # Value for the accept header was not formatted correctly
+             preferred_type = ''
+diff --git a/falcon/response.py b/falcon/response.py
+index d468b0db3..e71a4b4c9 100644
+--- a/falcon/response.py
++++ b/falcon/response.py
+@@ -276,7 +276,7 @@ def render_body(self) -> Optional[bytes]:
+             data = self._data
+ 
+             if data is None and self._media is not None:
+-                # NOTE(kgriffs): We use a special MISSING singleton since
++                # NOTE(kgriffs): We use a special _UNSET singleton since
+                 #   None is ambiguous (the media handler might return None).
+                 if self._media_rendered is _UNSET:
+                     if not self.content_type:
+diff --git a/falcon/util/mediatypes.py b/falcon/util/mediatypes.py
+index eebed0446..9aba2e38c 100644
+--- a/falcon/util/mediatypes.py
++++ b/falcon/util/mediatypes.py
+@@ -16,9 +16,14 @@
+ 
+ from __future__ import annotations
+ 
+-from typing import Dict, Iterator, Tuple
++import dataclasses
++import functools
++import math
++from typing import Dict, Iterable, Iterator, Tuple
+ 
+-__all__ = ('parse_header',)
++from falcon import errors
++
++__all__ = ('best_match', 'parse_header', 'quality')
+ 
+ 
+ def _parse_param_old_stdlib(s: str) -> Iterator[str]:
+@@ -88,3 +93,231 @@ def parse_header(line: str) -> Tuple[str, Dict[str, str]]:
+         return (key.strip(), pdict)
+ 
+     return _parse_header_old_stdlib(line)
++
++
++def _parse_media_type_header(media_type: str) -> Tuple[str, str, dict]:
++    full_type, params = parse_header(media_type)
++
++    # TODO(vytas): Workaround from python-mimeparse by J. Gregorio et al.
++    #   Do we still need this in 2024?
++    # Java URLConnection class sends an Accept header that includes a
++    #   single '*'. Turn it into a legal wildcard.
++    if full_type == '*':
++        full_type = '*/*'
++
++    main_type, separator, subtype = full_type.partition('/')
++    if not separator:
++        raise errors.InvalidMediaType('The media type value must contain type/subtype.')
++
++    return (main_type.strip(), subtype.strip(), params)
++
++
++# TODO(vytas): Should we make these data structures public?
++
++
++# PERF(vytas): It would be nice to use frozen=True as we never modify the data,
++#   but it seems to incur a performance hit (~2-3x) on CPython 3.12.
++@dataclasses.dataclass
++class _MediaType:
++    main_type: str
++    subtype: str
++    params: dict
++
++    # NOTE(vytas): Using __slots__ with dataclasses is tricky, but it seems to
++    #   work here since we are not using any default values in the definition.
++    __slots__ = ('main_type', 'subtype', 'params')
++
++    @classmethod
++    def parse(cls, media_type: str) -> _MediaType:
++        return cls(*_parse_media_type_header(media_type))
++
++
++@dataclasses.dataclass
++class _MediaRange:
++    main_type: str
++    subtype: str
++    quality: float
++    params: dict
++
++    __slots__ = ('main_type', 'subtype', 'quality', 'params')
++
++    _NOT_MATCHING = (-1, -1, -1, -1, 0.0)
++
++    _Q_VALUE_ERROR_MESSAGE = (
++        'If provided, the q parameter must be a real number '
++        'in the range 0 through 1.'
++    )
++
++    @classmethod
++    def parse(cls, media_range: str) -> _MediaRange:
++        try:
++            main_type, subtype, params = _parse_media_type_header(media_range)
++        except errors.InvalidMediaType as ex:
++            raise errors.InvalidMediaRange(
++                'The media range value must contain type/subtype.'
++            ) from ex
++
++        # NOTE(vytas): We don't need to special-case Q since the above
++        #   parse_header always lowercases parameter names.
++
++        # PERF(vytas): Short-circuit if q is absent.
++        if 'q' not in params:
++            return cls(main_type, subtype, 1.0, params)
++
++        try:
++            q = float(params.pop('q'))
++        except (TypeError, ValueError) as ex:
++            # NOTE(vytas): RFC 9110, Section 12.4.2:
++            #   weight = OWS ";" OWS "q=" qvalue
++            #   qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
++            raise errors.InvalidMediaRange(cls._Q_VALUE_ERROR_MESSAGE) from ex
++
++        if not (0.0 <= q <= 1.0) or not math.isfinite(q):
++            raise errors.InvalidMediaRange(cls._Q_VALUE_ERROR_MESSAGE)
++
++        # NOTE(vytas): RFC 9110, Section 12.4.2 states that a sender of qvalue
++        #   MUST NOT generate more than three digits after the decimal point,
++        #   but we are more permissive here, and opt not to spend any extra CPU
++        #   cycles, if we have already managed to convert the value to float.
++
++        return cls(main_type, subtype, q, params)
++
++    def match_score(self, media_type: _MediaType) -> Tuple[int, int, int, int, float]:
++        if self.main_type == '*' or media_type.main_type == '*':
++            main_matches = 0
++        elif self.main_type != media_type.main_type:
++            return self._NOT_MATCHING
++        else:
++            main_matches = 1
++
++        if self.subtype == '*' or media_type.subtype == '*':
++            sub_matches = 0
++        elif self.subtype != media_type.subtype:
++            return self._NOT_MATCHING
++        else:
++            sub_matches = 1
++
++        # PERF(vytas): We could also use bitwise operators directly between
++        #   params.keys(), but set()/frozenset() seem to outperform dict.keys()
++        #   slightly regardless of the number of elements, especially when we
++        #   reuse the same sets for both intersection and symmetric_difference.
++        mr_pnames = frozenset(self.params)
++        mt_pnames = frozenset(media_type.params)
++
++        exact_match = 0 if mr_pnames ^ mt_pnames else 1
++
++        matching = mr_pnames & mt_pnames
++        for pname in matching:
++            if self.params[pname] != media_type.params[pname]:
++                return self._NOT_MATCHING
++
++        return (main_matches, sub_matches, exact_match, len(matching), self.quality)
++
++
++# PERF(vytas): It is possible to cache a classmethod too, but the invocation is
++#   less efficient, especially in the case of a cache hit.
++# NOTE(vytas): Also, if we decide to make these classes public, we either need
++#   to keep these cached parsers private, or to make sure we use frozen classes.
++_parse_media_type = functools.lru_cache(_MediaType.parse)
++_parse_media_range = functools.lru_cache(_MediaRange.parse)
++
++
++@functools.lru_cache()
++def _parse_media_ranges(header: str) -> Tuple[_MediaRange, ...]:
++    return tuple(_MediaRange.parse(media_range) for media_range in header.split(','))
++
++
++@functools.lru_cache()
++def quality(media_type: str, header: str) -> float:
++    """Get quality of the most specific matching media range.
++
++    Media-ranges are parsed from the provided `header` value according to
++    RFC 9110, Section 12.5.1 (the ``Accept`` header).
++
++    The provided `media_type` is matched against each of the parsed media
++    ranges, and the fitness of each match is assessed as follows
++    (in the decreasing priority list of criteria):
++
++    1. Do the main types (as in ``type/subtype``) match?
++
++       The types must either match exactly, or as wildcard (``*``).
++       The matches involving a wildcard are prioritized lower.
++
++    2. Do the subtypes (as in ``type/subtype``) match?
++
++       The subtypes must either match exactly, or as wildcard (``*``).
++       The matches involving a wildcard are prioritized lower.
++
++    3. Do the parameters match exactly?
++
++       If all the parameter names and values (if any) between the media range
++       and media type match exactly, such match is prioritized higher than
++       matches involving extraneous parameters on either side.
++
++       Note that if parameter names match, the corresponding values must also
++       be equal, or the provided media type is considered not to match the
++       media range in question at all.
++
++    4. The number of matching parameters.
++
++    5. Finally, if two or more best media range matches are equally fit
++       according to all of the above criteria (1) through (4), the highest
++       quality (i.e., the value of the ``q`` parameter) of these is returned.
++
++    Note:
++        With the exception of evaluating the exact parameter match (3), the
++        number of extraneous parameters (i.e. where the names are only present
++        in the media type, or only in the media range) currently does not
++        influence the described specificity sort order.
++
++    Args:
++        media_type: The Internet media type to match against the provided
++            HTTP ``Accept`` header value.
++        header: The value of a header that conforms to the format of the
++            HTTP ``Accept`` header.
++
++    Returns:
++        Quality of the most specific media range matching the provided
++        `media_type`. (If none matches, 0.0 is returned.)
++    """
++    parsed_media_type = _parse_media_type(media_type)
++    most_specific = max(
++        media_range.match_score(parsed_media_type)
++        for media_range in _parse_media_ranges(header)
++    )
++    return most_specific[-1]
++
++
++def best_match(media_types: Iterable[str], header: str) -> str:
++    """Choose media type with the highest :func:`quality` from a list of candidates.
++
++    Args:
++        media_types: An iterable over one or more Internet media types
++            to match against the provided header value.
++        header: The value of a header that conforms to the format of the
++            HTTP ``Accept`` header.
++
++    Returns:
++        Best match from the supported candidates, or an empty string if the
++        provided header value does not match any of the given types.
++    """
++    # PERF(vytas): Using the default parameter, i.e., max(..., default='', 0.0)
++    #   would be much nicer than EAFP, but for some reason it is quite slow
++    #   regardless of whether media_types is empty or not.
++    try:
++        matching, best_quality = max(
++            ((media_type, quality(media_type, header)) for media_type in media_types),
++            key=lambda mt_quality: mt_quality[1],
++        )
++        if best_quality > 0.0:
++            return matching
++    except errors.InvalidMediaType:
++        # NOTE(vytas): Do not swallow instances of InvalidMediaType
++        #   (it a subclass of ValueError).
++        raise
++    except ValueError:
++        # NOTE(vytas): Barring unknown bugs, we only expect unhandled
++        #   ValueErrors from supplying an empty media_types value.
++        pass
++
++    return ''
+diff --git a/falcon/vendor/__init__.py b/falcon/vendor/__init__.py
+deleted file mode 100644
+index e69de29bb..000000000
+diff --git a/falcon/vendor/mimeparse/LICENSE b/falcon/vendor/mimeparse/LICENSE
+deleted file mode 100755
+index 89de35479..000000000
+--- a/falcon/vendor/mimeparse/LICENSE
++++ /dev/null
+@@ -1,17 +0,0 @@
+-Permission is hereby granted, free of charge, to any person obtaining a copy
+-of this software and associated documentation files (the "Software"), to deal
+-in the Software without restriction, including without limitation the rights
+-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-copies of the Software, and to permit persons to whom the Software is
+-furnished to do so, subject to the following conditions:
+-
+-The above copyright notice and this permission notice shall be included in
+-all copies or substantial portions of the Software.
+-
+-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+-THE SOFTWARE.
+diff --git a/falcon/vendor/mimeparse/__init__.py b/falcon/vendor/mimeparse/__init__.py
+deleted file mode 100644
+index 223767a7b..000000000
+--- a/falcon/vendor/mimeparse/__init__.py
++++ /dev/null
+@@ -1,11 +0,0 @@
+-"""
+-This module wraps code from the MIT-licensed python-mimeparse project.
+-
+-The original project source code may be obtained from GitHub by visiting the
+-following URL:
+-
+-    https://github.com/dbtsai/python-mimeparse
+-
+-"""
+-
+-from .mimeparse import *  # NOQA
+diff --git a/falcon/vendor/mimeparse/mimeparse.py b/falcon/vendor/mimeparse/mimeparse.py
+deleted file mode 100755
+index f96e63384..000000000
+--- a/falcon/vendor/mimeparse/mimeparse.py
++++ /dev/null
+@@ -1,191 +0,0 @@
+-from falcon.util.mediatypes import parse_header
+-
+-__version__ = '1.6.0'
+-__author__ = 'Joe Gregorio'
+-__email__ = 'joe@bitworking.org'
+-__license__ = 'MIT License'
+-__credits__ = ''
+-
+-
+-class MimeTypeParseException(ValueError):
+-    pass
+-
+-
+-def parse_mime_type(mime_type):
+-    """Parses a mime-type into its component parts.
+-
+-    Carves up a mime-type and returns a tuple of the (type, subtype, params)
+-    where 'params' is a dictionary of all the parameters for the media range.
+-    For example, the media range 'application/xhtml;q=0.5' would get parsed
+-    into:
+-
+-       ('application', 'xhtml', {'q', '0.5'})
+-
+-    :rtype: (str,str,dict)
+-    """
+-    full_type, params = parse_header(mime_type)
+-    # Java URLConnection class sends an Accept header that includes a
+-    # single '*'. Turn it into a legal wildcard.
+-    if full_type == '*':
+-        full_type = '*/*'
+-
+-    type_parts = full_type.split('/') if '/' in full_type else None
+-    if not type_parts or len(type_parts) > 2:
+-        raise MimeTypeParseException(
+-            "Can't parse type \"{}\"".format(full_type))
+-
+-    (type, subtype) = type_parts
+-
+-    return (type.strip(), subtype.strip(), params)
+-
+-
+-def parse_media_range(range):
+-    """Parse a media-range into its component parts.
+-
+-    Carves up a media range and returns a tuple of the (type, subtype,
+-    params) where 'params' is a dictionary of all the parameters for the media
+-    range.  For example, the media range 'application/*;q=0.5' would get parsed
+-    into:
+-
+-       ('application', '*', {'q', '0.5'})
+-
+-    In addition this function also guarantees that there is a value for 'q'
+-    in the params dictionary, filling it in with a proper default if
+-    necessary.
+-
+-    :rtype: (str,str,dict)
+-    """
+-    (type, subtype, params) = parse_mime_type(range)
+-    params.setdefault('q', params.pop('Q', None))  # q is case insensitive
+-    try:
+-        if not params['q'] or not 0 <= float(params['q']) <= 1:
+-            params['q'] = '1'
+-    except ValueError:  # from float()
+-        params['q'] = '1'
+-
+-    return (type, subtype, params)
+-
+-
+-def quality_and_fitness_parsed(mime_type, parsed_ranges):
+-    """Find the best match for a mime-type amongst parsed media-ranges.
+-
+-    Find the best match for a given mime-type against a list of media_ranges
+-    that have already been parsed by parse_media_range(). Returns a tuple of
+-    the fitness value and the value of the 'q' quality parameter of the best
+-    match, or (-1, 0) if no match was found. Just as for quality_parsed(),
+-    'parsed_ranges' must be a list of parsed media ranges.
+-
+-    :rtype: (float,int)
+-    """
+-    best_fitness = -1
+-    best_fit_q = 0
+-    (target_type, target_subtype, target_params) = \
+-        parse_media_range(mime_type)
+-
+-    for (type, subtype, params) in parsed_ranges:
+-
+-        # check if the type and the subtype match
+-        type_match = (
+-            type in (target_type, '*') or
+-            target_type == '*'
+-        )
+-        subtype_match = (
+-            subtype in (target_subtype, '*') or
+-            target_subtype == '*'
+-        )
+-
+-        # if they do, assess the "fitness" of this mime_type
+-        if type_match and subtype_match:
+-
+-            # 100 points if the type matches w/o a wildcard
+-            fitness = type == target_type and 100 or 0
+-
+-            # 10 points if the subtype matches w/o a wildcard
+-            fitness += subtype == target_subtype and 10 or 0
+-
+-            # 1 bonus point for each matching param besides "q"
+-            param_matches = sum([
+-                1 for (key, value) in target_params.items()
+-                if key != 'q' and key in params and value == params[key]
+-            ])
+-            fitness += param_matches
+-
+-            # finally, add the target's "q" param (between 0 and 1)
+-            fitness += float(target_params.get('q', 1))
+-
+-            if fitness > best_fitness:
+-                best_fitness = fitness
+-                best_fit_q = params['q']
+-
+-    return float(best_fit_q), best_fitness
+-
+-
+-def quality_parsed(mime_type, parsed_ranges):
+-    """Find the best match for a mime-type amongst parsed media-ranges.
+-
+-    Find the best match for a given mime-type against a list of media_ranges
+-    that have already been parsed by parse_media_range(). Returns the 'q'
+-    quality parameter of the best match, 0 if no match was found. This function
+-    behaves the same as quality() except that 'parsed_ranges' must be a list of
+-    parsed media ranges.
+-
+-    :rtype: float
+-    """
+-
+-    return quality_and_fitness_parsed(mime_type, parsed_ranges)[0]
+-
+-
+-def quality(mime_type, ranges):
+-    """Return the quality ('q') of a mime-type against a list of media-ranges.
+-
+-    Returns the quality 'q' of a mime-type when compared against the
+-    media-ranges in ranges. For example:
+-
+-    >>> quality('text/html','text/*;q=0.3, text/html;q=0.7,
+-                  text/html;level=1, text/html;level=2;q=0.4, */*;q=0.5')
+-    0.7
+-
+-    :rtype: float
+-    """
+-    parsed_ranges = [parse_media_range(r) for r in ranges.split(',')]
+-
+-    return quality_parsed(mime_type, parsed_ranges)
+-
+-
+-def best_match(supported, header):
+-    """Return mime-type with the highest quality ('q') from list of candidates.
+-
+-    Takes a list of supported mime-types and finds the best match for all the
+-    media-ranges listed in header. The value of header must be a string that
+-    conforms to the format of the HTTP Accept: header. The value of 'supported'
+-    is a list of mime-types. The list of supported mime-types should be sorted
+-    in order of increasing desirability, in case of a situation where there is
+-    a tie.
+-
+-    >>> best_match(['application/xbel+xml', 'text/xml'],
+-                   'text/*;q=0.5,*/*; q=0.1')
+-    'text/xml'
+-
+-    :rtype: str
+-    """
+-    split_header = _filter_blank(header.split(','))
+-    parsed_header = [parse_media_range(r) for r in split_header]
+-    weighted_matches = []
+-    pos = 0
+-    for mime_type in supported:
+-        weighted_matches.append((
+-            quality_and_fitness_parsed(mime_type, parsed_header),
+-            pos,
+-            mime_type
+-        ))
+-        pos += 1
+-    weighted_matches.sort()
+-
+-    return weighted_matches[-1][0][0] and weighted_matches[-1][2] or ''
+-
+-
+-def _filter_blank(i):
+-    """Return all non-empty items in the list."""
+-    for s in i:
+-        if s.strip():
+-            yield s
+diff --git a/pyproject.toml b/pyproject.toml
+index ebccd4505..4fe30640a 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -84,7 +84,6 @@ exclude = ["examples", "tests"]
+     exclude = [
+         "falcon/bench",
+         "falcon/cmd",
+-        "falcon/vendor",
+     ]
+     disallow_untyped_defs = true
+     warn_unused_ignores = true
+@@ -114,12 +113,6 @@ exclude = ["examples", "tests"]
+         ]
+         ignore_missing_imports = true
+ 
+-    [[tool.mypy.overrides]]
+-        module = [
+-            "falcon.vendor.*",
+-        ]
+-        disallow_untyped_defs = false
+-
+ [tool.towncrier]
+     package = "falcon"
+     package_dir = ""
+@@ -159,7 +152,6 @@ exclude = ["examples", "tests"]
+     target-version = ["py38"]
+     skip-string-normalization = true
+     line-length = 88
+-    extend-exclude = "falcon/vendor"
+ 
+ [tool.blue]
+     # NOTE(vytas): Before switching to Ruff, Falcon used the Blue formatter.
+@@ -167,13 +159,11 @@ exclude = ["examples", "tests"]
+     #   only minor cosmetic changes in a handful of files.
+     target-version = ["py38"]
+     line-length = 88
+-    extend-exclude = "falcon/vendor"
+ 
+ [tool.ruff]
+     target-version = "py38"
+     format.quote-style = "single"
+     line-length = 88
+-    extend-exclude = ["falcon/vendor"]
+     builtins = [
+         "ignore",
+         "attr",
+diff --git a/setup.py b/setup.py
+index 9751f825c..3e5ce1e99 100644
+--- a/setup.py
++++ b/setup.py
+@@ -41,7 +41,6 @@ def list_modules(dirname, pattern):
+         'falcon.media',
+         'falcon.routing',
+         'falcon.util',
+-        'falcon.vendor.mimeparse',
+     ]
+ 
+     modules_to_exclude = [
+@@ -59,6 +58,7 @@ def list_modules(dirname, pattern):
+         # NOTE(vytas): It is pointless to cythonize reader.py, since cythonized
+         #   Falcon is using reader.pyx instead.
+         'falcon.hooks',
++        'falcon.inspect',
+         'falcon.responders',
+         'falcon.util.reader',
+         'falcon.util.sync',
+diff --git a/tox.ini b/tox.ini
+index 560f78f30..767a018c7 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -261,7 +261,7 @@ commands = ruff check []
+ deps = ruff
+ skip_install = True
+ commands = ruff check \
+-             --exclude=.ecosystem,.eggs,.git,.tox,.venv,build,dist,docs,examples,tests,falcon/vendor,falcon/bench/nuts \
++             --exclude=.ecosystem,.eggs,.git,.tox,.venv,build,dist,docs,examples,tests,falcon/bench/nuts \
+              --select=D205,D212,D400,D401,D403,D404 \
+              []
+ 
+@@ -328,16 +328,6 @@ basepython = pypy3
+ deps = -r{toxinidir}/requirements/bench
+ commands = falcon-bench []
+ 
+-# --------------------------------------------------------------------
+-# Check for new versions of vendored packages
+-# --------------------------------------------------------------------
+-
+-[testenv:check_vendored]
+-basepython = python3.10
+-allowlist_externals = {toxinidir}/tools/check-vendored.sh
+-deps =
+-commands = {toxinidir}/tools/check-vendored.sh
+-
+ # --------------------------------------------------------------------
+ # Package sanity check with twine
+ # --------------------------------------------------------------------

@@ -1,0 +1,7 @@
+[
+  "tests/test_sweep.py::test_simple_closed",
+  "tests/test_sweep.py::test_simple_extrude",
+  "tests/test_sweep.py::test_simple_open",
+  "tests/test_sweep.py::test_spline_3D",
+  "tests/test_sweep.py::test_screw"
+]

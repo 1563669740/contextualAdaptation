@@ -1,0 +1,12 @@
+diff --git a/lib/mpl_toolkits/mplot3d/axes3d.py b/lib/mpl_toolkits/mplot3d/axes3d.py
+index d0f5c8d2b23b..677c2668d4e9 100644
+--- a/lib/mpl_toolkits/mplot3d/axes3d.py
++++ b/lib/mpl_toolkits/mplot3d/axes3d.py
+@@ -1524,6 +1524,7 @@ def _on_move(self, event):
+             dazim = -(dy/h)*180*np.sin(roll) - (dx/w)*180*np.cos(roll)
+             elev = self.elev + delev
+             azim = self.azim + dazim
++            roll = self.roll
+             vertical_axis = self._axis_names[self._vertical_axis]
+             self.view_init(
+                 elev=elev,

@@ -1,0 +1,146 @@
+diff --git a/conan/api/subapi/cache.py b/conan/api/subapi/cache.py
+index 19a6db3dace..83967243151 100644
+--- a/conan/api/subapi/cache.py
++++ b/conan/api/subapi/cache.py
+@@ -63,6 +63,8 @@ def package_path(self, pref: PkgReference):
+         app = ConanApp(self.conan_api)
+         pref = _resolve_latest_pref(app, pref)
+         ref_layout = app.cache.pkg_layout(pref)
++        if os.path.exists(ref_layout.finalize()):
++            return ref_layout.finalize()
+         return _check_folder_existence(pref, "package", ref_layout.package())
+ 
+     def check_integrity(self, package_list):
+diff --git a/conan/internal/cache/conan_reference_layout.py b/conan/internal/cache/conan_reference_layout.py
+index 9933dcbbbb8..9bcd58160c7 100644
+--- a/conan/internal/cache/conan_reference_layout.py
++++ b/conan/internal/cache/conan_reference_layout.py
+@@ -10,6 +10,7 @@
+ SRC_FOLDER = "s"
+ BUILD_FOLDER = "b"
+ PACKAGES_FOLDER = "p"
++FINALIZE_FOLDER = "f"
+ EXPORT_FOLDER = "e"
+ EXPORT_SRC_FOLDER = "es"
+ DOWNLOAD_EXPORT_FOLDER = "d"
+@@ -55,7 +56,7 @@ def export_sources(self):
+         return os.path.join(self._base_folder, EXPORT_SRC_FOLDER)
+ 
+     def metadata(self):
+-        return os.path.join(self.download_export(), "metadata")
++        return os.path.join(self.download_export(), METADATA)
+ 
+     def download_export(self):
+         return os.path.join(self._base_folder, DOWNLOAD_EXPORT_FOLDER)
+@@ -99,11 +100,14 @@ def build(self):
+     def package(self):
+         return os.path.join(self._base_folder, PACKAGES_FOLDER)
+ 
++    def finalize(self):
++        return os.path.join(self._base_folder, FINALIZE_FOLDER)
++
+     def download_package(self):
+         return os.path.join(self._base_folder, DOWNLOAD_EXPORT_FOLDER)
+ 
+     def metadata(self):
+-        return os.path.join(self.download_package(), "metadata")
++        return os.path.join(self.download_package(), METADATA)
+ 
+     def package_manifests(self):
+         package_folder = self.package()
+diff --git a/conans/client/installer.py b/conans/client/installer.py
+index ea679f44e56..b2937dda895 100644
+--- a/conans/client/installer.py
++++ b/conans/client/installer.py
+@@ -338,7 +338,9 @@ def _handle_package(self, package, install_reference, handled_count, total_count
+             # Call the info method
+             conanfile.folders.set_base_package(pkg_folder)
+             conanfile.folders.set_base_pkg_metadata(pkg_metadata)
+-            self._call_package_info(conanfile, pkg_folder, is_editable=False)
++            self._call_finalize_method(conanfile, package_layout.finalize())
++            # Use package_folder which has been updated previously by install_method if necessary
++            self._call_package_info(conanfile, conanfile.package_folder, is_editable=False)
+ 
+     def _handle_node_editable(self, install_node):
+         # It will only run generation
+@@ -454,3 +456,15 @@ def _call_package_info(self, conanfile, package_folder, is_editable):
+                 self._hook_manager.execute("post_package_info", conanfile=conanfile)
+ 
+         conanfile.cpp_info.check_component_requires(conanfile)
++
++    def _call_finalize_method(self, conanfile, finalize_folder):
++        if hasattr(conanfile, "finalize"):
++            conanfile.folders.set_finalize_folder(finalize_folder)
++            if not os.path.exists(finalize_folder):
++                mkdir(finalize_folder)
++                conanfile.output.highlight("Calling finalize()")
++                with conanfile_exception_formatter(conanfile, "finalize"):
++                    with conanfile_remove_attr(conanfile, ['cpp_info', 'settings', 'options'], 'finalize'):
++                        conanfile.finalize()
++
++            conanfile.output.success(f"Finalized folder {finalize_folder}")
+diff --git a/conans/model/conan_file.py b/conans/model/conan_file.py
+index 0c6bedc7e6d..50cecb9b01e 100644
+--- a/conans/model/conan_file.py
++++ b/conans/model/conan_file.py
+@@ -164,6 +164,7 @@ def serialize(self):
+         result["build_folder"] = self.build_folder
+         result["generators_folder"] = self.generators_folder
+         result["package_folder"] = self.package_folder
++        result["immutable_package_folder"] = self.immutable_package_folder
+ 
+         result["cpp_info"] = self.cpp_info.serialize()
+         result["conf_info"] = self.conf_info.serialize()
+@@ -318,6 +319,10 @@ def package_folder(self):
+         """
+         return self.folders.base_package
+ 
++    @property
++    def immutable_package_folder(self):
++        return self.folders.immutable_package_folder
++
+     @property
+     def generators_folder(self):
+         return self.folders.generators_folder
+diff --git a/conans/model/conanfile_interface.py b/conans/model/conanfile_interface.py
+index 2130ff85be2..29a1607923f 100644
+--- a/conans/model/conanfile_interface.py
++++ b/conans/model/conanfile_interface.py
+@@ -39,6 +39,10 @@ def recipe_metadata_folder(self):
+     def package_folder(self):
+         return self._conanfile.package_folder
+ 
++    @property
++    def immutable_package_folder(self):
++        return self._conanfile.immutable_package_folder
++
+     @property
+     def package_metadata_folder(self):
+         return self._conanfile.package_metadata_folder
+diff --git a/conans/model/layout.py b/conans/model/layout.py
+index a06795550f8..de453f917fe 100644
+--- a/conans/model/layout.py
++++ b/conans/model/layout.py
+@@ -45,6 +45,7 @@ def __init__(self):
+ 
+         self._base_recipe_metadata = None
+         self._base_pkg_metadata = None
++        self._immutable_package_folder = None
+ 
+         self.source = ""
+         self.build = ""
+@@ -142,6 +143,14 @@ def package_folder(self):
+         """For the cache, the package folder is only the base"""
+         return self._base_package
+ 
++    def set_finalize_folder(self, folder):
++        self._immutable_package_folder = self.package_folder
++        self.set_base_package(folder)
++
++    @property
++    def immutable_package_folder(self):
++        return self._immutable_package_folder or self.package_folder
++
+     @property
+     def generators_folder(self):
+         if self._base_generators is None:

@@ -1,0 +1,16 @@
+diff --git a/Lib/fontTools/subset/__init__.py b/Lib/fontTools/subset/__init__.py
+index 250a07ef1a..7e6985db25 100644
+--- a/Lib/fontTools/subset/__init__.py
++++ b/Lib/fontTools/subset/__init__.py
+@@ -2913,8 +2913,9 @@ def prune_post_subset(self, font, options):
+     visitor = NameRecordVisitor()
+     visitor.visit(font)
+     nameIDs = set(options.name_IDs) | visitor.seen
+-    if "*" not in options.name_IDs:
+-        self.names = [n for n in self.names if n.nameID in nameIDs]
++    if "*" in options.name_IDs:
++        nameIDs |= {n.nameID for n in self.names if n.nameID < 256}
++    self.names = [n for n in self.names if n.nameID in nameIDs]
+     if not options.name_legacy:
+         # TODO(behdad) Sometimes (eg Apple Color Emoji) there's only a macroman
+         # entry for Latin and no Unicode names.

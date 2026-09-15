@@ -1,0 +1,62 @@
+{
+ "task_id": "python-babel__babel-1075",
+ "calibrated_utc": "2026-09-14T17:08:31Z",
+ "repo_id": "python-babel/babel",
+ "base_commit": "1a03526e2dda9818424c400530163464a2e74b9b",
+ "fail_to_pass": [
+  "tests/test_dates.py::test_issue_892"
+ ],
+ "pass_to_pass_count": 7043,
+ "gold_patch_file": "C:\\Users\\Administrator\\Desktop\\TIFS\\dataset\\gold\\patches\\python-babel__babel-1075.patch",
+ "test_patch_file": "C:\\Users\\Administrator\\Desktop\\TIFS\\dataset\\benchmark_tests\\python-babel__babel-1075\\test_patch.diff",
+ "workspace_source": "codeload_tarball",
+ "apply_test_patch": {
+  "applied": true
+ },
+ "base_without_gold": {
+  "rc": 4,
+  "summary": "1 error in 0.36s",
+  "f2p_failed": true,
+  "stderr_tail": "ERROR: found no collectors for C:\\Users\\Administrator\\Desktop\\TIFS\\experiment_root\\_run_workspaces\\python-babel__babel-1075__1a03526e\\tests\\test_dates.py::test_issue_892\n\n"
+ },
+ "apply_gold": {
+  "applied": true
+ },
+ "base_with_gold": {
+  "rc": 4,
+  "summary": "1 error in 0.35s",
+  "f2p_passed": false,
+  "stderr_tail": "ERROR: found no collectors for C:\\Users\\Administrator\\Desktop\\TIFS\\experiment_root\\_run_workspaces\\python-babel__babel-1075__1a03526e\\tests\\test_dates.py::test_issue_892\n\n"
+ },
+ "verdict": {
+  "oracle_reproduced": false,
+  "note": "oracle_reproduced must be true before holdout tests are worth authoring: it proves this environment can distinguish the defect from the fix"
+ },
+ "gold_diff": "diff --git a/babel/dates.py b/babel/dates.py\nindex 040820a6d..c2e4f0cc7 100644\n--- a/babel/dates.py\n+++ b/babel/dates.py\n@@ -943,7 +943,14 @@ def _iter_patterns(a_unit):\n             else:\n                 yield unit_rel_patterns['past']\n         a_unit = f\"duration-{a_unit}\"\n-        yield locale._data['unit_patterns'].get(a_unit, {}).get(format)\n+        unit_pats = locale._data['unit_patterns'].get(a_unit, {})\n+        yield unit_pats.get(format)\n+        # We do not support `<alias>` tags at all while ingesting CLDR data,\n+        # so these aliases specified in `root.xml` are hard-coded here:\n+        # <unitLength type=\"long\"><alias source=\"locale\" path=\"../unitLength[@type='short']\"/></unitLength>\n+        # <unitLength type=\"narrow\"><alias source=\"locale\" path=\"../unitLength[@type='short']\"/></unitLength>\n+        if format in (\"long\", \"narrow\"):\n+            yield unit_pats.get(\"short\")\n \n     for unit, secs_per_unit in TIMEDELTA_UNITS:\n         value = abs(seconds) / secs_per_unit\n@@ -956,7 +963,8 @@ def _iter_patterns(a_unit):\n             for patterns in _iter_patterns(unit):\n                 if patterns is not None:\n                     pattern = patterns.get(plural_form) or patterns.get('other')\n-                    break\n+                    if pattern:\n+                        break\n             # This really should not happen\n             if pattern is None:\n                 return ''\n",
+ "gold_files": [
+  "babel/dates.py"
+ ],
+ "gold_added_lines": [
+  "        unit_pats = locale._data['unit_patterns'].get(a_unit, {})",
+  "        yield unit_pats.get(format)",
+  "        # We do not support `<alias>` tags at all while ingesting CLDR data,",
+  "        # so these aliases specified in `root.xml` are hard-coded here:",
+  "        # <unitLength type=\"long\"><alias source=\"locale\" path=\"../unitLength[@type='short']\"/></unitLength>",
+  "        # <unitLength type=\"narrow\"><alias source=\"locale\" path=\"../unitLength[@type='short']\"/></unitLength>",
+  "        if format in (\"long\", \"narrow\"):",
+  "            yield unit_pats.get(\"short\")",
+  "                    if pattern:",
+  "                        break"
+ ],
+ "test_patch_added_lines": [
+  "",
+  "",
+  "def test_issue_892():",
+  "    assert dates.format_timedelta(timedelta(seconds=1), format='narrow', locale='pt_BR') == '1 s'",
+  "    assert dates.format_timedelta(timedelta(minutes=1), format='narrow', locale='pt_BR') == '1 min'",
+  "    assert dates.format_timedelta(timedelta(hours=1), format='narrow', locale='pt_BR') == '1 h'",
+  "    assert dates.format_timedelta(timedelta(days=1), format='narrow', locale='pt_BR') == '1 dia'",
+  "    assert dates.format_timedelta(timedelta(days=30), format='narrow', locale='pt_BR') == '1 mês'",
+  "    assert dates.format_timedelta(timedelta(days=365), format='narrow', locale='pt_BR') == '1 ano'"
+ ]
+}

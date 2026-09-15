@@ -1,0 +1,92 @@
+diff --git a/src/instructlab/configuration.py b/src/instructlab/configuration.py
+index 6050068b5c..c3901d1a93 100644
+--- a/src/instructlab/configuration.py
++++ b/src/instructlab/configuration.py
+@@ -301,7 +301,7 @@ class _mtbenchbranch(BaseModel):
+ 
+ 
+ class _mmlubranch(BaseModel):
+-    sdg_path: str
++    tasks_dir: str
+ 
+ 
+ class _evaluate(BaseModel):
+@@ -415,7 +415,7 @@ def get_default_config() -> Config:
+                 batch_size=5,
+             ),
+             mt_bench_branch=_mtbenchbranch(taxonomy_path=DEFAULTS.TAXONOMY_DIR),
+-            mmlu_branch=_mmlubranch(sdg_path=DEFAULTS.DATASETS_DIR),
++            mmlu_branch=_mmlubranch(tasks_dir=DEFAULTS.DATASETS_DIR),
+         ),
+     )
+ 
+diff --git a/src/instructlab/model/evaluate.py b/src/instructlab/model/evaluate.py
+index b6b2204d83..cb423fa102 100644
+--- a/src/instructlab/model/evaluate.py
++++ b/src/instructlab/model/evaluate.py
+@@ -50,7 +50,7 @@ def get_evaluator(
+     base_branch,
+     few_shots,
+     batch_size,
+-    sdg_path,
++    tasks_dir,
+     merge_system_user_message,
+ ) -> "Evaluator":
+     """takes in arguments from the CLI and uses 'benchmark' to validate other arguments
+@@ -119,9 +119,9 @@ def get_evaluator(
+         required_args = [model, few_shots, batch_size]
+         required_arg_names = ["model"]
+         if benchmark == Benchmark.MMLU_BRANCH:
+-            required_args.append(sdg_path)
++            required_args.append(tasks_dir)
+             required_args.append(base_model)
+-            required_arg_names.append("sdg-path")
++            required_arg_names.append("tasks-dir")
+             required_arg_names.append("base-model")
+         if None in required_args:
+             click.secho(
+@@ -147,7 +147,7 @@ def get_evaluator(
+             return evaluator
+         return evaluator_class(
+             model,
+-            sdg_path,
++            tasks_dir,
+             ["mmlu_pr"],
+             few_shots=few_shots,
+             batch_size=batch_size,
+@@ -359,7 +359,7 @@ def launch_server(
+     help="Number of GPUs. Needed for running mmlu or mmlu_branch.",
+ )
+ @click.option(
+-    "--sdg-path",
++    "--tasks-dir",
+     type=click.Path(),
+     cls=clickext.ConfigOption,
+     config_sections="mmlu_branch",
+@@ -420,7 +420,7 @@ def evaluate(
+     base_branch,
+     few_shots,
+     batch_size,
+-    sdg_path,
++    tasks_dir,
+     gpus,
+     merge_system_user_message,
+     backend,
+@@ -442,7 +442,7 @@ def evaluate(
+         base_branch,
+         few_shots,
+         batch_size,
+-        sdg_path,
++        tasks_dir,
+         merge_system_user_message,
+     )
+ 
+@@ -615,7 +615,7 @@ def evaluate(
+             evaluator,
+             MMLUBranchEvaluator(
+                 base_model,
+-                sdg_path,
++                tasks_dir,
+                 ["mmlu_pr"],
+                 few_shots=few_shots,
+                 batch_size=batch_size,

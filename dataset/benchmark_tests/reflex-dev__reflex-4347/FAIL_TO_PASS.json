@@ -1,0 +1,4 @@
+[
+  "tests/units/components/test_component_state.py::test_init_component_state",
+  "tests/units/test_state.py::test_init_mixin"
+]

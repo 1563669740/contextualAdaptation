@@ -1,0 +1,154 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b0965654bc..ddf6e620bd 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,8 @@
+    Includes --gpus option for specifying number of gpus to utilize when serving models for
+    evaluation (currently applicable for vLLM only).  Also includes --merge-system-user-message
+    flag to enable Mistral based judge models.
++* The `ilab` command now accepts a `-v` / `--verbose` option to enable debug logging.
++  `ilab -vv` or `ilab --verbose --verbose` enables more verbose debug logging.
+ 
+ ### Breaking Changes
+ 
+diff --git a/src/instructlab/configuration.py b/src/instructlab/configuration.py
+index be61d98a7d..6050068b5c 100644
+--- a/src/instructlab/configuration.py
++++ b/src/instructlab/configuration.py
+@@ -23,6 +23,7 @@
+     StrictStr,
+     ValidationError,
+     field_validator,
++    model_validator,
+ )
+ import click
+ import httpx
+@@ -172,6 +173,7 @@ class _general(BaseModel):
+ 
+     # additional fields with defaults
+     log_level: StrictStr = "INFO"
++    debug_level: int = 0
+ 
+     @field_validator("log_level")
+     def validate_log_level(cls, v):
+@@ -193,6 +195,13 @@ def validate_log_level(cls, v):
+             )
+         return v.upper()
+ 
++    @model_validator(mode="after")
++    def after_debug_level(self):
++        # set debug level when log level is DEBUG
++        if self.log_level == "DEBUG" and self.debug_level == 0:
++            self.debug_level = 1
++        return self
++
+ 
+ class _chat(BaseModel):
+     """Class describing configuration of the chat sub-command."""
+@@ -532,7 +541,9 @@ def ensure_config(self, ctx: click.Context) -> None:
+             ctx.fail(self.error_msg)
+ 
+ 
+-def init(ctx: click.Context, config_file: str | os.PathLike[str]) -> None:
++def init(
++    ctx: click.Context, config_file: str | os.PathLike[str], debug_level: int = 0
++) -> None:
+     config_obj: Config
+     error_msg: str | None = None
+     if config_file == "DEFAULT":
+@@ -560,6 +571,16 @@ def init(ctx: click.Context, config_file: str | os.PathLike[str]) -> None:
+     ctx.obj = Lab(config_obj, config_file, error_msg)
+     if config_obj is not None:
+         ctx.default_map = get_dict(config_obj)
+-        log.configure_logging(log_level=config_obj.general.log_level.upper())
++
++        # --verbose option overrides config file
++        if debug_level > 0:
++            config_obj.general.log_level = "DEBUG"
++            config_obj.general.debug_level = debug_level
++
++        # setup logging
++        log.configure_logging(
++            log_level=config_obj.general.log_level.upper(),
++            debug_level=config_obj.general.debug_level,
++        )
+     else:
+         ctx.default_map = None
+diff --git a/src/instructlab/lab.py b/src/instructlab/lab.py
+index 6d2e1b1de7..32ab80a254 100644
+--- a/src/instructlab/lab.py
++++ b/src/instructlab/lab.py
+@@ -80,15 +80,24 @@ def format_epilog(self, ctx, formatter):
+     show_default="config in user config directory",
+     help="Path to a configuration file.",
+ )
++@click.option(
++    "-v",
++    "--verbose",
++    "debug_level",
++    count=True,
++    default=0,
++    show_default=False,
++    help="Enable debug logging (repeat for even more verbosity)",
++)
+ @click.version_option(package_name="instructlab")
+ @click.pass_context
+ # pylint: disable=redefined-outer-name
+-def ilab(ctx, config_file):
++def ilab(ctx, config_file, debug_level: int = 0):
+     """CLI for interacting with InstructLab.
+ 
+     If this is your first time running ilab, it's best to start with `ilab config init` to create the environment.
+     """
+-    cfg.init(ctx, config_file)
++    cfg.init(ctx, config_file, debug_level)
+ 
+ 
+ ilab.add_command(model_group.model)
+diff --git a/src/instructlab/log.py b/src/instructlab/log.py
+index daa8aab3d7..ebe3cc019e 100644
+--- a/src/instructlab/log.py
++++ b/src/instructlab/log.py
+@@ -55,6 +55,7 @@ def stdout_stderr_to_logger(logger, log_file):
+ def configure_logging(
+     *,
+     log_level: str,
++    debug_level: int = 0,
+     fmt: str = FORMAT,
+ ) -> None:
+     """Configure logging framework"""
+@@ -68,8 +69,30 @@ def configure_logging(
+     stream = logging.StreamHandler()
+     stream.setFormatter(CustomFormatter(fmt=fmt))
+     root.addHandler(stream)
+-    root.setLevel(log_level)
+ 
+-    # Set logging level of OpenAI client and httpx library to ERROR to suppress INFO messages
+-    logging.getLogger("openai").setLevel(logging.ERROR)
+-    logging.getLogger("httpx").setLevel(logging.ERROR)
++    instructlab_lgr = logging.getLogger("instructlab")
++    openai_lgr = logging.getLogger("openai")
++    httpx_lgr = logging.getLogger("httpx")
++
++    # reset loggers to inherit from root logger
++    for lgr in [instructlab_lgr, openai_lgr, httpx_lgr]:
++        lgr.setLevel(logging.NOTSET)
++
++    if log_level == "DEBUG":
++        if debug_level >= 2:
++            # debug level 2 enables debug logging for everything
++            root.setLevel(logging.DEBUG)
++        else:
++            # debug level 1 enables debugging for instructlab
++            # other loggers are set to INFO (except for openai and httpx)
++            root.setLevel(logging.INFO)
++            instructlab_lgr.setLevel(logging.DEBUG)
++    else:
++        # INFO, WARNING, ERROR, FATAL and higher
++        root.setLevel(log_level)
++
++    if log_level != "DEBUG" or debug_level < 2:
++        # Set logging level of OpenAI client and httpx library to ERROR to
++        # suppress INFO messages unless debug_leve is >= 2.
++        openai_lgr.setLevel(logging.ERROR)
++        httpx_lgr.setLevel(logging.ERROR)

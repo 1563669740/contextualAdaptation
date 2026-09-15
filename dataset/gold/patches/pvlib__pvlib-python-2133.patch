@@ -1,0 +1,54 @@
+diff --git a/docs/sphinx/source/whatsnew/v0.11.2.rst b/docs/sphinx/source/whatsnew/v0.11.2.rst
+index 49a1121c17..8fb16ed0a9 100644
+--- a/docs/sphinx/source/whatsnew/v0.11.2.rst
++++ b/docs/sphinx/source/whatsnew/v0.11.2.rst
+@@ -17,6 +17,8 @@ Bug Fixes
+ ~~~~~~~~~
+ * :py:meth:`~pvlib.pvsystem.PVSystem.get_irradiance` accepts float inputs.
+   (:issue:`1338`, :pull:`2227`)
++* Handle DST transitions that happen at midnight in :py:func:`pvlib.solarposition.hour_angle`
++  (:issue:`2132` :pull:`2133`)
+ 
+ Bug fixes
+ ~~~~~~~~~
+@@ -74,3 +76,4 @@ Contributors
+ * matsuobasho (:ghuser:`matsuobasho`)
+ * Echedey Luis (:ghuser:`echedey-ls`)
+ * Kevin Anderson (:ghuser:`kandersolar`)
++* Scott Nelson (:ghuser:`scttnlsn`)
+diff --git a/pvlib/solarposition.py b/pvlib/solarposition.py
+index 46fa01fbe5..b667ac04e0 100644
+--- a/pvlib/solarposition.py
++++ b/pvlib/solarposition.py
+@@ -1349,6 +1349,12 @@ def hour_angle(times, longitude, equation_of_time):
+     times : :class:`pandas.DatetimeIndex`
+         Corresponding timestamps, must be localized to the timezone for the
+         ``longitude``.
++
++        A `pytz.exceptions.AmbiguousTimeError` will be raised if any of the
++        given times are on a day when the local daylight savings transition
++        happens at midnight.  If you're working with such a timezone,
++        consider converting to a non-DST timezone (e.g. GMT-4) before
++        calling this function.
+     longitude : numeric
+         Longitude in degrees
+     equation_of_time : numeric
+@@ -1421,7 +1427,17 @@ def _times_to_hours_after_local_midnight(times):
+     if not times.tz:
+         raise ValueError('times must be localized')
+ 
+-    hrs = (times - times.normalize()) / pd.Timedelta('1h')
++    # Some timezones have a DST shift at midnight:
++    #   11:59pm -> 1:00am - results in a nonexistent midnight
++    #   12:59am -> 12:00am - results in an ambiguous midnight
++    # We remove the timezone before normalizing for this reason.
++    naive_normalized_times = times.tz_localize(None).normalize()
++
++    # Use Pandas functionality for shifting nonexistent times forward
++    normalized_times = naive_normalized_times.tz_localize(
++        times.tz, nonexistent='shift_forward', ambiguous='raise')
++
++    hrs = (times - normalized_times) / pd.Timedelta('1h')
+ 
+     # ensure array return instead of a version-dependent pandas <T>Index
+     return np.array(hrs)

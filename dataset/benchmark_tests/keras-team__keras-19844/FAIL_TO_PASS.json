@@ -1,0 +1,4 @@
+[
+  "keras/src/initializers/random_initializers_test.py::InitializersTest::test_orthogonal_initializer",
+  "keras/src/layers/rnn/gru_test.py::GRUTest::test_legacy_implementation_argument"
+]

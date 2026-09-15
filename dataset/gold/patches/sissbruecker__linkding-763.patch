@@ -1,0 +1,101 @@
+diff --git a/bookmarks/api/routes.py b/bookmarks/api/routes.py
+index 5249c512..5aa7f92f 100644
+--- a/bookmarks/api/routes.py
++++ b/bookmarks/api/routes.py
+@@ -52,7 +52,7 @@ def get_queryset(self):
+         return Bookmark.objects.all().filter(owner=user)
+ 
+     def get_serializer_context(self):
+-        return {"user": self.request.user}
++        return {"request": self.request, "user": self.request.user}
+ 
+     @action(methods=["get"], detail=False)
+     def archived(self, request):
+@@ -60,8 +60,8 @@ def archived(self, request):
+         search = BookmarkSearch.from_request(request.GET)
+         query_set = queries.query_archived_bookmarks(user, user.profile, search)
+         page = self.paginate_queryset(query_set)
+-        serializer = self.get_serializer_class()
+-        data = serializer(page, many=True).data
++        serializer = self.get_serializer(page, many=True)
++        data = serializer.data
+         return self.get_paginated_response(data)
+ 
+     @action(methods=["get"], detail=False)
+@@ -73,8 +73,8 @@ def shared(self, request):
+             user, request.user_profile, search, public_only
+         )
+         page = self.paginate_queryset(query_set)
+-        serializer = self.get_serializer_class()
+-        data = serializer(page, many=True).data
++        serializer = self.get_serializer(page, many=True)
++        data = serializer.data
+         return self.get_paginated_response(data)
+ 
+     @action(methods=["post"], detail=True)
+diff --git a/bookmarks/api/serializers.py b/bookmarks/api/serializers.py
+index 6e82e339..38f19b9a 100644
+--- a/bookmarks/api/serializers.py
++++ b/bookmarks/api/serializers.py
+@@ -1,4 +1,5 @@
+ from django.db.models import prefetch_related_objects
++from django.templatetags.static import static
+ from rest_framework import serializers
+ from rest_framework.serializers import ListSerializer
+ 
+@@ -31,6 +32,8 @@ class Meta:
+             "website_title",
+             "website_description",
+             "web_archive_snapshot_url",
++            "favicon_url",
++            "preview_image_url",
+             "is_archived",
+             "unread",
+             "shared",
+@@ -42,6 +45,8 @@ class Meta:
+             "website_title",
+             "website_description",
+             "web_archive_snapshot_url",
++            "favicon_url",
++            "preview_image_url",
+             "date_added",
+             "date_modified",
+         ]
+@@ -56,6 +61,24 @@ class Meta:
+     shared = serializers.BooleanField(required=False, default=False)
+     # Override readonly tag_names property to allow passing a list of tag names to create/update
+     tag_names = TagListField(required=False, default=[])
++    favicon_url = serializers.SerializerMethodField()
++    preview_image_url = serializers.SerializerMethodField()
++
++    def get_favicon_url(self, obj: Bookmark):
++        if not obj.favicon_file:
++            return None
++        request = self.context.get("request")
++        favicon_file_path = static(obj.favicon_file)
++        favicon_url = request.build_absolute_uri(favicon_file_path)
++        return favicon_url
++
++    def get_preview_image_url(self, obj: Bookmark):
++        if not obj.preview_image_file:
++            return None
++        request = self.context.get("request")
++        preview_image_file_path = static(obj.preview_image_file)
++        preview_image_url = request.build_absolute_uri(preview_image_file_path)
++        return preview_image_url
+ 
+     def create(self, validated_data):
+         bookmark = Bookmark()
+diff --git a/docs/API.md b/docs/API.md
+index 8099f519..1af04a83 100644
+--- a/docs/API.md
++++ b/docs/API.md
+@@ -49,6 +49,8 @@ Example response:
+       "website_title": "Website title",
+       "website_description": "Website description",
+       "web_archive_snapshot_url": "https://web.archive.org/web/20200926094623/https://example.com",
++      "favicon_url": "http://127.0.0.1:8000/static/https_example_com.png",
++      "preview_image_url": "http://127.0.0.1:8000/static/0ac5c53db923727765216a3a58e70522.jpg",
+       "is_archived": false,
+       "unread": false,
+       "shared": false,

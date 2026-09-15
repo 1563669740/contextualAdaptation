@@ -1,0 +1,41 @@
+{
+  "task_id": "reata__sqllineage-540",
+  "repo": "reata/sqllineage",
+  "pull_number": "540",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "issue-template sections present (n=3)",
+  "task_type_confidence": 0.8,
+  "base_commit": "a93b89479e6f8764c4bd617c35752bb2e61589f9",
+  "repo_commit": "a93b89479e6f8764c4bd617c35752bb2e61589f9",
+  "gold_commit": "df79cf033a08506bc351dce5cfcc7b9e08b1022b",
+  "gold_commit_count": 12,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 8,
+  "gold_loc_added": 124,
+  "gold_loc_deleted": 54,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 11,
+  "pass_to_pass_count": 382,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

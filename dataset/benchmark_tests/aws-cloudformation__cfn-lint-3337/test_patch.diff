@@ -1,0 +1,12 @@
+diff --git a/test/unit/rules/resources/iam/test_iam_permissions.py b/test/unit/rules/resources/iam/test_iam_permissions.py
+index 5e95e52be1..f4b9068977 100644
+--- a/test/unit/rules/resources/iam/test_iam_permissions.py
++++ b/test/unit/rules/resources/iam/test_iam_permissions.py
+@@ -29,6 +29,7 @@ def rule():
+         ("Invalid string with ending astrisk", "s3:Foo*", 1),
+         ("Invalid string with starting astrisk", "s3:*Foo", 1),
+         ("Invalid service", "foo:Bar", 1),
++        ("Empty string", "", 1),
+     ],
+ )
+ def test_permissions(name, instance, err_count, rule, validator):

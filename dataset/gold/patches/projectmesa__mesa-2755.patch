@@ -1,0 +1,137 @@
+diff --git a/mesa/discrete_space/cell.py b/mesa/discrete_space/cell.py
+index 2b1a42d004d..f8621ead808 100644
+--- a/mesa/discrete_space/cell.py
++++ b/mesa/discrete_space/cell.py
+@@ -84,6 +84,7 @@ def connect(self, other: Cell, key: Coordinate | None = None) -> None:
+         """
+         if key is None:
+             key = other.coordinate
++        self._clear_cache()
+         self.connections[key] = other
+ 
+     def disconnect(self, other: Cell) -> None:
+@@ -96,6 +97,7 @@ def disconnect(self, other: Cell) -> None:
+         keys_to_remove = [k for k, v in self.connections.items() if v == other]
+         for key in keys_to_remove:
+             del self.connections[key]
++        self._clear_cache()
+ 
+     def add_agent(self, agent: CellAgent) -> None:
+         """Adds an agent to the cell.
+@@ -210,3 +212,15 @@ def __getstate__(self):
+             "connections"
+         ] = {}  # replace this with empty connections to avoid infinite recursion error in pickle/deepcopy
+         return state
++
++    def _clear_cache(self):
++        """Helper function to clear local cache."""
++        try:
++            self.__dict__.pop(
++                "neighborhood"
++            )  # cached properties are stored in __dict__, see functools.cached_property docs
++        except KeyError:
++            pass  # cache is not set
++        else:
++            self.get_neighborhood.cache_clear()
++            self._neighborhood.cache_clear()
+diff --git a/mesa/discrete_space/discrete_space.py b/mesa/discrete_space/discrete_space.py
+index 4a71673cd31..f480ff15fbe 100644
+--- a/mesa/discrete_space/discrete_space.py
++++ b/mesa/discrete_space/discrete_space.py
+@@ -85,6 +85,68 @@ def agents(self) -> AgentSet:
+     def _connect_cells(self): ...
+     def _connect_single_cell(self, cell: T): ...
+ 
++    def add_cell(self, cell: T):
++        """Add a cell to the space.
++
++        Args:
++            cell: cell to add
++
++        Note:
++            Discrete spaces rely on caching neighborhood relations for speedups. Adding or removing cells and
++            connections at runtime is possible. However, only the caches of cells directly affected will be cleared. So
++            if you rely on getting neighborhoods of cells with a radius higher than 1, these might not be cleared
++            correctly if you are adding or removing cells and connections at runtime.
++
++        """
++        self.__dict__.pop("all_cells", None)
++        self._cells[cell.coordinate] = cell
++
++    def remove_cell(self, cell: T):
++        """Remove a cell from the space.
++
++        Note:
++            Discrete spaces rely on caching neighborhood relations for speedups. Adding or removing cells and
++            connections at runtime is possible. However, only the caches of cells directly affected will be cleared. So
++            if you rely on getting neighborhoods of cells with a radius higher than 1, these might not be cleared
++            correctly if you are adding or removing cells and connections at runtime.
++
++
++        """
++        neighbors = cell.neighborhood
++        self._cells.pop(cell.coordinate)
++        self.__dict__.pop("all_cells", None)
++
++        # iterate over all neighbors
++        for neighbor in neighbors.cells:
++            neighbor.disconnect(cell)
++            cell.disconnect(neighbor)
++
++    def add_connection(self, cell1: T, cell2: T):
++        """Add a connection between the two cells.
++
++        Note:
++            Discrete spaces rely on caching neighborhood relations for speedups. Adding or removing cells and
++            connections at runtime is possible. However, only the caches of cells directly affected will be cleared. So
++            if you rely on getting neighborhoods of cells with a radius higher than 1, these might not be cleared
++            correctly if you are adding or removing cells and connections at runtime.
++
++        """
++        cell1.connect(cell2)
++        cell2.connect(cell1)
++
++    def remove_connection(self, cell1: T, cell2: T):
++        """Remove a connection between the two cells.
++
++        Note:
++            Discrete spaces rely on caching neighborhood relations for speedups. Adding or removing cells and
++            connections at runtime is possible. However, only the caches of cells directly affected will be cleared. So
++            if you rely on getting neighborhoods of cells with a radius higher than 1, these might not be cleared
++            correctly if you are adding or removing cells and connections at runtime.
++
++        """
++        cell1.disconnect(cell2)
++        cell2.disconnect(cell1)
++
+     @cached_property
+     def all_cells(self):
+         """Return all cells in space."""
+diff --git a/mesa/discrete_space/network.py b/mesa/discrete_space/network.py
+index 7f692cd2eaf..3fc0bc2ff14 100644
+--- a/mesa/discrete_space/network.py
++++ b/mesa/discrete_space/network.py
+@@ -55,3 +55,23 @@ def _connect_cells(self) -> None:
+     def _connect_single_cell(self, cell: Cell):
+         for node_id in self.G.neighbors(cell.coordinate):
+             cell.connect(self._cells[node_id], node_id)
++
++    def add_cell(self, cell: Cell):
++        """Add a cell to the space."""
++        super().add_cell(cell)
++        self.G.add_node(cell.coordinate)
++
++    def remove_cell(self, cell: Cell):
++        """Remove a cell from the space."""
++        super().remove_cell(cell)
++        self.G.remove_node(cell.coordinate)
++
++    def add_connection(self, cell1: Cell, cell2: Cell):
++        """Add a connection between the two cells."""
++        super().add_connection(cell1, cell2)
++        self.G.add_edge(cell1.coordinate, cell2.coordinate)
++
++    def remove_connection(self, cell1: Cell, cell2: Cell):
++        """Remove a connection between the two cells."""
++        super().remove_connection(cell1, cell2)
++        self.G.remove_edge(cell1.coordinate, cell2.coordinate)

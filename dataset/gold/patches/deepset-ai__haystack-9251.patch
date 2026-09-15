@@ -1,0 +1,33 @@
+diff --git a/haystack/tracing/logging_tracer.py b/haystack/tracing/logging_tracer.py
+index 166c484a90..b9807ecd49 100644
+--- a/haystack/tracing/logging_tracer.py
++++ b/haystack/tracing/logging_tracer.py
+@@ -8,6 +8,7 @@
+ 
+ from haystack import logging
+ from haystack.tracing import Span, Tracer
++from haystack.tracing.utils import coerce_tag_value
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -75,8 +76,9 @@ def trace(
+             logger.debug("Operation: {operation_name}", operation_name=operation_name)
+             for tag_name, tag_value in tags.items():
+                 color_string = self.tags_color_strings.get(tag_name, "")
++                coerced_value = coerce_tag_value(tag_value)
+                 logger.debug(
+-                    color_string + "{tag_name}={tag_value}" + RESET_COLOR, tag_name=tag_name, tag_value=tag_value
++                    color_string + "{tag_name}={tag_value}" + RESET_COLOR, tag_name=tag_name, tag_value=coerced_value
+                 )
+ 
+     def current_span(self) -> Optional[Span]:
+diff --git a/releasenotes/notes/coerce-tag-value-serialization-1192e532889be4a3.yaml b/releasenotes/notes/coerce-tag-value-serialization-1192e532889be4a3.yaml
+new file mode 100644
+index 0000000000..c56088168c
+--- /dev/null
++++ b/releasenotes/notes/coerce-tag-value-serialization-1192e532889be4a3.yaml
+@@ -0,0 +1,4 @@
++---
++fixes:
++  - |
++    use coerce_tag_value in LoggingTracer to serialize tag values

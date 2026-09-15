@@ -1,0 +1,100 @@
+diff --git a/tests/taxonomy.py b/tests/taxonomy.py
+index 5e8d9a1f14..5b6e2e91b3 100644
+--- a/tests/taxonomy.py
++++ b/tests/taxonomy.py
+@@ -6,6 +6,14 @@
+ # Third Party
+ import git
+ 
++TEST_VALID_YAML = """created_by: rafael-vasquez
++seed_examples:
++- answer: "Sure thing!"
++  context: "This is a valid YAML."
++  question: "Can you help me debug this failing unit test?"
++task_description: ''
++"""
++
+ 
+ class MockTaxonomy:
+     INIT_COMMIT_FILE = "README.md"
+@@ -34,7 +42,7 @@ def create_untracked(self, rel_path: str, contents: Optional[bytes] = None) -> N
+         file_path = Path(self.root / rel_path)
+         file_path.parent.mkdir(exist_ok=True, parents=True)
+         if not contents:
+-            file_path.write_text("new taxonomy", encoding="utf-8")
++            file_path.write_text(TEST_VALID_YAML, encoding="utf-8")
+         else:
+             file_path.write_bytes(contents)
+ 
+diff --git a/tests/test_lab_diff.py b/tests/test_lab_diff.py
+index 5d98a4c095..0e650293ca 100644
+--- a/tests/test_lab_diff.py
++++ b/tests/test_lab_diff.py
+@@ -138,6 +138,22 @@ def test_diff_invalid_path(self):
+             self.assertEqual(result.exit_code, 0)
+ 
+     def test_diff_valid_yaml(self):
++        valid_yaml_file = "compositional_skills/qna_valid.yaml"
++        self.taxonomy.create_untracked(valid_yaml_file, TEST_VALID_YAML)
++        runner = CliRunner()
++        result = runner.invoke(
++            lab.diff,
++            [
++                "--taxonomy-base",
++                TAXONOMY_BASE,
++                "--taxonomy-path",
++                self.taxonomy.root,
++            ],
++        )
++        self.assertIn(f"Taxonomy in /{self.taxonomy.root}/ is valid :)", result.output)
++        self.assertEqual(result.exit_code, 0)
++
++    def test_diff_valid_yaml_quiet(self):
+         valid_yaml_file = "compositional_skills/qna_valid.yaml"
+         self.taxonomy.create_untracked(valid_yaml_file, TEST_VALID_YAML)
+         runner = CliRunner()
+@@ -151,10 +167,26 @@ def test_diff_valid_yaml(self):
+                 "--quiet",
+             ],
+         )
+-        self.assertIn(f"Taxonomy in {self.taxonomy.root} is valid :)", result.output)
++        self.assertIn("", result.output)
+         self.assertEqual(result.exit_code, 0)
+ 
+     def test_diff_invalid_yaml(self):
++        invalid_yaml_file = "compositional_skills/qna_invalid.yaml"
++        self.taxonomy.create_untracked(invalid_yaml_file, TEST_INVALID_YAML)
++        runner = CliRunner()
++        result = runner.invoke(
++            lab.diff,
++            [
++                "--taxonomy-base",
++                TAXONOMY_BASE,
++                "--taxonomy-path",
++                self.taxonomy.root,
++            ],
++        )
++        self.assertIn("Reading taxonomy failed", result.output)
++        self.assertEqual(result.exit_code, 1)
++
++    def test_diff_invalid_yaml_quiet(self):
+         invalid_yaml_file = "compositional_skills/qna_invalid.yaml"
+         self.taxonomy.create_untracked(invalid_yaml_file, TEST_INVALID_YAML)
+         runner = CliRunner()
+@@ -169,7 +201,7 @@ def test_diff_invalid_yaml(self):
+             ],
+         )
+         self.assertIn(
+-            "1 taxonomy files with errors!",
++            "",
+             result.output,
+         )
+         self.assertEqual(result.exit_code, 1)
+@@ -193,6 +225,6 @@ def test_diff_custom_yaml(self):
+             ],
+         )
+         # custom yaml rules mean "invalid" yaml file should pass
+-        self.assertIn(f"Taxonomy in {self.taxonomy.root} is valid :)", result.output)
++        self.assertIn("", result.output)
+         self.assertEqual(result.exit_code, 0)
+         Path.unlink(custom_rules_file)

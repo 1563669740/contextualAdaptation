@@ -1,0 +1,74 @@
+diff --git a/src/cfnlint/rules/resources/ectwo/InstanceImageId.py b/src/cfnlint/rules/resources/ectwo/InstanceImageId.py
+index 7219d3c10b..db809da416 100644
+--- a/src/cfnlint/rules/resources/ectwo/InstanceImageId.py
++++ b/src/cfnlint/rules/resources/ectwo/InstanceImageId.py
+@@ -70,11 +70,20 @@ def validate(
+             launch_templates = list(
+                 self._get_related_launch_template(instance_image_id_validator, instance)
+             )
++            path: deque[str | int] = deque([])
++            if "ImageId" != instance_image_id_validator.context.path.path[-1]:
++                path = deque(
++                    list(instance_image_id_validator.context.path.path)[
++                        len(validator.context.path.path) :
++                    ]
++                )
+ 
+             if not launch_templates:
+                 yield ValidationError(
+                     "'ImageId' is a required property",
+-                    path_override=instance_image_id_validator.context.path.path,
++                    validator="required",
++                    path=path,
++                    rule=self,
+                 )
+                 continue
+ 
+@@ -123,5 +132,7 @@ def validate(
+                     if launch_template_image_id is None and instance_image_id is None:
+                         yield ValidationError(
+                             "'ImageId' is a required property",
+-                            path_override=instance_image_id_validator.context.path.path,
++                            validator="required",
++                            path=path,
++                            rule=self,
+                         )
+diff --git a/src/cfnlint/rules/resources/lmbd/PermissionSourceAccount.py b/src/cfnlint/rules/resources/lmbd/PermissionSourceAccount.py
+index f1137c7ba7..043ea94d9e 100644
+--- a/src/cfnlint/rules/resources/lmbd/PermissionSourceAccount.py
++++ b/src/cfnlint/rules/resources/lmbd/PermissionSourceAccount.py
+@@ -32,16 +32,6 @@ def __init__(self):
+             keywords=["Resources/AWS::Lambda::Permission/Properties"],
+         )
+ 
+-    def _validate_sub_has_account_id(self, validator: Validator, value: Any) -> bool:
+-        value = ensure_list(value)
+-
+-        if isinstance(value[0], str):
+-            if re.search(r":(\d{12}|\${AWS::AccountId}):", value[0]):
+-                return True
+-
+-            return False
+-        return True
+-
+     def _validate_is_gettatt_to_bucket(self, validator: Validator, value: Any) -> bool:
+         value = ensure_list(value)[0].split(".")[0]
+ 
+@@ -81,10 +71,7 @@ def validate(
+ 
+             fn_k, fn_v = is_function(source_arn)
+             if fn_k is not None:
+-                if fn_k == "Fn::Sub":
+-                    if self._validate_sub_has_account_id(scenario_validator, fn_v):
+-                        continue
+-                elif fn_k == "Fn::GetAtt":
++                if fn_k == "Fn::GetAtt":
+                     if not self._validate_is_gettatt_to_bucket(
+                         scenario_validator, fn_v
+                     ):
+@@ -96,4 +83,5 @@ def validate(
+                 yield ValidationError(
+                     "'SourceAccount' is a required property",
+                     validator="required",
++                    rule=self,
+                 )

@@ -1,0 +1,46 @@
+diff --git a/RELEASE.md b/RELEASE.md
+index b14a51c38d..4824c264ce 100644
+--- a/RELEASE.md
++++ b/RELEASE.md
+@@ -6,6 +6,9 @@
+ 
+ ## Breaking changes to the API
+ 
++## Upcoming deprecations for Kedro 0.20.0
++* The utility method `get_pkg_version()` is deprecated and will be removed in Kedro 0.20.0.
++
+ ## Documentation changes
+ 
+ ## Community contributions
+diff --git a/kedro/framework/cli/utils.py b/kedro/framework/cli/utils.py
+index eda9bc005c..2d298bd770 100644
+--- a/kedro/framework/cli/utils.py
++++ b/kedro/framework/cli/utils.py
+@@ -11,6 +11,7 @@
+ import textwrap
+ import traceback
+ import typing
++import warnings
+ from collections import defaultdict
+ from importlib import import_module
+ from itertools import chain
+@@ -21,6 +22,8 @@
+ import importlib_metadata
+ from omegaconf import OmegaConf
+ 
++from kedro import KedroDeprecationWarning
++
+ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
+ MAX_SUGGESTIONS = 3
+ CUTOFF = 0.5
+@@ -218,6 +221,10 @@ def get_pkg_version(reqs_path: (str | Path), package_name: str) -> str:
+         KedroCliError: If the file specified in ``reqs_path`` does not exist
+             or ``package_name`` was not found in that file.
+     """
++    warnings.warn(
++        "`get_pkg_version()` has been deprecated and will be removed in Kedro 0.20.0",
++        KedroDeprecationWarning,
++    )
+     reqs_path = Path(reqs_path).absolute()
+     if not reqs_path.is_file():
+         raise KedroCliError(f"Given path '{reqs_path}' is not a regular file.")

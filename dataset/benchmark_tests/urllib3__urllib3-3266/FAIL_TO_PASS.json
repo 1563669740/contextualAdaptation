@@ -1,0 +1,4 @@
+[
+  "test/with_dummyserver/test_proxy_poolmanager.py::TestHTTPProxyManager::test_is_verified_http_proxy_to_http_target",
+  "test/with_dummyserver/test_proxy_poolmanager.py::TestHTTPProxyManager::test_is_verified_http_proxy_to_https_target"
+]

@@ -1,0 +1,41 @@
+{
+  "task_id": "beeware__briefcase-1689",
+  "repo": "beeware/briefcase",
+  "pull_number": "1689",
+  "split": "held_out",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "issue-template sections present (n=3)",
+  "task_type_confidence": 0.8,
+  "base_commit": "5616e145960775ab7673765b2c4c966928b8034e",
+  "repo_commit": "5616e145960775ab7673765b2c4c966928b8034e",
+  "gold_commit": "5c93750941d43269fb6063d9afd05c194ee15e67",
+  "gold_commit_count": 3,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 4,
+  "gold_loc_added": 45,
+  "gold_loc_deleted": 60,
+  "gold_modules_changed": 3,
+  "fail_to_pass_count": 47,
+  "pass_to_pass_count": 2562,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

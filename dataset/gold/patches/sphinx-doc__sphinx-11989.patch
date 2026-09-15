@@ -1,0 +1,179 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 1f178f5c200..ab609469f98 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -74,6 +74,9 @@ Features added
+ * #11592: Add :confval:`coverage_modules` to the coverage builder
+   to allow explicitly specifying which modules should be documented.
+   Patch by Stephen Finucane.
++* #7896, #11989: Add a :rst:dir:`py:type` directiv for documenting type aliases,
++  and a :rst:role:`py:type` role for linking to them.
++  Patch by Ashley Whetter.
+ 
+ Bugs fixed
+ ----------
+diff --git a/doc/usage/domains/python.rst b/doc/usage/domains/python.rst
+index 96982f12e32..5667bd7a9b6 100644
+--- a/doc/usage/domains/python.rst
++++ b/doc/usage/domains/python.rst
+@@ -124,8 +124,9 @@ The following directives are provided for module and class contents:
+ .. rst:directive:: .. py:data:: name
+ 
+    Describes global data in a module, including both variables and values used
+-   as "defined constants."  Class and object attributes are not documented
+-   using this environment.
++   as "defined constants."
++   Consider using :rst:dir:`py:type` for type aliases instead
++   and :rst:dir:`py:attribute` for class variables and instance attributes.
+ 
+    .. rubric:: options
+ 
+@@ -259,6 +260,7 @@ The following directives are provided for module and class contents:
+    Describes an object data attribute.  The description should include
+    information about the type of the data to be expected and whether it may be
+    changed directly.
++   Type aliases should be documented with :rst:dir:`py:type`.
+ 
+    .. rubric:: options
+ 
+@@ -315,6 +317,55 @@ The following directives are provided for module and class contents:
+       Describe the location where the object is defined.  The default value is
+       the module specified by :rst:dir:`py:currentmodule`.
+ 
++.. rst:directive:: .. py:type:: name
++
++   Describe a :ref:`type alias <python:type-aliases>`.
++
++   The type that the alias represents should be described
++   with the :rst:dir:`!canonical` option.
++   This directive supports an optional description body.
++
++   For example:
++
++   .. code-block:: rst
++
++      .. py:type:: UInt64
++
++         Represent a 64-bit positive integer.
++
++   will be rendered as follows:
++
++   .. py:type:: UInt64
++      :no-contents-entry:
++      :no-index-entry:
++
++      Represent a 64-bit positive integer.
++
++   .. rubric:: options
++
++   .. rst:directive:option:: canonical
++      :type: text
++
++      The canonical type represented by this alias, for example:
++
++      .. code-block:: rst
++
++         .. py:type:: StrPattern
++            :canonical: str | re.Pattern[str]
++
++            Represent a regular expression or a compiled pattern.
++
++      This is rendered as:
++
++      .. py:type:: StrPattern
++         :no-contents-entry:
++         :no-index-entry:
++         :canonical: str | re.Pattern[str]
++
++         Represent a regular expression or a compiled pattern.
++
++   .. versionadded:: 7.4
++
+ .. rst:directive:: .. py:method:: name(parameters)
+                    .. py:method:: name[type parameters](parameters)
+ 
+@@ -649,6 +700,10 @@ a matching identifier is found:
+ 
+    .. note:: The role is also able to refer to property.
+ 
++.. rst:role:: py:type
++
++   Reference a type alias.
++
+ .. rst:role:: py:exc
+ 
+    Reference an exception.  A dotted name may be used.
+diff --git a/sphinx/domains/python/__init__.py b/sphinx/domains/python/__init__.py
+index 75c2cddfba5..8f1c7d6d22d 100644
+--- a/sphinx/domains/python/__init__.py
++++ b/sphinx/domains/python/__init__.py
+@@ -389,6 +389,45 @@ def get_index_text(self, modname: str, name_cls: tuple[str, str]) -> str:
+         return _('%s (%s property)') % (attrname, clsname)
+ 
+ 
++class PyTypeAlias(PyObject):
++    """Description of a type alias."""
++
++    option_spec: ClassVar[OptionSpec] = PyObject.option_spec.copy()
++    option_spec.update({
++        'canonical': directives.unchanged,
++    })
++
++    def get_signature_prefix(self, sig: str) -> list[nodes.Node]:
++        return [nodes.Text('type'), addnodes.desc_sig_space()]
++
++    def handle_signature(self, sig: str, signode: desc_signature) -> tuple[str, str]:
++        fullname, prefix = super().handle_signature(sig, signode)
++        if canonical := self.options.get('canonical'):
++            canonical_annotations = _parse_annotation(canonical, self.env)
++            signode += addnodes.desc_annotation(
++                canonical, '',
++                addnodes.desc_sig_space(),
++                addnodes.desc_sig_punctuation('', '='),
++                addnodes.desc_sig_space(),
++                *canonical_annotations,
++            )
++        return fullname, prefix
++
++    def get_index_text(self, modname: str, name_cls: tuple[str, str]) -> str:
++        name, cls = name_cls
++        try:
++            clsname, attrname = name.rsplit('.', 1)
++            if modname and self.env.config.add_module_names:
++                clsname = f'{modname}.{clsname}'
++        except ValueError:
++            if modname:
++                return _('%s (in module %s)') % (name, modname)
++            else:
++                return name
++
++        return _('%s (type alias in %s)') % (attrname, clsname)
++
++
+ class PyModule(SphinxDirective):
+     """
+     Directive to mark description of a new module.
+@@ -590,6 +629,7 @@ class PythonDomain(Domain):
+         'staticmethod': ObjType(_('static method'), 'meth', 'obj'),
+         'attribute':    ObjType(_('attribute'),     'attr', 'obj'),
+         'property':     ObjType(_('property'),      'attr', '_prop', 'obj'),
++        'type':         ObjType(_('type alias'),    'type', 'obj'),
+         'module':       ObjType(_('module'),        'mod', 'obj'),
+     }
+ 
+@@ -603,6 +643,7 @@ class PythonDomain(Domain):
+         'staticmethod':    PyStaticMethod,
+         'attribute':       PyAttribute,
+         'property':        PyProperty,
++        'type':            PyTypeAlias,
+         'module':          PyModule,
+         'currentmodule':   PyCurrentModule,
+         'decorator':       PyDecoratorFunction,
+@@ -615,6 +656,7 @@ class PythonDomain(Domain):
+         'class': PyXRefRole(),
+         'const': PyXRefRole(),
+         'attr':  PyXRefRole(),
++        'type':  PyXRefRole(),
+         'meth':  PyXRefRole(fix_parens=True),
+         'mod':   PyXRefRole(),
+         'obj':   PyXRefRole(),

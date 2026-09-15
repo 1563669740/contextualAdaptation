@@ -1,0 +1,13 @@
+[
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_enable_lateral_ref[provider0]",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_enable_lateral_ref[provider1]",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_enable_lateral_ref_with_metadata_from_table[provider0]",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_enable_lateral_ref_with_metadata_from_table[provider1]",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_enable_lateral_ref_with_metadata_from_subquery[provider0]",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_enable_lateral_ref_with_metadata_from_subquery[provider1]",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_enable_lateral_ref_with_metadata_from_nested_subquery[provider0]",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_enable_lateral_ref_with_metadata_from_nested_subquery[provider1]",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_disable_lateral_ref",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_top_level_disable_lateral_ref_with_metadata_from_table",
+  "tests/sql/column/test_column_select_lateral_alias_ref.py::test_column_disable_lateral_ref_within_subquery"
+]

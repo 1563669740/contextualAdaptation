@@ -1,0 +1,41 @@
+diff --git a/bookmarks/feeds.py b/bookmarks/feeds.py
+index bb3472b0..4afc8058 100644
+--- a/bookmarks/feeds.py
++++ b/bookmarks/feeds.py
+@@ -30,7 +30,11 @@ def sanitize(text: str):
+ class BaseBookmarksFeed(Feed):
+     def get_object(self, request, feed_key: str | None):
+         feed_token = FeedToken.objects.get(key__exact=feed_key) if feed_key else None
+-        search = BookmarkSearch(q=request.GET.get("q", ""))
++        search = BookmarkSearch(
++            q=request.GET.get("q", ""),
++            unread=request.GET.get("unread", ""),
++            shared=request.GET.get("shared", ""),
++        )
+         query_set = self.get_query_set(feed_token, search)
+         return FeedContext(request, feed_token, query_set)
+ 
+diff --git a/bookmarks/templates/settings/integrations.html b/bookmarks/templates/settings/integrations.html
+index 02d3d408..3ac1982e 100644
+--- a/bookmarks/templates/settings/integrations.html
++++ b/bookmarks/templates/settings/integrations.html
+@@ -64,11 +64,17 @@ <h2>RSS Feeds</h2>
+         All URLs support the following URL parameters:
+       </p>
+       <ul style="list-style-position: outside;">
++        <li>A <code>limit</code> parameter for specifying the maximum number of bookmarks to include in the feed. By
++          default, only the latest 100 matching bookmarks are included.
++        </li>
+         <li>A <code>q</code> URL parameter for specifying a search query. You can get an example by doing a search in
+           the bookmarks view and then copying the parameter from the URL.
+         </li>
+-        <li>A <code>limit</code> parameter for specifying the maximum number of bookmarks to include in the feed. By
+-          default, only the latest 100 matching bookmarks are included.
++        <li>An <code>unread</code> parameter for filtering for unread or read bookmarks. Use <code>yes</code> for unread
++          bookmarks and <code>no</code> for read bookmarks.
++        </li>
++        <li>A <code>shared</code> parameter for filtering for shared or unshared bookmarks. Use <code>yes</code> for
++          shared bookmarks and <code>no</code> for unshared bookmarks.
+         </li>
+       </ul>
+       <p>

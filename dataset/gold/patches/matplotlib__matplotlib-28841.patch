@@ -1,0 +1,388 @@
+diff --git a/doc/api/toolkits/mplot3d/view_angles.rst b/doc/api/toolkits/mplot3d/view_angles.rst
+index ce2c5f5698a5..75b24ba9c7b0 100644
+--- a/doc/api/toolkits/mplot3d/view_angles.rst
++++ b/doc/api/toolkits/mplot3d/view_angles.rst
+@@ -38,3 +38,168 @@ further documented in the `.mplot3d.axes3d.Axes3D.view_init` API.
+ 
+ .. plot:: gallery/mplot3d/view_planes_3d.py
+    :align: center
++
++
++.. _toolkit_mouse-rotation:
++
++Rotation with mouse
++===================
++
++3D plots can be reoriented by dragging the mouse.
++There are various ways to accomplish this; the style of mouse rotation
++can be specified by setting :rc:`axes3d.mouserotationstyle`, see
++:doc:`/users/explain/customizing`.
++
++Prior to v3.10, the 2D mouse position corresponded directly
++to azimuth and elevation; this is also how it is done
++in `MATLAB <https://www.mathworks.com/help/matlab/ref/view.html>`_.
++To keep it this way, set ``mouserotationstyle: azel``.
++This approach works fine for spherical coordinate plots, where the *z* axis is special;
++however, it leads to a kind of 'gimbal lock' when looking down the *z* axis:
++the plot reacts differently to mouse movement, dependent on the particular
++orientation at hand. Also, 'roll' cannot be controlled.
++
++As an alternative, there are various mouse rotation styles where the mouse
++manipulates a virtual 'trackball'. In its simplest form (``mouserotationstyle: trackball``),
++the trackball rotates around an in-plane axis perpendicular to the mouse motion
++(it is as if there is a plate laying on the trackball; the plate itself is fixed
++in orientation, but you can drag the plate with the mouse, thus rotating the ball).
++This is more natural to work with than the ``azel`` style; however,
++the plot cannot be easily rotated around the viewing direction - one has to
++move the mouse in circles with a handedness opposite to the desired rotation,
++counterintuitively.
++
++A different variety of trackball rotates along the shortest arc on the virtual
++sphere (``mouserotationstyle: sphere``). Rotating around the viewing direction
++is straightforward with it: grab the ball near its edge instead of near the center.
++
++Ken Shoemake's ARCBALL [Shoemake1992]_ is also available (``mouserotationstyle: Shoemake``);
++it resembles the ``sphere`` style, but is free of hysteresis,
++i.e., returning mouse to the original position
++returns the figure to its original orientation; the rotation is independent
++of the details of the path the mouse took, which could be desirable.
++However, Shoemake's arcball rotates at twice the angular rate of the
++mouse movement (it is quite noticeable, especially when adjusting roll),
++and it lacks an obvious mechanical equivalent; arguably, the path-independent
++rotation is not natural (however convenient), it could take some getting used to.
++So it is a trade-off.
++
++Henriksen et al. [Henriksen2002]_ provide an overview. In summary:
++
++.. list-table::
++   :width: 100%
++   :widths: 30 20 20 20 20 35
++
++   * - Style
++     - traditional [1]_
++     - incl. roll [2]_
++     - uniform [3]_
++     - path independent [4]_
++     - mechanical counterpart [5]_
++   * - azel
++     - ✔️
++     - ❌
++     - ❌
++     - ✔️
++     - ✔️
++   * - trackball
++     - ❌
++     - ✓ [6]_
++     - ✔️
++     - ❌
++     - ✔️
++   * - sphere
++     - ❌
++     - ✔️
++     - ✔️
++     - ❌
++     - ✔️
++   * - arcball
++     - ❌
++     - ✔️
++     - ✔️
++     - ✔️
++     - ❌
++
++
++.. [1] The way it was prior to v3.10; this is also MATLAB's style
++.. [2] Mouse controls roll too (not only azimuth and elevation)
++.. [3] Figure reacts the same way to mouse movements, regardless of orientation (no difference between 'poles' and 'equator')
++.. [4] Returning mouse to original position returns figure to original orientation (rotation is independent of the details of the path the mouse took)
++.. [5] The style has a corresponding natural implementation as a mechanical device
++.. [6] While it is possible to control roll with the ``trackball`` style, this is not immediately obvious (it requires moving the mouse in large circles) and a bit counterintuitive (the resulting roll is in the opposite direction)
++
++You can try out one of the various mouse rotation styles using:
++
++.. code::
++
++    import matplotlib as mpl
++    mpl.rcParams['axes3d.mouserotationstyle'] = 'trackball'  # 'azel', 'trackball', 'sphere', or 'arcball'
++
++    import numpy as np
++    import matplotlib.pyplot as plt
++    from matplotlib import cm
++
++    ax = plt.figure().add_subplot(projection='3d')
++
++    X = np.arange(-5, 5, 0.25)
++    Y = np.arange(-5, 5, 0.25)
++    X, Y = np.meshgrid(X, Y)
++    R = np.sqrt(X**2 + Y**2)
++    Z = np.sin(R)
++
++    surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
++                           linewidth=0, antialiased=False)
++
++    plt.show()
++
++Alternatively, create a file ``matplotlibrc``, with contents::
++
++    axes3d.mouserotationstyle: trackball
++
++(or any of the other styles, instead of ``trackball``), and then run any of
++the :ref:`mplot3d-examples-index` examples.
++
++The size of the virtual trackball, sphere, or arcball can be adjusted
++by setting :rc:`axes3d.trackballsize`. This specifies how much
++mouse motion is needed to obtain a given rotation angle (when near the center),
++and it controls where the edge of the sphere or arcball is (how far from
++the center, hence how close to the plot edge).
++The size is specified in units of the Axes bounding box,
++i.e., to make the arcball span the whole bounding box, set it to 1.
++A size of about 2/3 appears to work reasonably well; this is the default.
++
++Both arcballs (``mouserotationstyle: sphere`` and
++``mouserotationstyle: arcball``) have a noticeable edge; the edge can be made
++less abrupt by specifying a border width, :rc:`axes3d.trackballborder`.
++This works somewhat like Gavin Bell's arcball, which was
++originally written for OpenGL [Bell1988]_, and is used in Blender and Meshlab.
++Bell's arcball extends the arcball's spherical control surface with a hyperbola;
++the two are smoothly joined. However, the hyperbola extends all the way beyond
++the edge of the plot. In the mplot3d sphere and arcball style, the border extends
++to a radius ``trackballsize/2 + trackballborder``.
++Beyond the border, the style works like the original: it controls roll only.
++A border width of about 0.2 appears to work well; this is the default.
++To obtain the original Shoemake's arcball with a sharp border,
++set the border width to 0.
++For an extended border similar to Bell's arcball, where the transition from
++the arcball to the border occurs at 45°, set the border width to
++:math:`\sqrt 2 \approx 1.414`.
++The border is a circular arc, wrapped around the arcball sphere cylindrically
++(like a doughnut), joined smoothly to the sphere, much like Bell's hyperbola.
++
++
++.. [Shoemake1992] Ken Shoemake, "ARCBALL: A user interface for specifying
++  three-dimensional rotation using a mouse", in Proceedings of Graphics
++  Interface '92, 1992, pp. 151-156, https://doi.org/10.20380/GI1992.18
++
++.. [Bell1988] Gavin Bell, in the examples included with the GLUT (OpenGL
++  Utility Toolkit) library,
++  https://github.com/markkilgard/glut/blob/master/progs/examples/trackball.h
++
++.. [Henriksen2002] Knud Henriksen, Jon Sporring, Kasper Hornbæk,
++  "Virtual Trackballs Revisited", in IEEE Transactions on Visualization
++  and Computer Graphics, Volume 10, Issue 2, March-April 2004, pp. 206-216,
++  https://doi.org/10.1109/TVCG.2004.1260772 `[full-text]`__;
++
++__ https://www.researchgate.net/publication/8329656_Virtual_Trackballs_Revisited#fullTextFileContent
+diff --git a/doc/users/next_whats_new/mouse_rotation.rst b/doc/users/next_whats_new/mouse_rotation.rst
+index 64fca63ec472..c4eeab591da3 100644
+--- a/doc/users/next_whats_new/mouse_rotation.rst
++++ b/doc/users/next_whats_new/mouse_rotation.rst
+@@ -4,9 +4,42 @@ Rotating 3d plots with the mouse
+ Rotating three-dimensional plots with the mouse has been made more intuitive.
+ The plot now reacts the same way to mouse movement, independent of the
+ particular orientation at hand; and it is possible to control all 3 rotational
+-degrees of freedom (azimuth, elevation, and roll). It uses a variation on
+-Ken Shoemake's ARCBALL [Shoemake1992]_.
++degrees of freedom (azimuth, elevation, and roll). By default,
++it uses a variation on Ken Shoemake's ARCBALL [1]_.
++The particular style of mouse rotation can be set via
++:rc:`axes3d.mouserotationstyle`.
++See also :ref:`toolkit_mouse-rotation`.
+ 
+-.. [Shoemake1992] Ken Shoemake, "ARCBALL: A user interface for specifying
+-  three-dimensional rotation using a mouse." in Proceedings of Graphics
++To revert to the original mouse rotation style,
++create a file ``matplotlibrc`` with contents::
++
++    axes3d.mouserotationstyle: azel
++
++To try out one of the various mouse rotation styles:
++
++.. code::
++
++    import matplotlib as mpl
++    mpl.rcParams['axes3d.mouserotationstyle'] = 'trackball'  # 'azel', 'trackball', 'sphere', or 'arcball'
++
++    import numpy as np
++    import matplotlib.pyplot as plt
++    from matplotlib import cm
++
++    ax = plt.figure().add_subplot(projection='3d')
++
++    X = np.arange(-5, 5, 0.25)
++    Y = np.arange(-5, 5, 0.25)
++    X, Y = np.meshgrid(X, Y)
++    R = np.sqrt(X**2 + Y**2)
++    Z = np.sin(R)
++
++    surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
++                           linewidth=0, antialiased=False)
++
++    plt.show()
++
++
++.. [1] Ken Shoemake, "ARCBALL: A user interface for specifying
++  three-dimensional rotation using a mouse", in Proceedings of Graphics
+   Interface '92, 1992, pp. 151-156, https://doi.org/10.20380/GI1992.18
+diff --git a/lib/matplotlib/mpl-data/matplotlibrc b/lib/matplotlib/mpl-data/matplotlibrc
+index d419ed6e5af7..092b7a25a7d7 100644
+--- a/lib/matplotlib/mpl-data/matplotlibrc
++++ b/lib/matplotlib/mpl-data/matplotlibrc
+@@ -433,6 +433,11 @@
+ #axes3d.yaxis.panecolor:    (0.90, 0.90, 0.90, 0.5)  # background pane on 3D axes
+ #axes3d.zaxis.panecolor:    (0.925, 0.925, 0.925, 0.5)  # background pane on 3D axes
+ 
++#axes3d.mouserotationstyle: arcball  # {azel, trackball, sphere, arcball}
++                            # See also https://matplotlib.org/stable/api/toolkits/mplot3d/view_angles.html#rotation-with-mouse
++#axes3d.trackballsize: 0.667  # trackball diameter, in units of the Axes bbox
++#axes3d.trackballborder: 0.2  # trackball border width, in units of the Axes bbox (only for 'sphere' and 'arcball' style)
++
+ ## ***************************************************************************
+ ## * AXIS                                                                    *
+ ## ***************************************************************************
+diff --git a/lib/matplotlib/rcsetup.py b/lib/matplotlib/rcsetup.py
+index e84b0539385b..4f7c0f8a241d 100644
+--- a/lib/matplotlib/rcsetup.py
++++ b/lib/matplotlib/rcsetup.py
+@@ -1132,6 +1132,10 @@ def _convert_validator_spec(key, conv):
+     "axes3d.yaxis.panecolor":    validate_color,  # 3d background pane
+     "axes3d.zaxis.panecolor":    validate_color,  # 3d background pane
+ 
++    "axes3d.mouserotationstyle": ["azel", "trackball", "sphere", "arcball"],
++    "axes3d.trackballsize": validate_float,
++    "axes3d.trackballborder": validate_float,
++
+     # scatter props
+     "scatter.marker":     _validate_marker,
+     "scatter.edgecolors": validate_string,
+diff --git a/lib/mpl_toolkits/mplot3d/axes3d.py b/lib/mpl_toolkits/mplot3d/axes3d.py
+index 5d522cd0988a..f0e7346abee3 100644
+--- a/lib/mpl_toolkits/mplot3d/axes3d.py
++++ b/lib/mpl_toolkits/mplot3d/axes3d.py
+@@ -1510,20 +1510,35 @@ def _calc_coord(self, xv, yv, renderer=None):
+ 
+     def _arcball(self, x: float, y: float) -> np.ndarray:
+         """
+-        Convert a point (x, y) to a point on a virtual trackball
+-        This is Ken Shoemake's arcball
++        Convert a point (x, y) to a point on a virtual trackball.
++
++        This is Ken Shoemake's arcball (a sphere), modified
++        to soften the abrupt edge (optionally).
+         See: Ken Shoemake, "ARCBALL: A user interface for specifying
+         three-dimensional rotation using a mouse." in
+         Proceedings of Graphics Interface '92, 1992, pp. 151-156,
+         https://doi.org/10.20380/GI1992.18
+-        """
+-        x *= 2
+-        y *= 2
++        The smoothing of the edge is inspired by Gavin Bell's arcball
++        (a sphere combined with a hyperbola), but here, the sphere
++        is combined with a section of a cylinder, so it has finite support.
++        """
++        s = mpl.rcParams['axes3d.trackballsize'] / 2
++        b = mpl.rcParams['axes3d.trackballborder'] / s
++        x /= s
++        y /= s
+         r2 = x*x + y*y
+-        if r2 > 1:
+-            p = np.array([0, x/math.sqrt(r2), y/math.sqrt(r2)])
++        r = np.sqrt(r2)
++        ra = 1 + b
++        a = b * (1 + b/2)
++        ri = 2/(ra + 1/ra)
++        if r < ri:
++            p = np.array([np.sqrt(1 - r2), x, y])
++        elif r < ra:
++            dr = ra - r
++            p = np.array([a - np.sqrt((a + dr) * (a - dr)), x, y])
++            p /= np.linalg.norm(p)
+         else:
+-            p = np.array([math.sqrt(1-r2), x, y])
++            p = np.array([0, x/r, y/r])
+         return p
+ 
+     def _on_move(self, event):
+@@ -1561,23 +1576,35 @@ def _on_move(self, event):
+             if dx == 0 and dy == 0:
+                 return
+ 
+-            # Convert to quaternion
+-            elev = np.deg2rad(self.elev)
+-            azim = np.deg2rad(self.azim)
+-            roll = np.deg2rad(self.roll)
+-            q = _Quaternion.from_cardan_angles(elev, azim, roll)
+-
+-            # Update quaternion - a variation on Ken Shoemake's ARCBALL
+-            current_vec = self._arcball(self._sx/w, self._sy/h)
+-            new_vec = self._arcball(x/w, y/h)
+-            dq = _Quaternion.rotate_from_to(current_vec, new_vec)
+-            q = dq * q
+-
+-            # Convert to elev, azim, roll
+-            elev, azim, roll = q.as_cardan_angles()
+-            azim = np.rad2deg(azim)
+-            elev = np.rad2deg(elev)
+-            roll = np.rad2deg(roll)
++            style = mpl.rcParams['axes3d.mouserotationstyle']
++            if style == 'azel':
++                roll = np.deg2rad(self.roll)
++                delev = -(dy/h)*180*np.cos(roll) + (dx/w)*180*np.sin(roll)
++                dazim = -(dy/h)*180*np.sin(roll) - (dx/w)*180*np.cos(roll)
++                elev = self.elev + delev
++                azim = self.azim + dazim
++                roll = self.roll
++            else:
++                q = _Quaternion.from_cardan_angles(
++                        *np.deg2rad((self.elev, self.azim, self.roll)))
++
++                if style == 'trackball':
++                    k = np.array([0, -dy/h, dx/w])
++                    nk = np.linalg.norm(k)
++                    th = nk / mpl.rcParams['axes3d.trackballsize']
++                    dq = _Quaternion(np.cos(th), k*np.sin(th)/nk)
++                else:  # 'sphere', 'arcball'
++                    current_vec = self._arcball(self._sx/w, self._sy/h)
++                    new_vec = self._arcball(x/w, y/h)
++                    if style == 'sphere':
++                        dq = _Quaternion.rotate_from_to(current_vec, new_vec)
++                    else:  # 'arcball'
++                        dq = _Quaternion(0, new_vec) * _Quaternion(0, -current_vec)
++
++                q = dq * q
++                elev, azim, roll = np.rad2deg(q.as_cardan_angles())
++
++            # update view
+             vertical_axis = self._axis_names[self._vertical_axis]
+             self.view_init(
+                 elev=elev,
+@@ -3984,7 +4011,7 @@ def rotate_from_to(cls, r1, r2):
+         k = np.cross(r1, r2)
+         nk = np.linalg.norm(k)
+         th = np.arctan2(nk, np.dot(r1, r2))
+-        th = th/2
++        th /= 2
+         if nk == 0:  # r1 and r2 are parallel or anti-parallel
+             if np.dot(r1, r2) < 0:
+                 warnings.warn("Rotation defined by anti-parallel vectors is ambiguous")
+@@ -3996,7 +4023,7 @@ def rotate_from_to(cls, r1, r2):
+             else:
+                 q = cls(1, [0, 0, 0])  # = 1, no rotation
+         else:
+-            q = cls(math.cos(th), k*math.sin(th)/nk)
++            q = cls(np.cos(th), k*np.sin(th)/nk)
+         return q
+ 
+     @classmethod
+@@ -4021,10 +4048,11 @@ def as_cardan_angles(self):
+         """
+         The inverse of `from_cardan_angles()`.
+         Note that the angles returned are in radians, not degrees.
++        The angles are not sensitive to the quaternion's norm().
+         """
+         qw = self.scalar
+         qx, qy, qz = self.vector[..., :]
+         azim = np.arctan2(2*(-qw*qz+qx*qy), qw*qw+qx*qx-qy*qy-qz*qz)
+-        elev = np.arcsin( 2*( qw*qy+qz*qx)/(qw*qw+qx*qx+qy*qy+qz*qz))  # noqa E201
+-        roll = np.arctan2(2*( qw*qx-qy*qz), qw*qw-qx*qx-qy*qy+qz*qz)   # noqa E201
++        elev = np.arcsin(np.clip(2*(qw*qy+qz*qx)/(qw*qw+qx*qx+qy*qy+qz*qz), -1, 1))
++        roll = np.arctan2(2*(qw*qx-qy*qz), qw*qw-qx*qx-qy*qy+qz*qz)
+         return elev, azim, roll

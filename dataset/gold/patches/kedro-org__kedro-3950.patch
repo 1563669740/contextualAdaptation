@@ -1,0 +1,25 @@
+diff --git a/RELEASE.md b/RELEASE.md
+index 21925f4395..262d8e3792 100644
+--- a/RELEASE.md
++++ b/RELEASE.md
+@@ -4,6 +4,7 @@
+ 
+ ## Bug fixes and other changes
+ * Updated error message for invalid catalog entries.
++* Fixed a bug in the `DataCatalog` `shallow_copy()` method to ensure it returns the type of the used catalog and doesn't cast it to `DataCatalog`.
+ 
+ ## Breaking changes to the API
+ 
+diff --git a/kedro/io/data_catalog.py b/kedro/io/data_catalog.py
+index 7e2bdebdf1..7778cfd70f 100644
+--- a/kedro/io/data_catalog.py
++++ b/kedro/io/data_catalog.py
+@@ -761,7 +761,7 @@ def shallow_copy(
+             dataset_patterns = self._sort_patterns(unsorted_dataset_patterns)
+         else:
+             dataset_patterns = self._dataset_patterns
+-        return DataCatalog(
++        return self.__class__(
+             datasets=self._datasets,
+             dataset_patterns=dataset_patterns,
+             load_versions=self._load_versions,

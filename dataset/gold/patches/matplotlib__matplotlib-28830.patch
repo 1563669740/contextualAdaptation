@@ -1,0 +1,114 @@
+diff --git a/doc/users/next_whats_new/pass_pandasDataFrame_into_table.rst b/doc/users/next_whats_new/pass_pandasDataFrame_into_table.rst
+new file mode 100644
+index 000000000000..aaefa1b2011b
+--- /dev/null
++++ b/doc/users/next_whats_new/pass_pandasDataFrame_into_table.rst
+@@ -0,0 +1,20 @@
++``ax.table`` will accept a pandas DataFrame
++--------------------------------------------
++
++The `~.axes.Axes.table` method can now accept a Pandas DataFrame for the ``cellText`` argument.
++
++.. code-block:: python
++
++    import matplotlib.pyplot as plt
++    import pandas as pd
++
++    data = {
++        'Letter': ['A', 'B', 'C'],
++        'Number': [100, 200, 300]
++    }
++
++    df = pd.DataFrame(data)
++    fig, ax = plt.subplots()
++    table = ax.table(df, loc='center')  # or table = ax.table(cellText=df, loc='center')
++    ax.axis('off')
++    plt.show()
+diff --git a/lib/matplotlib/cbook.py b/lib/matplotlib/cbook.py
+index 2411784af3ec..4267c99aa34f 100644
+--- a/lib/matplotlib/cbook.py
++++ b/lib/matplotlib/cbook.py
+@@ -2444,3 +2444,15 @@ def _auto_format_str(fmt, value):
+         return fmt % (value,)
+     except (TypeError, ValueError):
+         return fmt.format(value)
++
++
++def _is_pandas_dataframe(x):
++    """Check if 'x' is a Pandas DataFrame."""
++    try:
++        # we're intentionally not attempting to import Pandas. If somebody
++        # has created a Pandas DataFrame, Pandas should already be in sys.modules
++        return isinstance(x, sys.modules['pandas'].DataFrame)
++    except Exception:  # TypeError, KeyError, AttributeError, maybe others?
++        # we're attempting to access attributes on imported modules which
++        # may have arbitrary user code, so we deliberately catch all exceptions
++        return False
+diff --git a/lib/matplotlib/table.py b/lib/matplotlib/table.py
+index 0f75021926fd..a344351ecc0d 100644
+--- a/lib/matplotlib/table.py
++++ b/lib/matplotlib/table.py
+@@ -33,6 +33,8 @@
+ from .transforms import Bbox
+ from .path import Path
+ 
++from .cbook import _is_pandas_dataframe
++
+ 
+ class Cell(Rectangle):
+     """
+@@ -674,7 +676,7 @@ def table(ax,
+ 
+     Parameters
+     ----------
+-    cellText : 2D list of str, optional
++    cellText : 2D list of str or pandas.DataFrame, optional
+         The texts to place into the table cells.
+ 
+         *Note*: Line breaks in the strings are currently not accounted for and
+@@ -744,6 +746,21 @@ def table(ax,
+         cols = len(cellColours[0])
+         cellText = [[''] * cols] * rows
+ 
++    # Check if we have a Pandas DataFrame
++    if _is_pandas_dataframe(cellText):
++        # if rowLabels/colLabels are empty, use DataFrame entries.
++        # Otherwise, throw an error.
++        if rowLabels is None:
++            rowLabels = cellText.index
++        else:
++            raise ValueError("rowLabels cannot be used alongside Pandas DataFrame")
++        if colLabels is None:
++            colLabels = cellText.columns
++        else:
++            raise ValueError("colLabels cannot be used alongside Pandas DataFrame")
++        # Update cellText with only values
++        cellText = cellText.values
++
+     rows = len(cellText)
+     cols = len(cellText[0])
+     for row in cellText:
+diff --git a/lib/matplotlib/table.pyi b/lib/matplotlib/table.pyi
+index 0108ecd99f89..07d2427f66dc 100644
+--- a/lib/matplotlib/table.pyi
++++ b/lib/matplotlib/table.pyi
+@@ -8,7 +8,9 @@ from .transforms import Bbox
+ from .typing import ColorType
+ 
+ from collections.abc import Sequence
+-from typing import Any, Literal
++from typing import Any, Literal, TYPE_CHECKING
++
++from pandas import DataFrame
+ 
+ class Cell(Rectangle):
+     PAD: float
+@@ -68,7 +70,7 @@ class Table(Artist):
+ 
+ def table(
+     ax: Axes,
+-    cellText: Sequence[Sequence[str]] | None = ...,
++    cellText: Sequence[Sequence[str]] | DataFrame | None = ...,
+     cellColours: Sequence[Sequence[ColorType]] | None = ...,
+     cellLoc: Literal["left", "center", "right"] = ...,
+     colWidths: Sequence[float] | None = ...,

@@ -1,0 +1,28 @@
+diff --git a/docs/changelog/3272.bugfix.rst b/docs/changelog/3272.bugfix.rst
+new file mode 100644
+index 000000000..7877bd400
+--- /dev/null
++++ b/docs/changelog/3272.bugfix.rst
+@@ -0,0 +1,1 @@
++Fix broken input parsing for ``--discover`` flag. - by :user:`mimre25`
+diff --git a/docs/changelog/3274.doc.rst b/docs/changelog/3274.doc.rst
+new file mode 100644
+index 000000000..d2ffe6028
+--- /dev/null
++++ b/docs/changelog/3274.doc.rst
+@@ -0,0 +1,1 @@
++Rephrase ``--discover`` flag's description to avoid confusion between paths and executables. - by :user:`mimre25`
+diff --git a/src/tox/config/cli/parser.py b/src/tox/config/cli/parser.py
+index 7afe87753..707c7fc8a 100644
+--- a/src/tox/config/cli/parser.py
++++ b/src/tox/config/cli/parser.py
+@@ -232,7 +232,8 @@ def __call__(
+             dest="discover",
+             nargs="+",
+             metavar="path",
+-            help="for Python discovery first try the Python executables under these paths",
++            of_type=List[str],
++            help="for Python discovery first try these Python executables",
+             default=[],
+         )
+         list_deps = sub_parser.add_mutually_exclusive_group()

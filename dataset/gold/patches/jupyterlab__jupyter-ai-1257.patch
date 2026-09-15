@@ -1,0 +1,168 @@
+diff --git a/packages/jupyter-ai/jupyter_ai/__init__.py b/packages/jupyter-ai/jupyter_ai/__init__.py
+index 21df49b8f..d1d6e4d37 100644
+--- a/packages/jupyter-ai/jupyter_ai/__init__.py
++++ b/packages/jupyter-ai/jupyter_ai/__init__.py
+@@ -1,3 +1,8 @@
++# The following import is to make sure jupyter_ydoc is imported before
++# jupyterlab_chat, otherwise it leads to circular import because of the
++# YChat relying on YBaseDoc, and jupyter_ydoc registering YChat from the entry point.
++import jupyter_ydoc
++
+ # expose jupyter_ai_magics ipython extension
+ # DO NOT REMOVE.
+ from jupyter_ai_magics import load_ipython_extension, unload_ipython_extension
+diff --git a/packages/jupyter-ai/jupyter_ai/chat_handlers/__init__.py b/packages/jupyter-ai/jupyter_ai/chat_handlers/__init__.py
+index 3e7e45aa8..a5fa5f8bc 100644
+--- a/packages/jupyter-ai/jupyter_ai/chat_handlers/__init__.py
++++ b/packages/jupyter-ai/jupyter_ai/chat_handlers/__init__.py
+@@ -1,8 +1,3 @@
+-# The following import is to make sure jupyter_ydoc is imported before
+-# jupyterlab_chat, otherwise it leads to circular import because of the
+-# YChat relying on YBaseDoc, and jupyter_ydoc registering YChat from the entry point.
+-import jupyter_ydoc
+-
+ from .ask import AskChatHandler
+ from .base import BaseChatHandler, SlashCommandRoutingType
+ from .default import DefaultChatHandler
+diff --git a/packages/jupyter-ai/jupyter_ai/chat_handlers/ask.py b/packages/jupyter-ai/jupyter_ai/chat_handlers/ask.py
+index cdd03b7c8..9478c5c40 100644
+--- a/packages/jupyter-ai/jupyter_ai/chat_handlers/ask.py
++++ b/packages/jupyter-ai/jupyter_ai/chat_handlers/ask.py
+@@ -8,6 +8,7 @@
+ from langchain_core.prompts import PromptTemplate
+ 
+ from .base import BaseChatHandler, SlashCommandRoutingType
++from .learn import LearnChatHandler, Retriever
+ 
+ PROMPT_TEMPLATE = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+ 
+@@ -18,6 +19,16 @@
+ CONDENSE_PROMPT = PromptTemplate.from_template(PROMPT_TEMPLATE)
+ 
+ 
++class CustomLearnException(Exception):
++    """Exception raised when Jupyter AI's /ask command is used without the required /learn command."""
++
++    def __init__(self):
++        super().__init__(
++            "Jupyter AI's default /ask command requires the default /learn command. "
++            "If you are overriding /learn via the entry points API, be sure to also override or disable /ask."
++        )
++
++
+ class AskChatHandler(BaseChatHandler):
+     """Processes messages prefixed with /ask. This actor will
+     send the message as input to a RetrieverQA chain, that
+@@ -33,12 +44,16 @@ class AskChatHandler(BaseChatHandler):
+ 
+     uses_llm = True
+ 
+-    def __init__(self, retriever, *args, **kwargs):
++    def __init__(self, *args, **kwargs):
+         super().__init__(*args, **kwargs)
+ 
+-        self._retriever = retriever
+         self.parser.prog = "/ask"
+         self.parser.add_argument("query", nargs=argparse.REMAINDER)
++        learn_chat_handler = self.chat_handlers.get("/learn")
++        if not isinstance(learn_chat_handler, LearnChatHandler):
++            raise CustomLearnException()
++
++        self._retriever = Retriever(learn_chat_handler=learn_chat_handler)
+ 
+     def create_llm_chain(
+         self, provider: Type[BaseProvider], provider_params: Dict[str, str]
+@@ -51,6 +66,7 @@ def create_llm_chain(
+         memory = ConversationBufferWindowMemory(
+             memory_key="chat_history", return_messages=True, k=2
+         )
++
+         self.llm_chain = ConversationalRetrievalChain.from_llm(
+             self.llm,
+             self._retriever,
+diff --git a/packages/jupyter-ai/jupyter_ai/chat_handlers/base.py b/packages/jupyter-ai/jupyter_ai/chat_handlers/base.py
+index 9990d1971..5260fe0b9 100644
+--- a/packages/jupyter-ai/jupyter_ai/chat_handlers/base.py
++++ b/packages/jupyter-ai/jupyter_ai/chat_handlers/base.py
+@@ -3,8 +3,10 @@
+ import contextlib
+ import os
+ import traceback
++from pathlib import Path
+ from typing import (
+     TYPE_CHECKING,
++    Any,
+     Awaitable,
+     ClassVar,
+     Dict,
+@@ -22,6 +24,7 @@
+ from jupyter_ai_magics.providers import BaseProvider
+ from jupyterlab_chat.models import Message, NewMessage, User
+ from jupyterlab_chat.ychat import YChat
++from langchain.schema import BaseRetriever
+ from langchain_core.messages import AIMessageChunk
+ from langchain_core.runnables import Runnable
+ from langchain_core.runnables.config import RunnableConfig
+@@ -141,6 +144,7 @@ def __init__(
+         context_providers: Dict[str, "BaseCommandContextProvider"],
+         message_interrupted: Dict[str, asyncio.Event],
+         ychat: YChat,
++        log_dir: Optional[str],
+     ):
+         self.log = log
+         self.config_manager = config_manager
+@@ -162,6 +166,7 @@ def __init__(
+         self.context_providers = context_providers
+         self.message_interrupted = message_interrupted
+         self.ychat = ychat
++        self.log_dir = Path(log_dir) if log_dir else None
+ 
+         self.llm: Optional[BaseProvider] = None
+         self.llm_params: Optional[dict] = None
+diff --git a/packages/jupyter-ai/jupyter_ai/chat_handlers/generate.py b/packages/jupyter-ai/jupyter_ai/chat_handlers/generate.py
+index 025fdd8b0..cdd1ad6c9 100644
+--- a/packages/jupyter-ai/jupyter_ai/chat_handlers/generate.py
++++ b/packages/jupyter-ai/jupyter_ai/chat_handlers/generate.py
+@@ -253,9 +253,8 @@ class GenerateChatHandler(BaseChatHandler):
+ 
+     uses_llm = True
+ 
+-    def __init__(self, log_dir: Optional[str], *args, **kwargs):
++    def __init__(self, *args, **kwargs):
+         super().__init__(*args, **kwargs)
+-        self.log_dir = Path(log_dir) if log_dir else None
+         self.llm: Optional[BaseProvider] = None
+ 
+     def create_llm_chain(
+diff --git a/packages/jupyter-ai/jupyter_ai/extension.py b/packages/jupyter-ai/jupyter_ai/extension.py
+index 7391287a5..eab515b4b 100644
+--- a/packages/jupyter-ai/jupyter_ai/extension.py
++++ b/packages/jupyter-ai/jupyter_ai/extension.py
+@@ -8,7 +8,6 @@
+ import traitlets
+ from dask.distributed import Client as DaskClient
+ from importlib_metadata import entry_points
+-from jupyter_ai.chat_handlers.learn import Retriever
+ from jupyter_ai_magics import BaseProvider, JupyternautPersona
+ from jupyter_ai_magics.utils import get_em_providers, get_lm_providers
+ from jupyter_events import EventLogger
+@@ -477,15 +476,13 @@ def _init_chat_handlers(self, ychat: YChat) -> Dict[str, BaseChatHandler]:
+             "context_providers": self.settings["jai_context_providers"],
+             "message_interrupted": self.settings["jai_message_interrupted"],
+             "ychat": ychat,
++            "log_dir": self.error_logs_dir,
+         }
++
+         default_chat_handler = DefaultChatHandler(**chat_handler_kwargs)
+-        generate_chat_handler = GenerateChatHandler(
+-            **chat_handler_kwargs,
+-            log_dir=self.error_logs_dir,
+-        )
++        generate_chat_handler = GenerateChatHandler(**chat_handler_kwargs)
+         learn_chat_handler = LearnChatHandler(**chat_handler_kwargs)
+-        retriever = Retriever(learn_chat_handler=learn_chat_handler)
+-        ask_chat_handler = AskChatHandler(**chat_handler_kwargs, retriever=retriever)
++        ask_chat_handler = AskChatHandler(**chat_handler_kwargs)
+ 
+         chat_handlers["default"] = default_chat_handler
+         chat_handlers["/ask"] = ask_chat_handler

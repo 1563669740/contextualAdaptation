@@ -1,0 +1,125 @@
+diff --git a/docs/usage/lockfile.md b/docs/usage/lockfile.md
+index 9d67d5fe38..26e96bb703 100644
+--- a/docs/usage/lockfile.md
++++ b/docs/usage/lockfile.md
+@@ -174,7 +174,7 @@ pdm lock --exclude-newer 2024-01-01
+ 
+ ## Set acceptable format for locking or installing
+ 
+-If you want to control the format(binary/sdist) of the packages, you can set the env vars `PDM_NO_BINARY` and `PDM_ONLY_BINARY`.
++If you want to control the format(binary/sdist) of the packages, you can set the env vars `PDM_NO_BINARY`, `PDM_ONLY_BINARY` and `PDM_PREFER_BINARY`.
+ 
+ Each env var is a comma-separated list of package name. You can set it to `:all:` to apply to all packages. For example:
+ 
+@@ -189,6 +189,26 @@ PDM_NO_BINARY=:all: pdm install
+ PDM_PREFER_BINARY=flask pdm install
+ ```
+ 
++You can also defined those values in your project `pyproject.toml` with the 
++`no-binary`, `only-binary` and `prefer-binary` keys of the `tool.pdm.resolution` section.
++They accept the same format as the environment variables and also support lists.
++
++
++```toml
++[tool.pdm.resolution]
++# No binary for werkzeug and flask will be locked nor used for installation
++no-binary = "werkzeug,flask"
++# equivalent to 
++no-binary = ["werkzeug", "flask"]
++# Only binaries will be locked in the lock file
++only-binary = ":all:"
++# Prefer binary distributions and even if sdist with higher version is available
++prefer-binary = "flask"
++```
++
++!!! note
++    Each environment variable takes precedence over its `pyproject.toml` alternative.
++
+ ## Allow prerelease versions to be installed
+ 
+ Include the following setting in `pyproject.toml` to enable:
+diff --git a/news/2656.feature.md b/news/2656.feature.md
+new file mode 100644
+index 0000000000..4dd0bc9334
+--- /dev/null
++++ b/news/2656.feature.md
+@@ -0,0 +1,2 @@
++Packages format preferences can now be defined in the project `pyproject.toml`
++using the `no-binary`, `only-binary` and `prefer-binary` keys of the `tool.pdm.resolution` section.
+diff --git a/src/pdm/environments/base.py b/src/pdm/environments/base.py
+index dd87cac84e..4412ee1d72 100644
+--- a/src/pdm/environments/base.py
++++ b/src/pdm/environments/base.py
+@@ -188,9 +188,9 @@ def get_finder(
+             session=self.session,
+             target_python=self.target_python,
+             ignore_compatibility=ignore_compatibility,
+-            no_binary=os.getenv("PDM_NO_BINARY", "").split(","),
+-            only_binary=os.getenv("PDM_ONLY_BINARY", "").split(","),
+-            prefer_binary=os.getenv("PDM_PREFER_BINARY", "").split(","),
++            no_binary=self._setting_list("PDM_NO_BINARY", "resolution.no-binary"),
++            only_binary=self._setting_list("PDM_ONLY_BINARY", "resolution.only-binary"),
++            prefer_binary=self._setting_list("PDM_PREFER_BINARY", "resolution.prefer-binary"),
+             respect_source_order=self.project.pyproject.settings.get("resolution", {}).get(
+                 "respect-source-order", False
+             ),
+@@ -207,6 +207,18 @@ def get_finder(
+                 finder.add_index_url(source.url)
+         yield finder
+ 
++    def _setting_list(self, var: str, key: str) -> list[str]:
++        """
++        Get a list value, either comma separated or structured.
++
++        Returns `None` if both the environment variable and the key does not exists.
++        """
++        if value := self.project.env_or_setting(var, key):
++            if isinstance(value, str):
++                value = [stripped for v in value.split(",") if (stripped := v.strip())]
++            return [stripped for v in value if (stripped := v.strip())]
++        return []
++
+     def get_working_set(self) -> WorkingSet:
+         """Get the working set based on local packages directory."""
+         paths = self.get_paths()
+diff --git a/src/pdm/project/core.py b/src/pdm/project/core.py
+index b54a7caa90..fa3a3ea1ba 100644
+--- a/src/pdm/project/core.py
++++ b/src/pdm/project/core.py
+@@ -2,11 +2,12 @@
+ 
+ import contextlib
+ import hashlib
++import operator
+ import os
+ import re
+ import shutil
+ import sys
+-from functools import cached_property
++from functools import cached_property, reduce
+ from pathlib import Path
+ from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, cast
+ 
+@@ -762,3 +763,22 @@ def is_distribution(self) -> bool:
+             return settings["distribution"]
+         else:
+             return True
++
++    def get_setting(self, key: str) -> Any:
++        """
++        Get a setting from its dotted key (without the `tool.pdm` prefix).
++
++        Returns `None` if the key does not exists.
++        """
++        try:
++            return reduce(operator.getitem, key.split("."), self.pyproject.settings)
++        except tomlkit.exceptions.NonExistentKey:
++            return None
++
++    def env_or_setting(self, var: str, key: str) -> Any:
++        """
++        Get a value from environment variable and fallback on a given setting.
++
++        Returns `None` if both the environment variable and the key does not exists.
++        """
++        return os.getenv(var.upper()) or self.get_setting(key)

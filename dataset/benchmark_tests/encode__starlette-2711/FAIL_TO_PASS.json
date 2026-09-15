@@ -1,0 +1,4 @@
+[
+  "tests/test_staticfiles.py::test_staticfiles_self_symlinks[asyncio]",
+  "tests/test_staticfiles.py::test_staticfiles_self_symlinks[trio]"
+]

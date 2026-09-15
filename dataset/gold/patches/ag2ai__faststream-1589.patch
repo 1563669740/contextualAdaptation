@@ -1,0 +1,77 @@
+diff --git a/faststream/asyncapi/generate.py b/faststream/asyncapi/generate.py
+index ed9b45978e..aeb2daaeed 100644
+--- a/faststream/asyncapi/generate.py
++++ b/faststream/asyncapi/generate.py
+@@ -57,7 +57,6 @@ def get_app_schema(app: Union["FastStream", "StreamRouter[Any]"]) -> Schema:
+                     payloads,
+                     messages,
+                 )
+-
+     schema = Schema(
+         info=Info(
+             title=app.title,
+@@ -146,9 +145,13 @@ def _resolve_msg_payloads(
+     payloads: Dict[str, Any],
+     messages: Dict[str, Any],
+ ) -> Reference:
+-    one_of_list: List[Reference] = []
++    """Replace message payload by reference and normalize payloads.
+ 
++    Payloads and messages are editable dicts to store schemas for reference in AsyncAPI.
++    """
++    one_of_list: List[Reference] = []
+     m.payload = _move_pydantic_refs(m.payload, DEF_KEY)
++
+     if DEF_KEY in m.payload:
+         payloads.update(m.payload.pop(DEF_KEY))
+ 
+@@ -186,6 +189,7 @@ def _move_pydantic_refs(
+     original: Any,
+     key: str,
+ ) -> Any:
++    """Remove pydantic references and replacem them by real schemas."""
+     if not isinstance(original, Dict):
+         return original
+ 
+diff --git a/faststream/broker/subscriber/usecase.py b/faststream/broker/subscriber/usecase.py
+index ffa2809cac..661524e8b1 100644
+--- a/faststream/broker/subscriber/usecase.py
++++ b/faststream/broker/subscriber/usecase.py
+@@ -407,7 +407,9 @@ def get_log_context(
+     @property
+     def call_name(self) -> str:
+         """Returns the name of the handler call."""
+-        # TODO: default call_name
++        if not self.calls:
++            return "Subscriber"
++
+         return to_camelcase(self.calls[0].call_name)
+ 
+     def get_description(self) -> Optional[str]:
+@@ -433,4 +435,14 @@ def get_payloads(self) -> List[Tuple["AnyDict", str]]:
+ 
+             payloads.append((body, to_camelcase(h.call_name)))
+ 
++        if not self.calls:
++            payloads.append(
++                (
++                    {
++                        "title": f"{self.title_ or self.call_name}:Message:Payload",
++                    },
++                    to_camelcase(self.call_name),
++                )
++            )
++
+         return payloads
+diff --git a/faststream/confluent/subscriber/asyncapi.py b/faststream/confluent/subscriber/asyncapi.py
+index 7ec3ffb965..ca56bec6d6 100644
+--- a/faststream/confluent/subscriber/asyncapi.py
++++ b/faststream/confluent/subscriber/asyncapi.py
+@@ -34,7 +34,6 @@ def get_schema(self) -> Dict[str, Channel]:
+         channels = {}
+ 
+         payloads = self.get_payloads()
+-
+         for t in self.topics:
+             handler_name = self.title_ or f"{t}:{self.call_name}"
+ 

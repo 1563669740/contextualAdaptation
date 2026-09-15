@@ -1,0 +1,26 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5121798025..2a74723016 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,8 @@
+ Bug fixes:
+ 
+ - Properly support named aggregations over a geometry column in `GroupBy.agg` (#3368).
++- Fix regression where constructing a GeoSeries from a pd.Series with GeometryDtype values 
++  failed when `crs` was provided(#3383).
+ 
+ ## Version 1.0.1 (July 2, 2024)
+ 
+diff --git a/geopandas/geoseries.py b/geopandas/geoseries.py
+index ea30f61db2..659f55bcfb 100644
+--- a/geopandas/geoseries.py
++++ b/geopandas/geoseries.py
+@@ -164,7 +164,7 @@ def __init__(self, data=None, index=None, crs: Optional[Any] = None, **kwargs):
+                 # make a copy to avoid setting CRS to passed GeometryArray
+                 data = data.copy()
+             else:
+-                if not data.crs == crs:
++                if not data_crs == crs:
+                     raise ValueError(
+                         "CRS mismatch between CRS of the passed geometries "
+                         "and 'crs'. Use 'GeoSeries.set_crs(crs, "

@@ -1,0 +1,4 @@
+[
+  "tests/sql/column/test_column_select_column_specified_in_dml.py::test_view_with_subquery_custom_columns",
+  "tests/sql/column/test_column_select_column_specified_in_dml.py::test_insert_into_with_columns_and_select_union"
+]

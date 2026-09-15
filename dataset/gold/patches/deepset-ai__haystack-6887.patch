@@ -1,0 +1,1887 @@
+diff --git a/haystack/components/audio/whisper_remote.py b/haystack/components/audio/whisper_remote.py
+index 2dc93e3070..bc7cb2c332 100644
+--- a/haystack/components/audio/whisper_remote.py
++++ b/haystack/components/audio/whisper_remote.py
+@@ -7,6 +7,7 @@
+ 
+ from haystack import Document, component, default_from_dict, default_to_dict
+ from haystack.dataclasses import ByteStream
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -24,7 +25,7 @@ class RemoteWhisperTranscriber:
+ 
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
+         model: str = "whisper-1",
+         api_base_url: Optional[str] = None,
+         organization: Optional[str] = None,
+@@ -61,6 +62,7 @@ def __init__(
+         self.organization = organization
+         self.model = model
+         self.api_base_url = api_base_url
++        self.api_key = api_key
+ 
+         # Only response_format = "json" is supported
+         whisper_params = kwargs
+@@ -71,7 +73,7 @@ def __init__(
+             )
+         whisper_params["response_format"] = "json"
+         self.whisper_params = whisper_params
+-        self.client = OpenAI(api_key=api_key, organization=organization, base_url=api_base_url)
++        self.client = OpenAI(api_key=api_key.resolve_value(), organization=organization, base_url=api_base_url)
+ 
+     def to_dict(self) -> Dict[str, Any]:
+         """
+@@ -81,6 +83,7 @@ def to_dict(self) -> Dict[str, Any]:
+         """
+         return default_to_dict(
+             self,
++            api_key=self.api_key.to_dict(),
+             model=self.model,
+             organization=self.organization,
+             api_base_url=self.api_base_url,
+@@ -92,6 +95,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "RemoteWhisperTranscriber":
+         """
+         Deserialize this component from a dictionary.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+         return default_from_dict(cls, data)
+ 
+     @component.output_types(documents=List[Document])
+diff --git a/haystack/components/builders/dynamic_chat_prompt_builder.py b/haystack/components/builders/dynamic_chat_prompt_builder.py
+index 7b4d38e545..7f4b0de0e6 100644
+--- a/haystack/components/builders/dynamic_chat_prompt_builder.py
++++ b/haystack/components/builders/dynamic_chat_prompt_builder.py
+@@ -29,10 +29,11 @@ class DynamicChatPromptBuilder:
+     from haystack.components.generators.chat import OpenAIChatGenerator
+     from haystack.dataclasses import ChatMessage
+     from haystack import Pipeline
++    from haystack.utils import Secret
+ 
+     # no parameter init, we don't use any runtime template variables
+     prompt_builder = DynamicChatPromptBuilder()
+-    llm = OpenAIChatGenerator(api_key="<your-api-key>", model="gpt-3.5-turbo")
++    llm = OpenAIChatGenerator(api_key=Secret.from_token("<your-api-key>"), model="gpt-3.5-turbo")
+ 
+     pipe = Pipeline()
+     pipe.add_component("prompt_builder", prompt_builder)
+diff --git a/haystack/components/builders/dynamic_prompt_builder.py b/haystack/components/builders/dynamic_prompt_builder.py
+index 406db8faa2..a2801d4481 100644
+--- a/haystack/components/builders/dynamic_prompt_builder.py
++++ b/haystack/components/builders/dynamic_prompt_builder.py
+@@ -21,9 +21,10 @@ class DynamicPromptBuilder:
+     from haystack.components.builders import DynamicPromptBuilder
+     from haystack.components.generators import OpenAIGenerator
+     from haystack import Pipeline, component, Document
++    from haystack.utils import Secret
+ 
+     prompt_builder = DynamicPromptBuilder(runtime_variables=["documents"])
+-    llm = OpenAIGenerator(api_key="<your-api-key>", model="gpt-3.5-turbo")
++    llm = OpenAIGenerator(api_key=Secret.from_token("<your-api-key>"), model="gpt-3.5-turbo")
+ 
+ 
+     @component
+diff --git a/haystack/components/converters/azure.py b/haystack/components/converters/azure.py
+index 5e1d20abfb..c12ac44604 100644
+--- a/haystack/components/converters/azure.py
++++ b/haystack/components/converters/azure.py
+@@ -1,12 +1,12 @@
+ from pathlib import Path
+ from typing import List, Union, Dict, Any, Optional
+ import logging
+-import os
+ 
+ from haystack.lazy_imports import LazyImport
+-from haystack import component, Document, default_to_dict
++from haystack import component, Document, default_to_dict, default_from_dict
+ from haystack.dataclasses import ByteStream
+ from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -29,8 +29,9 @@ class AzureOCRDocumentConverter:
+     Usage example:
+     ```python
+     from haystack.components.converters.azure import AzureOCRDocumentConverter
++    from haystack.utils import Secret
+ 
+-    converter = AzureOCRDocumentConverter()
++    converter = AzureOCRDocumentConverter(endpoint="<url>", api_key=Secret.from_token("<your-api-key>"))
+     results = converter.run(sources=["image-based-document.pdf"], meta={"date_added": datetime.now().isoformat()})
+     documents = results["documents"]
+     print(documents[0].content)
+@@ -38,33 +39,23 @@ class AzureOCRDocumentConverter:
+     ```
+     """
+ 
+-    def __init__(self, endpoint: str, api_key: Optional[str] = None, model_id: str = "prebuilt-read"):
++    def __init__(
++        self, endpoint: str, api_key: Secret = Secret.from_env_var("AZURE_AI_API_KEY"), model_id: str = "prebuilt-read"
++    ):
+         """
+         Create an AzureOCRDocumentConverter component.
+ 
+         :param endpoint: The endpoint of your Azure resource.
+-        :param api_key: The key of your Azure resource. It can be
+-        explicitly provided or automatically read from the
+-        environment variable AZURE_AI_API_KEY (recommended).
++        :param api_key: The key of your Azure resource.
+         :param model_id: The model ID of the model you want to use. Please refer to [Azure documentation](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/choose-model-feature)
+             for a list of available models. Default: `"prebuilt-read"`.
+         """
+         azure_import.check()
+ 
+-        api_key = api_key or os.environ.get("AZURE_AI_API_KEY")
+-        # we check whether api_key is None or an empty string
+-        if not api_key:
+-            msg = (
+-                "AzureOCRDocumentConverter expects an API key. "
+-                "Set the AZURE_AI_API_KEY environment variable (recommended) or pass it explicitly."
+-            )
+-            raise ValueError(msg)
+-
+-        self.document_analysis_client = DocumentAnalysisClient(
+-            endpoint=endpoint, credential=AzureKeyCredential(api_key)
+-        )
++        self.document_analysis_client = DocumentAnalysisClient(endpoint=endpoint, credential=AzureKeyCredential(api_key.resolve_value()))  # type: ignore
+         self.endpoint = endpoint
+         self.model_id = model_id
++        self.api_key = api_key
+ 
+     @component.output_types(documents=List[Document], raw_azure_response=List[Dict])
+     def run(self, sources: List[Union[str, Path, ByteStream]], meta: Optional[List[Dict[str, Any]]] = None):
+@@ -116,7 +107,15 @@ def to_dict(self) -> Dict[str, Any]:
+         """
+         Serialize this component to a dictionary.
+         """
+-        return default_to_dict(self, endpoint=self.endpoint, model_id=self.model_id)
++        return default_to_dict(self, api_key=self.api_key.to_dict(), endpoint=self.endpoint, model_id=self.model_id)
++
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "AzureOCRDocumentConverter":
++        """
++        Deserialize this component from a dictionary.
++        """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
++        return default_from_dict(cls, data)
+ 
+     @staticmethod
+     def _convert_azure_result_to_document(result: "AnalyzeResult", file_suffix: Optional[str] = None) -> Document:
+diff --git a/haystack/components/embedders/azure_document_embedder.py b/haystack/components/embedders/azure_document_embedder.py
+index 9d98eab1ff..0a7a7f364f 100644
+--- a/haystack/components/embedders/azure_document_embedder.py
++++ b/haystack/components/embedders/azure_document_embedder.py
+@@ -1,10 +1,11 @@
+ import os
+ from typing import List, Optional, Dict, Any, Tuple
+ 
+-from openai.lib.azure import AzureADTokenProvider, AzureOpenAI
++from openai.lib.azure import AzureOpenAI
+ from tqdm import tqdm
+ 
+-from haystack import component, Document, default_to_dict
++from haystack import component, Document, default_to_dict, default_from_dict
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ 
+ @component
+@@ -34,9 +35,8 @@ def __init__(
+         azure_endpoint: Optional[str] = None,
+         api_version: Optional[str] = "2023-05-15",
+         azure_deployment: str = "text-embedding-ada-002",
+-        api_key: Optional[str] = None,
+-        azure_ad_token: Optional[str] = None,
+-        azure_ad_token_provider: Optional[AzureADTokenProvider] = None,
++        api_key: Optional[Secret] = Secret.from_env_var("AZURE_OPENAI_API_KEY", strict=False),
++        azure_ad_token: Optional[Secret] = Secret.from_env_var("AZURE_OPENAI_AD_TOKEN", strict=False),
+         organization: Optional[str] = None,
+         prefix: str = "",
+         suffix: str = "",
+@@ -53,8 +53,6 @@ def __init__(
+         :param azure_deployment: The deployment of the model, usually the model name.
+         :param api_key: The API key to use for authentication.
+         :param azure_ad_token: Azure Active Directory token, see https://www.microsoft.com/en-us/security/business/identity-access/microsoft-entra-id
+-        :param azure_ad_token_provider: A function that returns an Azure Active Directory token, will be invoked
+-        on every request.
+         :param organization: The Organization ID, defaults to `None`. See
+         [production best practices](https://platform.openai.com/docs/guides/production-best-practices/setting-up-your-organization).
+         :param prefix: A string to add to the beginning of each text.
+@@ -70,6 +68,11 @@ def __init__(
+         if not azure_endpoint:
+             raise ValueError("Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT.")
+ 
++        if api_key is None and azure_ad_token is None:
++            raise ValueError("Please provide an API key or an Azure Active Directory token.")
++
++        self.api_key = api_key
++        self.azure_ad_token = azure_ad_token
+         self.api_version = api_version
+         self.azure_endpoint = azure_endpoint
+         self.azure_deployment = azure_deployment
+@@ -85,9 +88,8 @@ def __init__(
+             api_version=api_version,
+             azure_endpoint=azure_endpoint,
+             azure_deployment=azure_deployment,
+-            api_key=api_key,
+-            azure_ad_token=azure_ad_token,
+-            azure_ad_token_provider=azure_ad_token_provider,
++            api_key=api_key.resolve_value() if api_key is not None else None,
++            azure_ad_token=azure_ad_token.resolve_value() if azure_ad_token is not None else None,
+             organization=organization,
+         )
+ 
+@@ -98,10 +100,6 @@ def _get_telemetry_data(self) -> Dict[str, Any]:
+         return {"model": self.azure_deployment}
+ 
+     def to_dict(self) -> Dict[str, Any]:
+-        """
+-        This method overrides the default serializer in order to avoid leaking the `api_key` value passed
+-        to the constructor.
+-        """
+         return default_to_dict(
+             self,
+             azure_endpoint=self.azure_endpoint,
+@@ -114,8 +112,15 @@ def to_dict(self) -> Dict[str, Any]:
+             progress_bar=self.progress_bar,
+             meta_fields_to_embed=self.meta_fields_to_embed,
+             embedding_separator=self.embedding_separator,
++            api_key=self.api_key.to_dict() if self.api_key is not None else None,
++            azure_ad_token=self.azure_ad_token.to_dict() if self.azure_ad_token is not None else None,
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "AzureOpenAIDocumentEmbedder":
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_ad_token"])
++        return default_from_dict(cls, data)
++
+     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+         """
+         Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
+diff --git a/haystack/components/embedders/azure_text_embedder.py b/haystack/components/embedders/azure_text_embedder.py
+index 58ca3ba851..bfbec34ea6 100644
+--- a/haystack/components/embedders/azure_text_embedder.py
++++ b/haystack/components/embedders/azure_text_embedder.py
+@@ -1,9 +1,10 @@
+ import os
+ from typing import List, Optional, Dict, Any
+ 
+-from openai.lib.azure import AzureADTokenProvider, AzureOpenAI
++from openai.lib.azure import AzureOpenAI
+ 
+-from haystack import component, default_to_dict, Document
++from haystack import component, Document, default_to_dict, default_from_dict
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ 
+ @component
+@@ -32,9 +33,8 @@ def __init__(
+         azure_endpoint: Optional[str] = None,
+         api_version: Optional[str] = "2023-05-15",
+         azure_deployment: str = "text-embedding-ada-002",
+-        api_key: Optional[str] = None,
+-        azure_ad_token: Optional[str] = None,
+-        azure_ad_token_provider: Optional[AzureADTokenProvider] = None,
++        api_key: Optional[Secret] = Secret.from_env_var("AZURE_OPENAI_API_KEY", strict=False),
++        azure_ad_token: Optional[Secret] = Secret.from_env_var("AZURE_OPENAI_AD_TOKEN", strict=False),
+         organization: Optional[str] = None,
+         prefix: str = "",
+         suffix: str = "",
+@@ -47,8 +47,6 @@ def __init__(
+         :param azure_deployment: The deployment of the model, usually the model name.
+         :param api_key: The API key to use for authentication.
+         :param azure_ad_token: Azure Active Directory token, see https://www.microsoft.com/en-us/security/business/identity-access/microsoft-entra-id
+-        :param azure_ad_token_provider: A function that returns an Azure Active Directory token, will be invoked
+-        on every request.
+         :param organization: The Organization ID, defaults to `None`. See
+         [production best practices](https://platform.openai.com/docs/guides/production-best-practices/setting-up-your-organization).
+         :param prefix: A string to add to the beginning of each text.
+@@ -62,6 +60,11 @@ def __init__(
+         if not azure_endpoint:
+             raise ValueError("Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT.")
+ 
++        if api_key is None and azure_ad_token is None:
++            raise ValueError("Please provide an API key or an Azure Active Directory token.")
++
++        self.api_key = api_key
++        self.azure_ad_token = azure_ad_token
+         self.api_version = api_version
+         self.azure_endpoint = azure_endpoint
+         self.azure_deployment = azure_deployment
+@@ -73,9 +76,8 @@ def __init__(
+             api_version=api_version,
+             azure_endpoint=azure_endpoint,
+             azure_deployment=azure_deployment,
+-            api_key=api_key,
+-            azure_ad_token=azure_ad_token,
+-            azure_ad_token_provider=azure_ad_token_provider,
++            api_key=api_key.resolve_value() if api_key is not None else None,
++            azure_ad_token=azure_ad_token.resolve_value() if azure_ad_token is not None else None,
+             organization=organization,
+         )
+ 
+@@ -98,8 +100,15 @@ def to_dict(self) -> Dict[str, Any]:
+             api_version=self.api_version,
+             prefix=self.prefix,
+             suffix=self.suffix,
++            api_key=self.api_key.to_dict() if self.api_key is not None else None,
++            azure_ad_token=self.azure_ad_token.to_dict() if self.azure_ad_token is not None else None,
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "AzureOpenAITextEmbedder":
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_ad_token"])
++        return default_from_dict(cls, data)
++
+     @component.output_types(embedding=List[float], meta=Dict[str, Any])
+     def run(self, text: str):
+         """Embed a string using AzureOpenAITextEmbedder."""
+diff --git a/haystack/components/embedders/backends/sentence_transformers_backend.py b/haystack/components/embedders/backends/sentence_transformers_backend.py
+index 08ebf9d6a0..b604aa4904 100644
+--- a/haystack/components/embedders/backends/sentence_transformers_backend.py
++++ b/haystack/components/embedders/backends/sentence_transformers_backend.py
+@@ -1,6 +1,7 @@
+-from typing import List, Optional, Union, Dict
++from typing import List, Optional, Dict
+ 
+ from haystack.lazy_imports import LazyImport
++from haystack.utils.auth import Secret
+ 
+ with LazyImport(message="Run 'pip install \"sentence-transformers>=2.2.0\"'") as sentence_transformers_import:
+     from sentence_transformers import SentenceTransformer
+@@ -14,14 +15,12 @@ class _SentenceTransformersEmbeddingBackendFactory:
+     _instances: Dict[str, "_SentenceTransformersEmbeddingBackend"] = {}
+ 
+     @staticmethod
+-    def get_embedding_backend(model: str, device: Optional[str] = None, use_auth_token: Union[bool, str, None] = None):
+-        embedding_backend_id = f"{model}{device}{use_auth_token}"
++    def get_embedding_backend(model: str, device: Optional[str] = None, auth_token: Optional[Secret] = None):
++        embedding_backend_id = f"{model}{device}{auth_token}"
+ 
+         if embedding_backend_id in _SentenceTransformersEmbeddingBackendFactory._instances:
+             return _SentenceTransformersEmbeddingBackendFactory._instances[embedding_backend_id]
+-        embedding_backend = _SentenceTransformersEmbeddingBackend(
+-            model=model, device=device, use_auth_token=use_auth_token
+-        )
++        embedding_backend = _SentenceTransformersEmbeddingBackend(model=model, device=device, auth_token=auth_token)
+         _SentenceTransformersEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
+         return embedding_backend
+ 
+@@ -31,9 +30,11 @@ class _SentenceTransformersEmbeddingBackend:
+     Class to manage Sentence Transformers embeddings.
+     """
+ 
+-    def __init__(self, model: str, device: Optional[str] = None, use_auth_token: Union[bool, str, None] = None):
++    def __init__(self, model: str, device: Optional[str] = None, auth_token: Optional[Secret] = None):
+         sentence_transformers_import.check()
+-        self.model = SentenceTransformer(model_name_or_path=model, device=device, use_auth_token=use_auth_token)
++        self.model = SentenceTransformer(
++            model_name_or_path=model, device=device, use_auth_token=auth_token.resolve_value() if auth_token else None
++        )
+ 
+     def embed(self, data: List[str], **kwargs) -> List[List[float]]:
+         embeddings = self.model.encode(data, **kwargs).tolist()
+diff --git a/haystack/components/embedders/hf_utils.py b/haystack/components/embedders/hf_utils.py
+index 66a874955a..81ec246d9e 100644
+--- a/haystack/components/embedders/hf_utils.py
++++ b/haystack/components/embedders/hf_utils.py
+@@ -1,26 +1,27 @@
+ from typing import Optional
+ 
+ from haystack.lazy_imports import LazyImport
++from haystack.utils.auth import Secret
+ 
+ with LazyImport(message="Run 'pip install transformers'") as transformers_import:
+     from huggingface_hub import HfApi
+     from huggingface_hub.utils import RepositoryNotFoundError
+ 
+ 
+-def check_valid_model(model_id: str, token: Optional[str]) -> None:
++def check_valid_model(model_id: str, token: Optional[Secret]) -> None:
+     """
+     Check if the provided model ID corresponds to a valid model on HuggingFace Hub.
+     Also check if the model is a embedding model.
+ 
+     :param model_id: A string representing the HuggingFace model ID.
+-    :param token: An optional string representing the authentication token.
++    :param token: The optional authentication token.
+     :raises ValueError: If the model is not found or is not a embedding model.
+     """
+     transformers_import.check()
+ 
+     api = HfApi()
+     try:
+-        model_info = api.model_info(model_id, token=token)
++        model_info = api.model_info(model_id, token=token.resolve_value() if token else None)
+     except RepositoryNotFoundError as e:
+         raise ValueError(
+             f"Model {model_id} not found on HuggingFace Hub. Please provide a valid HuggingFace model_id."
+diff --git a/haystack/components/embedders/hugging_face_tei_document_embedder.py b/haystack/components/embedders/hugging_face_tei_document_embedder.py
+index 15ce347ead..e03ff4bf22 100644
+--- a/haystack/components/embedders/hugging_face_tei_document_embedder.py
++++ b/haystack/components/embedders/hugging_face_tei_document_embedder.py
+@@ -1,14 +1,14 @@
+ import logging
+-import os
+ from typing import Any, Dict, List, Optional
+ from urllib.parse import urlparse
+ 
+ from tqdm import tqdm
+ 
+-from haystack import component, default_to_dict
+ from haystack.components.embedders.hf_utils import check_valid_model
+ from haystack.dataclasses import Document
+ from haystack.lazy_imports import LazyImport
++from haystack.utils import Secret, deserialize_secrets_inplace
++from haystack import component, default_to_dict, default_from_dict
+ 
+ with LazyImport(message="Run 'pip install transformers'") as transformers_import:
+     from huggingface_hub import InferenceClient
+@@ -29,11 +29,12 @@ class HuggingFaceTEIDocumentEmbedder:
+     ```python
+     from haystack.dataclasses import Document
+     from haystack.components.embedders import HuggingFaceTEIDocumentEmbedder
++    from haystack.utils import Secret
+ 
+     doc = Document(content="I love pizza!")
+ 
+     document_embedder = HuggingFaceTEIDocumentEmbedder(
+-        model="BAAI/bge-small-en-v1.5", token="<your-token>"
++        model="BAAI/bge-small-en-v1.5", token=Secret.from_token("<your-api-key>")
+     )
+ 
+     result = document_embedder.run([doc])
+@@ -52,7 +53,7 @@ class HuggingFaceTEIDocumentEmbedder:
+     doc = Document(content="I love pizza!")
+ 
+     document_embedder = HuggingFaceTEIDocumentEmbedder(
+-        model="BAAI/bge-small-en-v1.5", url="<your-tei-endpoint-url>", token="<your-token>"
++        model="BAAI/bge-small-en-v1.5", url="<your-tei-endpoint-url>", token=Secret.from_token("<your-api-key>")
+     )
+ 
+     result = document_embedder.run([doc])
+@@ -83,7 +84,7 @@ def __init__(
+         self,
+         model: str = "BAAI/bge-small-en-v1.5",
+         url: Optional[str] = None,
+-        token: Optional[str] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         prefix: str = "",
+         suffix: str = "",
+         batch_size: int = 32,
+@@ -98,8 +99,7 @@ def __init__(
+         :param url: The URL of your self-deployed Text-Embeddings-Inference service or the URL of your paid HF Inference
+                     Endpoint.
+         :param token: The HuggingFace Hub token. This is needed if you are using a paid HF Inference Endpoint or serving
+-                      a private or gated model. It can be explicitly provided or automatically read from the environment
+-                      variable HF_API_TOKEN (recommended).
++                      a private or gated model.
+         :param prefix: A string to add to the beginning of each text.
+         :param suffix: A string to add to the end of each text.
+         :param batch_size: Number of Documents to encode at once.
+@@ -116,15 +116,12 @@ def __init__(
+             if not is_valid_url:
+                 raise ValueError(f"Invalid TEI endpoint URL provided: {url}")
+ 
+-        # The user does not need to provide a token if it is a local server or free public HF Inference Endpoint.
+-        token = token or os.environ.get("HF_API_TOKEN")
+-
+         check_valid_model(model, token)
+ 
+         self.model = model
+         self.url = url
+         self.token = token
+-        self.client = InferenceClient(url or model, token=token)
++        self.client = InferenceClient(url or model, token=token.resolve_value() if token else None)
+         self.prefix = prefix
+         self.suffix = suffix
+         self.batch_size = batch_size
+@@ -133,10 +130,6 @@ def __init__(
+         self.embedding_separator = embedding_separator
+ 
+     def to_dict(self) -> Dict[str, Any]:
+-        """
+-        This method overrides the default serializer in order to avoid leaking the `token` value passed
+-        to the constructor.
+-        """
+         return default_to_dict(
+             self,
+             model=self.model,
+@@ -147,8 +140,14 @@ def to_dict(self) -> Dict[str, Any]:
+             progress_bar=self.progress_bar,
+             meta_fields_to_embed=self.meta_fields_to_embed,
+             embedding_separator=self.embedding_separator,
++            token=self.token.to_dict() if self.token else None,
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "HuggingFaceTEIDocumentEmbedder":
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
++        return default_from_dict(cls, data)
++
+     def _get_telemetry_data(self) -> Dict[str, Any]:
+         """
+         Data that is sent to Posthog for usage analytics.
+diff --git a/haystack/components/embedders/hugging_face_tei_text_embedder.py b/haystack/components/embedders/hugging_face_tei_text_embedder.py
+index f111d4c914..0acedbce87 100644
+--- a/haystack/components/embedders/hugging_face_tei_text_embedder.py
++++ b/haystack/components/embedders/hugging_face_tei_text_embedder.py
+@@ -1,11 +1,11 @@
+ import logging
+-import os
+ from typing import Any, Dict, List, Optional
+ from urllib.parse import urlparse
+ 
+-from haystack import component, default_to_dict
++from haystack import component, default_to_dict, default_from_dict
+ from haystack.components.embedders.hf_utils import check_valid_model
+ from haystack.lazy_imports import LazyImport
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ with LazyImport(message="Run 'pip install transformers'") as transformers_import:
+     from huggingface_hub import InferenceClient
+@@ -23,11 +23,12 @@ class HuggingFaceTEITextEmbedder:
+     Inference API tier:
+     ```python
+     from haystack.components.embedders import HuggingFaceTEITextEmbedder
++    from haystack.utils import Secret
+ 
+     text_to_embed = "I love pizza!"
+ 
+     text_embedder = HuggingFaceTEITextEmbedder(
+-        model="BAAI/bge-small-en-v1.5", token="<your-token>"
++        model="BAAI/bge-small-en-v1.5", token=Secret.from_token("<your-api-key>")
+     )
+ 
+     print(text_embedder.run(text_to_embed))
+@@ -44,7 +45,7 @@ class HuggingFaceTEITextEmbedder:
+     text_to_embed = "I love pizza!"
+ 
+     text_embedder = HuggingFaceTEITextEmbedder(
+-        model="BAAI/bge-small-en-v1.5", url="<your-tei-endpoint-url>", token="<your-token>"
++        model="BAAI/bge-small-en-v1.5", url="<your-tei-endpoint-url>", token=Secret.from_token("<your-api-key>")
+     )
+ 
+     print(text_embedder.run(text_to_embed))
+@@ -74,7 +75,7 @@ def __init__(
+         self,
+         model: str = "BAAI/bge-small-en-v1.5",
+         url: Optional[str] = None,
+-        token: Optional[str] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         prefix: str = "",
+         suffix: str = "",
+     ):
+@@ -85,8 +86,7 @@ def __init__(
+         :param url: The URL of your self-deployed Text-Embeddings-Inference service or the URL of your paid HF Inference
+                     Endpoint.
+         :param token: The HuggingFace Hub token. This is needed if you are using a paid HF Inference Endpoint or serving
+-                      a private or gated model. It can be explicitly provided or automatically read from the environment
+-                      variable HF_API_TOKEN (recommended).
++                      a private or gated model.
+         :param prefix: A string to add to the beginning of each text.
+         :param suffix: A string to add to the end of each text.
+         """
+@@ -98,24 +98,29 @@ def __init__(
+             if not is_valid_url:
+                 raise ValueError(f"Invalid TEI endpoint URL provided: {url}")
+ 
+-        # The user does not need to provide a token if it is a local server or free public HF Inference Endpoint.
+-        token = token or os.environ.get("HF_API_TOKEN")
+-
+         check_valid_model(model, token)
+ 
+         self.model = model
+         self.url = url
+         self.token = token
+-        self.client = InferenceClient(url or model, token=token)
++        self.client = InferenceClient(url or model, token=token.resolve_value() if token else None)
+         self.prefix = prefix
+         self.suffix = suffix
+ 
+     def to_dict(self) -> Dict[str, Any]:
+-        """
+-        This method overrides the default serializer in order to avoid leaking the `token` value passed
+-        to the constructor.
+-        """
+-        return default_to_dict(self, model=self.model, url=self.url, prefix=self.prefix, suffix=self.suffix)
++        return default_to_dict(
++            self,
++            model=self.model,
++            url=self.url,
++            prefix=self.prefix,
++            suffix=self.suffix,
++            token=self.token.to_dict() if self.token else None,
++        )
++
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "HuggingFaceTEITextEmbedder":
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
++        return default_from_dict(cls, data)
+ 
+     def _get_telemetry_data(self) -> Dict[str, Any]:
+         """
+diff --git a/haystack/components/embedders/openai_document_embedder.py b/haystack/components/embedders/openai_document_embedder.py
+index 33df57406f..e4d3ad13b5 100644
+--- a/haystack/components/embedders/openai_document_embedder.py
++++ b/haystack/components/embedders/openai_document_embedder.py
+@@ -3,7 +3,8 @@
+ from openai import OpenAI
+ from tqdm import tqdm
+ 
+-from haystack import component, Document, default_to_dict
++from haystack import component, Document, default_to_dict, default_from_dict
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ 
+ @component
+@@ -30,7 +31,7 @@ class OpenAIDocumentEmbedder:
+ 
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
+         model: str = "text-embedding-ada-002",
+         api_base_url: Optional[str] = None,
+         organization: Optional[str] = None,
+@@ -43,8 +44,7 @@ def __init__(
+     ):
+         """
+         Create a OpenAIDocumentEmbedder component.
+-        :param api_key: The OpenAI API key. It can be explicitly provided or automatically read from the
+-                        environment variable OPENAI_API_KEY (recommended).
++        :param api_key: The OpenAI API key.
+         :param model: The name of the model to use.
+         :param api_base_url: The OpenAI API Base url, defaults to None. For more details, see OpenAI [docs](https://platform.openai.com/docs/api-reference/audio).
+         :param organization: The Organization ID, defaults to `None`. See
+@@ -57,6 +57,7 @@ def __init__(
+         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
+         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
+         """
++        self.api_key = api_key
+         self.model = model
+         self.api_base_url = api_base_url
+         self.organization = organization
+@@ -67,7 +68,7 @@ def __init__(
+         self.meta_fields_to_embed = meta_fields_to_embed or []
+         self.embedding_separator = embedding_separator
+ 
+-        self.client = OpenAI(api_key=api_key, organization=organization, base_url=api_base_url)
++        self.client = OpenAI(api_key=api_key.resolve_value(), organization=organization, base_url=api_base_url)
+ 
+     def _get_telemetry_data(self) -> Dict[str, Any]:
+         """
+@@ -91,8 +92,14 @@ def to_dict(self) -> Dict[str, Any]:
+             progress_bar=self.progress_bar,
+             meta_fields_to_embed=self.meta_fields_to_embed,
+             embedding_separator=self.embedding_separator,
++            api_key=self.api_key.to_dict(),
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "OpenAIDocumentEmbedder":
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
++        return default_from_dict(cls, data)
++
+     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+         """
+         Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
+diff --git a/haystack/components/embedders/openai_text_embedder.py b/haystack/components/embedders/openai_text_embedder.py
+index 7b5b4f4aaf..02b7d3ed4f 100644
+--- a/haystack/components/embedders/openai_text_embedder.py
++++ b/haystack/components/embedders/openai_text_embedder.py
+@@ -2,7 +2,8 @@
+ 
+ from openai import OpenAI
+ 
+-from haystack import component, default_to_dict
++from haystack import component, default_to_dict, default_from_dict
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ 
+ @component
+@@ -28,7 +29,7 @@ class OpenAITextEmbedder:
+ 
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
+         model: str = "text-embedding-ada-002",
+         api_base_url: Optional[str] = None,
+         organization: Optional[str] = None,
+@@ -38,8 +39,7 @@ def __init__(
+         """
+         Create an OpenAITextEmbedder component.
+ 
+-        :param api_key: The OpenAI API key. It can be explicitly provided or automatically read from the
+-            environment variable OPENAI_API_KEY (recommended).
++        :param api_key: The OpenAI API key.
+         :param model: The name of the OpenAI model to use. For more details on the available models,
+             see [OpenAI documentation](https://platform.openai.com/docs/guides/embeddings/embedding-models).
+         :param organization: The Organization ID, defaults to `None`. See
+@@ -52,8 +52,9 @@ def __init__(
+         self.organization = organization
+         self.prefix = prefix
+         self.suffix = suffix
++        self.api_key = api_key
+ 
+-        self.client = OpenAI(api_key=api_key, organization=organization, base_url=api_base_url)
++        self.client = OpenAI(api_key=api_key.resolve_value(), organization=organization, base_url=api_base_url)
+ 
+     def _get_telemetry_data(self) -> Dict[str, Any]:
+         """
+@@ -62,15 +63,20 @@ def _get_telemetry_data(self) -> Dict[str, Any]:
+         return {"model": self.model}
+ 
+     def to_dict(self) -> Dict[str, Any]:
+-        """
+-        This method overrides the default serializer in order to avoid leaking the `api_key` value passed
+-        to the constructor.
+-        """
+-
+         return default_to_dict(
+-            self, model=self.model, organization=self.organization, prefix=self.prefix, suffix=self.suffix
++            self,
++            model=self.model,
++            organization=self.organization,
++            prefix=self.prefix,
++            suffix=self.suffix,
++            api_key=self.api_key.to_dict(),
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "OpenAITextEmbedder":
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
++        return default_from_dict(cls, data)
++
+     @component.output_types(embedding=List[float], meta=Dict[str, Any])
+     def run(self, text: str):
+         """Embed a string."""
+diff --git a/haystack/components/embedders/sentence_transformers_document_embedder.py b/haystack/components/embedders/sentence_transformers_document_embedder.py
+index ed29740c24..01089d715f 100644
+--- a/haystack/components/embedders/sentence_transformers_document_embedder.py
++++ b/haystack/components/embedders/sentence_transformers_document_embedder.py
+@@ -1,9 +1,10 @@
+-from typing import List, Optional, Union, Dict, Any
++from typing import List, Optional, Dict, Any
+ 
+-from haystack import component, Document, default_to_dict
++from haystack import component, Document, default_to_dict, default_from_dict
+ from haystack.components.embedders.backends.sentence_transformers_backend import (
+     _SentenceTransformersEmbeddingBackendFactory,
+ )
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ 
+ @component
+@@ -31,7 +32,7 @@ def __init__(
+         self,
+         model: str = "sentence-transformers/all-mpnet-base-v2",
+         device: Optional[str] = None,
+-        token: Union[bool, str, None] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         prefix: str = "",
+         suffix: str = "",
+         batch_size: int = 32,
+@@ -48,8 +49,6 @@ def __init__(
+         :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
+             Defaults to CPU.
+         :param token: The API token used to download private models from Hugging Face.
+-            If this parameter is set to `True`, then the token generated when running
+-            `transformers-cli login` (stored in ~/.huggingface) will be used.
+         :param prefix: A string to add to the beginning of each Document text before embedding.
+             Can be used to prepend the text with an instruction, as required by some embedding models,
+             such as E5 and bge.
+@@ -87,7 +86,7 @@ def to_dict(self) -> Dict[str, Any]:
+             self,
+             model=self.model,
+             device=self.device,
+-            token=self.token if not isinstance(self.token, str) else None,  # don't serialize valid tokens
++            token=self.token.to_dict() if self.token else None,
+             prefix=self.prefix,
+             suffix=self.suffix,
+             batch_size=self.batch_size,
+@@ -97,13 +96,18 @@ def to_dict(self) -> Dict[str, Any]:
+             embedding_separator=self.embedding_separator,
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "SentenceTransformersDocumentEmbedder":
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
++        return default_from_dict(cls, data)
++
+     def warm_up(self):
+         """
+         Load the embedding backend.
+         """
+         if not hasattr(self, "embedding_backend"):
+             self.embedding_backend = _SentenceTransformersEmbeddingBackendFactory.get_embedding_backend(
+-                model=self.model, device=self.device, use_auth_token=self.token
++                model=self.model, device=self.device, auth_token=self.token
+             )
+ 
+     @component.output_types(documents=List[Document])
+diff --git a/haystack/components/embedders/sentence_transformers_text_embedder.py b/haystack/components/embedders/sentence_transformers_text_embedder.py
+index 721afaa25c..2a548caf19 100644
+--- a/haystack/components/embedders/sentence_transformers_text_embedder.py
++++ b/haystack/components/embedders/sentence_transformers_text_embedder.py
+@@ -1,9 +1,10 @@
+-from typing import List, Optional, Union, Dict, Any
++from typing import List, Optional, Dict, Any
+ 
+-from haystack import component, default_to_dict
++from haystack import component, default_to_dict, default_from_dict
+ from haystack.components.embedders.backends.sentence_transformers_backend import (
+     _SentenceTransformersEmbeddingBackendFactory,
+ )
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ 
+ @component
+@@ -30,7 +31,7 @@ def __init__(
+         self,
+         model: str = "sentence-transformers/all-mpnet-base-v2",
+         device: Optional[str] = None,
+-        token: Union[bool, str, None] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         prefix: str = "",
+         suffix: str = "",
+         batch_size: int = 32,
+@@ -45,8 +46,6 @@ def __init__(
+         :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
+             Defaults to CPU.
+         :param token: The API token used to download private models from Hugging Face.
+-            If this parameter is set to `True`, then the token generated when running
+-            `transformers-cli login` (stored in ~/.huggingface) will be used.
+         :param prefix: A string to add to the beginning of each Document text before embedding.
+             Can be used to prepend the text with an instruction, as required by some embedding models,
+             such as E5 and bge.
+@@ -80,7 +79,7 @@ def to_dict(self) -> Dict[str, Any]:
+             self,
+             model=self.model,
+             device=self.device,
+-            token=self.token if not isinstance(self.token, str) else None,  # don't serialize valid tokens
++            token=self.token.to_dict() if self.token else None,
+             prefix=self.prefix,
+             suffix=self.suffix,
+             batch_size=self.batch_size,
+@@ -88,13 +87,18 @@ def to_dict(self) -> Dict[str, Any]:
+             normalize_embeddings=self.normalize_embeddings,
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "SentenceTransformersTextEmbedder":
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
++        return default_from_dict(cls, data)
++
+     def warm_up(self):
+         """
+         Load the embedding backend.
+         """
+         if not hasattr(self, "embedding_backend"):
+             self.embedding_backend = _SentenceTransformersEmbeddingBackendFactory.get_embedding_backend(
+-                model=self.model, device=self.device, use_auth_token=self.token
++                model=self.model, device=self.device, auth_token=self.token
+             )
+ 
+     @component.output_types(embedding=List[float])
+diff --git a/haystack/components/generators/azure.py b/haystack/components/generators/azure.py
+index d530461444..9ef25ee860 100644
+--- a/haystack/components/generators/azure.py
++++ b/haystack/components/generators/azure.py
+@@ -3,12 +3,13 @@
+ from typing import Optional, Callable, Dict, Any
+ 
+ # pylint: disable=import-error
+-from openai.lib.azure import AzureADTokenProvider, AzureOpenAI
++from openai.lib.azure import AzureOpenAI
+ 
+ from haystack import default_to_dict, default_from_dict
+ from haystack.components.generators import OpenAIGenerator
+ from haystack.components.generators.utils import serialize_callback_handler, deserialize_callback_handler
+ from haystack.dataclasses import StreamingChunk
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -28,8 +29,9 @@ class AzureOpenAIGenerator(OpenAIGenerator):
+ 
+     ```python
+     from haystack.components.generators import AzureOpenAIGenerator
++    from haystack.utils import Secret
+     client = AzureOpenAIGenerator(azure_endpoint="<Your Azure endpoint e.g. `https://your-company.azure.openai.com/>",
+-                            api_key="<you api key>",
++                                api_key=Secret.from_token("<your-api-key>"),
+                             azure_deployment="<this a model name, e.g. gpt-35-turbo>")
+     response = client.run("What's Natural Language Processing? Be brief.")
+     print(response)
+@@ -56,9 +58,8 @@ def __init__(
+         azure_endpoint: Optional[str] = None,
+         api_version: Optional[str] = "2023-05-15",
+         azure_deployment: Optional[str] = "gpt-35-turbo",
+-        api_key: Optional[str] = None,
+-        azure_ad_token: Optional[str] = None,
+-        azure_ad_token_provider: Optional[AzureADTokenProvider] = None,
++        api_key: Optional[Secret] = Secret.from_env_var("AZURE_OPENAI_API_KEY", strict=False),
++        azure_ad_token: Optional[Secret] = Secret.from_env_var("AZURE_OPENAI_AD_TOKEN", strict=False),
+         organization: Optional[str] = None,
+         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+         system_prompt: Optional[str] = None,
+@@ -70,8 +71,6 @@ def __init__(
+         :param azure_deployment: The deployment of the model, usually the model name.
+         :param api_key: The API key to use for authentication.
+         :param azure_ad_token: Azure Active Directory token, see https://www.microsoft.com/en-us/security/business/identity-access/microsoft-entra-id
+-        :param azure_ad_token_provider: A function that returns an Azure Active Directory token, will be invoked
+-        on every request.
+         :param organization: The Organization ID, defaults to `None`. See
+         [production best practices](https://platform.openai.com/docs/guides/production-best-practices/setting-up-your-organization).
+         :param streaming_callback: A callback function that is called when a new token is received from the stream.
+@@ -108,6 +107,13 @@ def __init__(
+         if not azure_endpoint:
+             raise ValueError("Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT.")
+ 
++        if api_key is None and azure_ad_token is None:
++            raise ValueError("Please provide an API key or an Azure Active Directory token.")
++
++        # The check above makes mypy incorrectly infer that api_key is never None,
++        # which propagates the incorrect type.
++        self.api_key = api_key  # type: ignore
++        self.azure_ad_token = azure_ad_token
+         self.generation_kwargs = generation_kwargs or {}
+         self.system_prompt = system_prompt
+         self.streaming_callback = streaming_callback
+@@ -121,9 +127,8 @@ def __init__(
+             api_version=api_version,
+             azure_endpoint=azure_endpoint,
+             azure_deployment=azure_deployment,
+-            api_key=api_key,
+-            azure_ad_token=azure_ad_token,
+-            azure_ad_token_provider=azure_ad_token_provider,
++            api_key=api_key.resolve_value() if api_key is not None else None,
++            azure_ad_token=azure_ad_token.resolve_value() if azure_ad_token is not None else None,
+             organization=organization,
+         )
+ 
+@@ -142,6 +147,8 @@ def to_dict(self) -> Dict[str, Any]:
+             streaming_callback=callback_name,
+             generation_kwargs=self.generation_kwargs,
+             system_prompt=self.system_prompt,
++            api_key=self.api_key.to_dict() if self.api_key is not None else None,
++            azure_ad_token=self.azure_ad_token.to_dict() if self.azure_ad_token is not None else None,
+         )
+ 
+     @classmethod
+@@ -151,6 +158,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "AzureOpenAIGenerator":
+         :param data: The dictionary representation of this component.
+         :return: The deserialized component instance.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_ad_token"])
+         init_params = data.get("init_parameters", {})
+         serialized_callback_handler = init_params.get("streaming_callback")
+         if serialized_callback_handler:
+diff --git a/haystack/components/generators/chat/azure.py b/haystack/components/generators/chat/azure.py
+index a19b54ae3b..902febd854 100644
+--- a/haystack/components/generators/chat/azure.py
++++ b/haystack/components/generators/chat/azure.py
+@@ -3,12 +3,13 @@
+ from typing import Optional, Callable, Dict, Any
+ 
+ # pylint: disable=import-error
+-from openai.lib.azure import AzureADTokenProvider, AzureOpenAI
++from openai.lib.azure import AzureOpenAI
+ 
+ from haystack import default_to_dict, default_from_dict
+ from haystack.components.generators.chat import OpenAIChatGenerator
+ from haystack.components.generators.utils import serialize_callback_handler, deserialize_callback_handler
+ from haystack.dataclasses import StreamingChunk
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -28,11 +29,12 @@ class AzureOpenAIChatGenerator(OpenAIChatGenerator):
+     ```python
+     from haystack.components.generators.chat import AzureOpenAIGenerator
+     from haystack.dataclasses import ChatMessage
++    from haystack.utils import Secret
+ 
+     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
+ 
+     client = AzureOpenAIGenerator(azure_endpoint="<Your Azure endpoint e.g. `https://your-company.azure.openai.com/>",
+-                                api_key="<you api key>",
++                                api_key=Secret.from_token("<your-api-key>"),
+                                 azure_deployment="<this a model name, e.g. gpt-35-turbo>")
+     response = client.run(messages)
+     print(response)
+@@ -63,9 +65,8 @@ def __init__(
+         azure_endpoint: Optional[str] = None,
+         api_version: Optional[str] = "2023-05-15",
+         azure_deployment: Optional[str] = "gpt-35-turbo",
+-        api_key: Optional[str] = None,
+-        azure_ad_token: Optional[str] = None,
+-        azure_ad_token_provider: Optional[AzureADTokenProvider] = None,
++        api_key: Optional[Secret] = Secret.from_env_var("AZURE_OPENAI_API_KEY", strict=False),
++        azure_ad_token: Optional[Secret] = Secret.from_env_var("AZURE_OPENAI_AD_TOKEN", strict=False),
+         organization: Optional[str] = None,
+         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+         generation_kwargs: Optional[Dict[str, Any]] = None,
+@@ -76,8 +77,6 @@ def __init__(
+         :param azure_deployment: The deployment of the model, usually the model name.
+         :param api_key: The API key to use for authentication.
+         :param azure_ad_token: Azure Active Directory token, see https://www.microsoft.com/en-us/security/business/identity-access/microsoft-entra-id
+-        :param azure_ad_token_provider: A function that returns an Azure Active Directory token, will be invoked
+-        on every request.
+         :param organization: The Organization ID, defaults to `None`. See
+         [production best practices](https://platform.openai.com/docs/guides/production-best-practices/setting-up-your-organization).
+         :param streaming_callback: A callback function that is called when a new token is received from the stream.
+@@ -113,6 +112,13 @@ def __init__(
+         if not azure_endpoint:
+             raise ValueError("Please provide an Azure endpoint or set the environment variable AZURE_OPENAI_ENDPOINT.")
+ 
++        if api_key is None and azure_ad_token is None:
++            raise ValueError("Please provide an API key or an Azure Active Directory token.")
++
++        # The check above makes mypy incorrectly infer that api_key is never None,
++        # which propagates the incorrect type.
++        self.api_key = api_key  # type: ignore
++        self.azure_ad_token = azure_ad_token
+         self.generation_kwargs = generation_kwargs or {}
+         self.streaming_callback = streaming_callback
+         self.api_version = api_version
+@@ -125,9 +131,8 @@ def __init__(
+             api_version=api_version,
+             azure_endpoint=azure_endpoint,
+             azure_deployment=azure_deployment,
+-            api_key=api_key,
+-            azure_ad_token=azure_ad_token,
+-            azure_ad_token_provider=azure_ad_token_provider,
++            api_key=api_key.resolve_value() if api_key is not None else None,
++            azure_ad_token=azure_ad_token.resolve_value() if azure_ad_token is not None else None,
+             organization=organization,
+         )
+ 
+@@ -145,6 +150,8 @@ def to_dict(self) -> Dict[str, Any]:
+             api_version=self.api_version,
+             streaming_callback=callback_name,
+             generation_kwargs=self.generation_kwargs,
++            api_key=self.api_key.to_dict() if self.api_key is not None else None,
++            azure_ad_token=self.azure_ad_token.to_dict() if self.azure_ad_token is not None else None,
+         )
+ 
+     @classmethod
+@@ -154,6 +161,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "AzureOpenAIChatGenerator":
+         :param data: The dictionary representation of this component.
+         :return: The deserialized component instance.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_ad_token"])
+         init_params = data.get("init_parameters", {})
+         serialized_callback_handler = init_params.get("streaming_callback")
+         if serialized_callback_handler:
+diff --git a/haystack/components/generators/chat/hugging_face_local.py b/haystack/components/generators/chat/hugging_face_local.py
+index afb9d2d80f..7ccde0e8ee 100644
+--- a/haystack/components/generators/chat/hugging_face_local.py
++++ b/haystack/components/generators/chat/hugging_face_local.py
+@@ -9,6 +9,7 @@
+ from haystack.dataclasses import ChatMessage, StreamingChunk
+ from haystack.lazy_imports import LazyImport
+ from haystack.utils import ComponentDevice
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -57,7 +58,7 @@ def __init__(
+         model: str = "HuggingFaceH4/zephyr-7b-beta",
+         task: Optional[Literal["text-generation", "text2text-generation"]] = None,
+         device: Optional[ComponentDevice] = None,
+-        token: Optional[Union[str, bool]] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         chat_template: Optional[str] = None,
+         generation_kwargs: Optional[Dict[str, Any]] = None,
+         huggingface_pipeline_kwargs: Optional[Dict[str, Any]] = None,
+@@ -80,7 +81,6 @@ def __init__(
+         :param device: The device on which the model is loaded. If `None`, the default device is automatically
+             selected. If a device/device map is specified in `huggingface_pipeline_kwargs`, it overrides this parameter.
+         :param token: The token to use as HTTP bearer authorization for remote files.
+-            If True, will use the token generated when running huggingface-cli login (stored in ~/.huggingface).
+             If the token is also specified in the `huggingface_pipeline_kwargs`, this parameter will be ignored.
+         :param chat_template: This optional parameter allows you to specify a Jinja template for formatting chat
+             messages. While high-quality and well-supported chat models typically include their own chat templates
+@@ -113,6 +113,9 @@ def __init__(
+         huggingface_pipeline_kwargs = huggingface_pipeline_kwargs or {}
+         generation_kwargs = generation_kwargs or {}
+ 
++        self.token = token
++        token = token.resolve_value() if token else None
++
+         # check if the huggingface_pipeline_kwargs contain the essential parameters
+         # otherwise, populate them with values from other init parameters
+         huggingface_pipeline_kwargs.setdefault("model", model)
+@@ -178,12 +181,11 @@ def to_dict(self) -> Dict[str, Any]:
+             huggingface_pipeline_kwargs=self.huggingface_pipeline_kwargs,
+             generation_kwargs=self.generation_kwargs,
+             streaming_callback=callback_name,
++            token=self.token.to_dict() if self.token else None,
+         )
+ 
+         huggingface_pipeline_kwargs = serialization_dict["init_parameters"]["huggingface_pipeline_kwargs"]
+-        # we don't want to serialize valid tokens
+-        if isinstance(huggingface_pipeline_kwargs["token"], str):
+-            serialization_dict["init_parameters"]["huggingface_pipeline_kwargs"].pop("token")
++        huggingface_pipeline_kwargs.pop("token", None)
+ 
+         serialize_hf_model_kwargs(huggingface_pipeline_kwargs)
+         return serialization_dict
+@@ -194,7 +196,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "HuggingFaceLocalChatGenerator":
+         Deserialize this component from a dictionary.
+         """
+         torch_and_transformers_import.check()  # leave this, cls method
+-
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
+         init_params = data.get("init_parameters", {})
+         serialized_callback_handler = init_params.get("streaming_callback")
+         if serialized_callback_handler:
+diff --git a/haystack/components/generators/chat/hugging_face_tgi.py b/haystack/components/generators/chat/hugging_face_tgi.py
+index 7363497c56..1ff241c5f9 100644
+--- a/haystack/components/generators/chat/hugging_face_tgi.py
++++ b/haystack/components/generators/chat/hugging_face_tgi.py
+@@ -8,6 +8,7 @@
+ from haystack.dataclasses import ChatMessage, StreamingChunk
+ from haystack.components.generators.hf_utils import check_valid_model, check_generation_params
+ from haystack.lazy_imports import LazyImport
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ with LazyImport(message="Run 'pip install transformers'") as transformers_import:
+     from huggingface_hub import InferenceClient
+@@ -28,12 +29,13 @@ class HuggingFaceTGIChatGenerator:
+     ```python
+     from haystack.components.generators.chat import HuggingFaceTGIChatGenerator
+     from haystack.dataclasses import ChatMessage
++    from haystack.utils import Secret
+ 
+     messages = [ChatMessage.from_system("\\nYou are a helpful, respectful and honest assistant"),
+                 ChatMessage.from_user("What's Natural Language Processing?")]
+ 
+ 
+-    client = HuggingFaceTGIChatGenerator(model="meta-llama/Llama-2-70b-chat-hf", token="<your-token>")
++    client = HuggingFaceTGIChatGenerator(model="meta-llama/Llama-2-70b-chat-hf", token=Secret.from_token("<your-api-key>"))
+     client.warm_up()
+     response = client.run(messages, generation_kwargs={"max_new_tokens": 120})
+     print(response)
+@@ -51,7 +53,7 @@ class HuggingFaceTGIChatGenerator:
+ 
+     client = HuggingFaceTGIChatGenerator(model="meta-llama/Llama-2-70b-chat-hf",
+                                          url="<your-tgi-endpoint-url>",
+-                                         token="<your-token>")
++                                         token=Secret.from_token("<your-api-key>"))
+     client.warm_up()
+     response = client.run(messages, generation_kwargs={"max_new_tokens": 120})
+     print(response)
+@@ -85,7 +87,7 @@ def __init__(
+         self,
+         model: str = "meta-llama/Llama-2-13b-chat-hf",
+         url: Optional[str] = None,
+-        token: Optional[str] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         chat_template: Optional[str] = None,
+         generation_kwargs: Optional[Dict[str, Any]] = None,
+         stop_words: Optional[List[str]] = None,
+@@ -131,7 +133,7 @@ def __init__(
+         self.chat_template = chat_template
+         self.token = token
+         self.generation_kwargs = generation_kwargs
+-        self.client = InferenceClient(url or model, token=token)
++        self.client = InferenceClient(url or model, token=token.resolve_value() if token else None)
+         self.streaming_callback = streaming_callback
+         self.tokenizer = None
+ 
+@@ -139,7 +141,9 @@ def warm_up(self) -> None:
+         """
+         Load the tokenizer.
+         """
+-        self.tokenizer = AutoTokenizer.from_pretrained(self.model, token=self.token)
++        self.tokenizer = AutoTokenizer.from_pretrained(
++            self.model, token=self.token.resolve_value() if self.token else None
++        )
+         # mypy can't infer that chat_template attribute exists on the object returned by AutoTokenizer.from_pretrained
+         chat_template = getattr(self.tokenizer, "chat_template", None)
+         if not chat_template and not self.chat_template:
+@@ -162,7 +166,7 @@ def to_dict(self) -> Dict[str, Any]:
+             model=self.model,
+             url=self.url,
+             chat_template=self.chat_template,
+-            token=self.token if not isinstance(self.token, str) else None,  # don't serialize valid tokens
++            token=self.token.to_dict() if self.token else None,
+             generation_kwargs=self.generation_kwargs,
+             streaming_callback=callback_name,
+         )
+@@ -172,6 +176,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "HuggingFaceTGIChatGenerator":
+         """
+         Deserialize this component from a dictionary.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
+         init_params = data.get("init_parameters", {})
+         serialized_callback_handler = init_params.get("streaming_callback")
+         if serialized_callback_handler:
+diff --git a/haystack/components/generators/chat/openai.py b/haystack/components/generators/chat/openai.py
+index 30fcc55420..722743166e 100644
+--- a/haystack/components/generators/chat/openai.py
++++ b/haystack/components/generators/chat/openai.py
+@@ -13,6 +13,7 @@
+ from haystack import component, default_from_dict, default_to_dict
+ from haystack.components.generators.utils import serialize_callback_handler, deserialize_callback_handler
+ from haystack.dataclasses import StreamingChunk, ChatMessage
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -62,7 +63,7 @@ class OpenAIChatGenerator:
+ 
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
+         model: str = "gpt-3.5-turbo",
+         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+         api_base_url: Optional[str] = None,
+@@ -73,8 +74,7 @@ def __init__(
+         Creates an instance of OpenAIChatGenerator. Unless specified otherwise in the `model`, this is for OpenAI's
+         GPT-3.5 model.
+ 
+-        :param api_key: The OpenAI API key. It can be explicitly provided or automatically read from the
+-            environment variable OPENAI_API_KEY (recommended).
++        :param api_key: The OpenAI API key.
+         :param model: The name of the model to use.
+         :param streaming_callback: A callback function that is called when a new token is received from the stream.
+             The callback function accepts StreamingChunk as an argument.
+@@ -101,12 +101,13 @@ def __init__(
+             - `logit_bias`: Add a logit bias to specific tokens. The keys of the dictionary are tokens, and the
+                 values are the bias to add to that token.
+         """
++        self.api_key = api_key
+         self.model = model
+         self.generation_kwargs = generation_kwargs or {}
+         self.streaming_callback = streaming_callback
+         self.api_base_url = api_base_url
+         self.organization = organization
+-        self.client = OpenAI(api_key=api_key, organization=organization, base_url=api_base_url)
++        self.client = OpenAI(api_key=api_key.resolve_value(), organization=organization, base_url=api_base_url)
+ 
+     def _get_telemetry_data(self) -> Dict[str, Any]:
+         """
+@@ -127,6 +128,7 @@ def to_dict(self) -> Dict[str, Any]:
+             api_base_url=self.api_base_url,
+             organization=self.organization,
+             generation_kwargs=self.generation_kwargs,
++            api_key=self.api_key.to_dict(),
+         )
+ 
+     @classmethod
+@@ -136,6 +138,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "OpenAIChatGenerator":
+         :param data: The dictionary representation of this component.
+         :return: The deserialized component instance.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+         init_params = data.get("init_parameters", {})
+         serialized_callback_handler = init_params.get("streaming_callback")
+         if serialized_callback_handler:
+@@ -334,7 +337,7 @@ def _check_finish_reason(self, message: ChatMessage) -> None:
+ class GPTChatGenerator(OpenAIChatGenerator):
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
+         model: str = "gpt-3.5-turbo",
+         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+         api_base_url: Optional[str] = None,
+diff --git a/haystack/components/generators/hf_utils.py b/haystack/components/generators/hf_utils.py
+index 651ef0fc0f..dea8937279 100644
+--- a/haystack/components/generators/hf_utils.py
++++ b/haystack/components/generators/hf_utils.py
+@@ -3,6 +3,7 @@
+ 
+ from haystack.dataclasses import StreamingChunk
+ from haystack.lazy_imports import LazyImport
++from haystack.utils import Secret
+ 
+ with LazyImport(message="Run 'pip install transformers'") as transformers_import:
+     from huggingface_hub import InferenceClient, HfApi
+@@ -36,20 +37,20 @@ def check_generation_params(kwargs: Optional[Dict[str, Any]], additional_accepte
+             )
+ 
+ 
+-def check_valid_model(model_id: str, token: Optional[str]) -> None:
++def check_valid_model(model_id: str, token: Optional[Secret]) -> None:
+     """
+     Check if the provided model ID corresponds to a valid model on HuggingFace Hub.
+     Also check if the model is a text generation model.
+ 
+     :param model_id: A string representing the HuggingFace model ID.
+-    :param token: An optional string representing the authentication token.
++    :param token: An optional authentication token.
+     :raises ValueError: If the model is not found or is not a text generation model.
+     """
+     transformers_import.check()
+ 
+     api = HfApi()
+     try:
+-        model_info = api.model_info(model_id, token=token)
++        model_info = api.model_info(model_id, token=token.resolve_value() if token else None)
+     except RepositoryNotFoundError as e:
+         raise ValueError(
+             f"Model {model_id} not found on HuggingFace Hub. Please provide a valid HuggingFace model_id."
+diff --git a/haystack/components/generators/hugging_face_local.py b/haystack/components/generators/hugging_face_local.py
+index 0a734eae11..4a7eb7b6bd 100644
+--- a/haystack/components/generators/hugging_face_local.py
++++ b/haystack/components/generators/hugging_face_local.py
+@@ -1,11 +1,12 @@
+ import logging
+-from typing import Any, Dict, List, Literal, Optional, Union
++from typing import Any, Dict, List, Literal, Optional
+ 
+ from haystack import component, default_from_dict, default_to_dict
+ 
+ from haystack.lazy_imports import LazyImport
+ from haystack.utils import ComponentDevice
+ from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -44,7 +45,7 @@ def __init__(
+         model: str = "google/flan-t5-base",
+         task: Optional[Literal["text-generation", "text2text-generation"]] = None,
+         device: Optional[ComponentDevice] = None,
+-        token: Optional[Union[str, bool]] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         generation_kwargs: Optional[Dict[str, Any]] = None,
+         huggingface_pipeline_kwargs: Optional[Dict[str, Any]] = None,
+         stop_words: Optional[List[str]] = None,
+@@ -63,7 +64,6 @@ def __init__(
+         :param device: The device on which the model is loaded. If `None`, the default device is automatically
+             selected. If a device/device map is specified in `huggingface_pipeline_kwargs`, it overrides this parameter.
+         :param token: The token to use as HTTP bearer authorization for remote files.
+-            If True, will use the token generated when running huggingface-cli login (stored in ~/.huggingface).
+             If the token is also specified in the `huggingface_pipeline_kwargs`, this parameter will be ignored.
+         :param generation_kwargs: A dictionary containing keyword arguments to customize text generation.
+             Some examples: `max_length`, `max_new_tokens`, `temperature`, `top_k`, `top_p`,...
+@@ -89,6 +89,9 @@ def __init__(
+         huggingface_pipeline_kwargs = huggingface_pipeline_kwargs or {}
+         generation_kwargs = generation_kwargs or {}
+ 
++        self.token = token
++        token = token.resolve_value() if token else None
++
+         # check if the huggingface_pipeline_kwargs contain the essential parameters
+         # otherwise, populate them with values from other init parameters
+         huggingface_pipeline_kwargs.setdefault("model", model)
+@@ -156,12 +159,11 @@ def to_dict(self) -> Dict[str, Any]:
+             huggingface_pipeline_kwargs=self.huggingface_pipeline_kwargs,
+             generation_kwargs=self.generation_kwargs,
+             stop_words=self.stop_words,
++            token=self.token.to_dict() if self.token else None,
+         )
+ 
+         huggingface_pipeline_kwargs = serialization_dict["init_parameters"]["huggingface_pipeline_kwargs"]
+-        # we don't want to serialize valid tokens
+-        if isinstance(huggingface_pipeline_kwargs["token"], str):
+-            serialization_dict["init_parameters"]["huggingface_pipeline_kwargs"].pop("token")
++        huggingface_pipeline_kwargs.pop("token", None)
+ 
+         serialize_hf_model_kwargs(huggingface_pipeline_kwargs)
+         return serialization_dict
+@@ -171,6 +173,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "HuggingFaceLocalGenerator":
+         """
+         Deserialize this component from a dictionary.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
+         deserialize_hf_model_kwargs(data["init_parameters"]["huggingface_pipeline_kwargs"])
+         return default_from_dict(cls, data)
+ 
+diff --git a/haystack/components/generators/hugging_face_tgi.py b/haystack/components/generators/hugging_face_tgi.py
+index f55a0e2da9..0485a011d4 100644
+--- a/haystack/components/generators/hugging_face_tgi.py
++++ b/haystack/components/generators/hugging_face_tgi.py
+@@ -8,6 +8,7 @@
+ from haystack.dataclasses import StreamingChunk
+ from haystack.components.generators.hf_utils import check_generation_params, check_valid_model
+ from haystack.lazy_imports import LazyImport
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ with LazyImport(message="Run 'pip install transformers'") as transformers_import:
+     from huggingface_hub import InferenceClient
+@@ -29,7 +30,9 @@ class HuggingFaceTGIGenerator:
+ 
+     ```python
+     from haystack.components.generators import HuggingFaceTGIGenerator
+-    client = HuggingFaceTGIGenerator(model="mistralai/Mistral-7B-v0.1", token="<your-token>")
++    from haystack.utils import Secret
++
++    client = HuggingFaceTGIGenerator(model="mistralai/Mistral-7B-v0.1", token=Secret.from_token("<your-api-key>"))
+     client.warm_up()
+     response = client.run("What's Natural Language Processing?", max_new_tokens=120)
+     print(response)
+@@ -42,7 +45,7 @@ class HuggingFaceTGIGenerator:
+     from haystack.components.generators import HuggingFaceTGIGenerator
+     client = HuggingFaceTGIGenerator(model="mistralai/Mistral-7B-v0.1",
+                                      url="<your-tgi-endpoint-url>",
+-                                     token="<your-token>")
++                                     token=Secret.from_token("<your-api-key>"))
+     client.warm_up()
+     response = client.run("What's Natural Language Processing?")
+     print(response)
+@@ -74,7 +77,7 @@ def __init__(
+         self,
+         model: str = "mistralai/Mistral-7B-v0.1",
+         url: Optional[str] = None,
+-        token: Optional[str] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         generation_kwargs: Optional[Dict[str, Any]] = None,
+         stop_words: Optional[List[str]] = None,
+         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+@@ -113,7 +116,7 @@ def __init__(
+         self.url = url
+         self.token = token
+         self.generation_kwargs = generation_kwargs
+-        self.client = InferenceClient(url or model, token=token)
++        self.client = InferenceClient(url or model, token=token.resolve_value() if token else None)
+         self.streaming_callback = streaming_callback
+         self.tokenizer = None
+ 
+@@ -121,7 +124,9 @@ def warm_up(self) -> None:
+         """
+         Load the tokenizer
+         """
+-        self.tokenizer = AutoTokenizer.from_pretrained(self.model, token=self.token)
++        self.tokenizer = AutoTokenizer.from_pretrained(
++            self.model, token=self.token.resolve_value() if self.token else None
++        )
+ 
+     def to_dict(self) -> Dict[str, Any]:
+         """
+@@ -134,7 +139,7 @@ def to_dict(self) -> Dict[str, Any]:
+             self,
+             model=self.model,
+             url=self.url,
+-            token=self.token if not isinstance(self.token, str) else None,  # don't serialize valid tokens
++            token=self.token.to_dict() if self.token else None,
+             generation_kwargs=self.generation_kwargs,
+             streaming_callback=callback_name,
+         )
+@@ -144,6 +149,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "HuggingFaceTGIGenerator":
+         """
+         Deserialize this component from a dictionary.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
+         init_params = data.get("init_parameters", {})
+         serialized_callback_handler = init_params.get("streaming_callback")
+         if serialized_callback_handler:
+diff --git a/haystack/components/generators/openai.py b/haystack/components/generators/openai.py
+index 50a940fd53..233b2748f5 100644
+--- a/haystack/components/generators/openai.py
++++ b/haystack/components/generators/openai.py
+@@ -9,6 +9,7 @@
+ from haystack import component, default_from_dict, default_to_dict
+ from haystack.components.generators.utils import serialize_callback_handler, deserialize_callback_handler
+ from haystack.dataclasses import StreamingChunk, ChatMessage
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -50,7 +51,7 @@ class OpenAIGenerator:
+ 
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
+         model: str = "gpt-3.5-turbo",
+         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+         api_base_url: Optional[str] = None,
+@@ -62,8 +63,7 @@ def __init__(
+         Creates an instance of OpenAIGenerator. Unless specified otherwise in the `model`, this is for OpenAI's
+         GPT-3.5 model.
+ 
+-        :param api_key: The OpenAI API key. It can be explicitly provided or automatically read from the
+-            environment variable OPENAI_API_KEY (recommended).
++        :param api_key: The OpenAI API key.
+         :param model: The name of the model to use.
+         :param streaming_callback: A callback function that is called when a new token is received from the stream.
+             The callback function accepts StreamingChunk as an argument.
+@@ -92,6 +92,7 @@ def __init__(
+             - `logit_bias`: Add a logit bias to specific tokens. The keys of the dictionary are tokens, and the
+                 values are the bias to add to that token.
+         """
++        self.api_key = api_key
+         self.model = model
+         self.generation_kwargs = generation_kwargs or {}
+         self.system_prompt = system_prompt
+@@ -99,7 +100,7 @@ def __init__(
+ 
+         self.api_base_url = api_base_url
+         self.organization = organization
+-        self.client = OpenAI(api_key=api_key, organization=organization, base_url=api_base_url)
++        self.client = OpenAI(api_key=api_key.resolve_value(), organization=organization, base_url=api_base_url)
+ 
+     def _get_telemetry_data(self) -> Dict[str, Any]:
+         """
+@@ -120,6 +121,7 @@ def to_dict(self) -> Dict[str, Any]:
+             api_base_url=self.api_base_url,
+             generation_kwargs=self.generation_kwargs,
+             system_prompt=self.system_prompt,
++            api_key=self.api_key.to_dict(),
+         )
+ 
+     @classmethod
+@@ -129,6 +131,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "OpenAIGenerator":
+         :param data: The dictionary representation of this component.
+         :return: The deserialized component instance.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+         init_params = data.get("init_parameters", {})
+         serialized_callback_handler = init_params.get("streaming_callback")
+         if serialized_callback_handler:
+@@ -279,7 +282,7 @@ def _check_finish_reason(self, message: ChatMessage) -> None:
+ class GPTGenerator(OpenAIGenerator):
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
+         model: str = "gpt-3.5-turbo",
+         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+         api_base_url: Optional[str] = None,
+diff --git a/haystack/components/rankers/transformers_similarity.py b/haystack/components/rankers/transformers_similarity.py
+index e865bfe88e..e7a47850bc 100644
+--- a/haystack/components/rankers/transformers_similarity.py
++++ b/haystack/components/rankers/transformers_similarity.py
+@@ -6,6 +6,7 @@
+ from haystack.lazy_imports import LazyImport
+ from haystack.utils import ComponentDevice, DeviceMap
+ from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs, resolve_hf_device_map
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -40,7 +41,7 @@ def __init__(
+         self,
+         model: Union[str, Path] = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+         device: Optional[ComponentDevice] = None,
+-        token: Union[bool, str, None] = None,
++        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),
+         top_k: int = 10,
+         query_prefix: str = "",
+         document_prefix: str = "",
+@@ -119,9 +120,11 @@ def warm_up(self):
+         """
+         if self.model is None:
+             self.model = AutoModelForSequenceClassification.from_pretrained(
+-                self.model_name_or_path, token=self.token, **self.model_kwargs
++                self.model_name_or_path, token=self.token.resolve_value() if self.token else None, **self.model_kwargs
++            )
++            self.tokenizer = AutoTokenizer.from_pretrained(
++                self.model_name_or_path, token=self.token.resolve_value() if self.token else None
+             )
+-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, token=self.token)
+             self.device = ComponentDevice.from_multiple(device_map=DeviceMap.from_hf(self.model.hf_device_map))
+ 
+     def to_dict(self) -> Dict[str, Any]:
+@@ -132,7 +135,7 @@ def to_dict(self) -> Dict[str, Any]:
+             self,
+             device=None,
+             model=self.model_name_or_path,
+-            token=self.token if not isinstance(self.token, str) else None,  # don't serialize valid tokens
++            token=self.token.to_dict() if self.token else None,
+             top_k=self.top_k,
+             query_prefix=self.query_prefix,
+             document_prefix=self.document_prefix,
+@@ -152,6 +155,7 @@ def from_dict(cls, data: Dict[str, Any]) -> "TransformersSimilarityRanker":
+         """
+         Deserialize this component from a dictionary.
+         """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
+         init_params = data["init_parameters"]
+         if init_params["device"] is not None:
+             init_params["device"] = ComponentDevice.from_dict(init_params["device"])
+diff --git a/haystack/components/websearch/searchapi.py b/haystack/components/websearch/searchapi.py
+index 112d98c159..8a84c9c7b6 100644
+--- a/haystack/components/websearch/searchapi.py
++++ b/haystack/components/websearch/searchapi.py
+@@ -1,11 +1,11 @@
+ import json
+ import logging
+ from typing import Dict, List, Optional, Any
+-import os
+ 
+ import requests
+ 
+-from haystack import Document, component, default_to_dict, ComponentError
++from haystack import Document, component, default_to_dict, ComponentError, default_from_dict
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -27,43 +27,48 @@ class SearchApiWebSearch:
+ 
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("SEARCHAPI_API_KEY"),
+         top_k: Optional[int] = 10,
+         allowed_domains: Optional[List[str]] = None,
+         search_params: Optional[Dict[str, Any]] = None,
+     ):
+         """
+-        :param api_key: API key for the SearchApi API.  It can be
+-        explicitly provided or automatically read from the
+-        environment variable SEARCHAPI_API_KEY (recommended).
++        :param api_key: API key for the SearchApi API
+         :param top_k: Number of documents to return.
+         :param allowed_domains: List of domains to limit the search to.
+         :param search_params: Additional parameters passed to the SearchApi API.
+         For example, you can set 'num' to 100 to increase the number of search results.
+         See the [SearchApi website](https://www.searchapi.io/) for more details.
+         """
+-        api_key = api_key or os.environ.get("SEARCHAPI_API_KEY")
+-        # we check whether api_key is None or an empty string
+-        if not api_key:
+-            msg = (
+-                "SearchApiWebSearch expects an API key. "
+-                "Set the SEARCHAPI_API_KEY environment variable (recommended) or pass it explicitly."
+-            )
+-            raise ValueError(msg)
+ 
+         self.api_key = api_key
+         self.top_k = top_k
+         self.allowed_domains = allowed_domains
+         self.search_params = search_params or {}
+ 
++        # Ensure that the API key is resolved.
++        _ = self.api_key.resolve_value()
++
+     def to_dict(self) -> Dict[str, Any]:
+         """
+         Serialize this component to a dictionary.
+         """
+         return default_to_dict(
+-            self, top_k=self.top_k, allowed_domains=self.allowed_domains, search_params=self.search_params
++            self,
++            top_k=self.top_k,
++            allowed_domains=self.allowed_domains,
++            search_params=self.search_params,
++            api_key=self.api_key.to_dict(),
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "SearchApiWebSearch":
++        """
++        Deserialize this component from a dictionary.
++        """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
++        return default_from_dict(cls, data)
++
+     @component.output_types(documents=List[Document], links=List[str])
+     def run(self, query: str):
+         """
+@@ -74,7 +79,7 @@ def run(self, query: str):
+         query_prepend = "OR ".join(f"site:{domain} " for domain in self.allowed_domains) if self.allowed_domains else ""
+ 
+         payload = json.dumps({"q": query_prepend + " " + query, **self.search_params})
+-        headers = {"Authorization": f"Bearer {self.api_key}", "X-SearchApi-Source": "Haystack"}
++        headers = {"Authorization": f"Bearer {self.api_key.resolve_value()}", "X-SearchApi-Source": "Haystack"}
+ 
+         try:
+             response = requests.get(SEARCHAPI_BASE_URL, headers=headers, params=payload, timeout=90)
+diff --git a/haystack/components/websearch/serper_dev.py b/haystack/components/websearch/serper_dev.py
+index 37a91953ea..a358591b14 100644
+--- a/haystack/components/websearch/serper_dev.py
++++ b/haystack/components/websearch/serper_dev.py
+@@ -1,11 +1,11 @@
+ import json
+ import logging
+ from typing import Dict, List, Optional, Any
+-import os
+ 
+ import requests
+ 
+-from haystack import Document, component, default_to_dict, ComponentError
++from haystack import Document, component, default_to_dict, ComponentError, default_from_dict
++from haystack.utils import Secret, deserialize_secrets_inplace
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -27,43 +27,47 @@ class SerperDevWebSearch:
+ 
+     def __init__(
+         self,
+-        api_key: Optional[str] = None,
++        api_key: Secret = Secret.from_env_var("SERPERDEV_API_KEY"),
+         top_k: Optional[int] = 10,
+         allowed_domains: Optional[List[str]] = None,
+         search_params: Optional[Dict[str, Any]] = None,
+     ):
+         """
+-        :param api_key: API key for the SerperDev API.  It can be
+-        explicitly provided or automatically read from the
+-        environment variable SERPERDEV_API_KEY (recommended).
++        :param api_key: API key for the SerperDev API.
+         :param top_k: Number of documents to return.
+         :param allowed_domains: List of domains to limit the search to.
+         :param search_params: Additional parameters passed to the SerperDev API.
+         For example, you can set 'num' to 20 to increase the number of search results.
+         See the [Serper Dev website](https://serper.dev/) for more details.
+         """
+-        api_key = api_key or os.environ.get("SERPERDEV_API_KEY")
+-        # we check whether api_key is None or an empty string
+-        if not api_key:
+-            msg = (
+-                "SerperDevWebSearch expects an API key. "
+-                "Set the SERPERDEV_API_KEY environment variable (recommended) or pass it explicitly."
+-            )
+-            raise ValueError(msg)
+-
+         self.api_key = api_key
+         self.top_k = top_k
+         self.allowed_domains = allowed_domains
+         self.search_params = search_params or {}
+ 
++        # Ensure that the API key is resolved.
++        _ = self.api_key.resolve_value()
++
+     def to_dict(self) -> Dict[str, Any]:
+         """
+         Serialize this component to a dictionary.
+         """
+         return default_to_dict(
+-            self, top_k=self.top_k, allowed_domains=self.allowed_domains, search_params=self.search_params
++            self,
++            top_k=self.top_k,
++            allowed_domains=self.allowed_domains,
++            search_params=self.search_params,
++            api_key=self.api_key.to_dict(),
+         )
+ 
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "SerperDevWebSearch":
++        """
++        Deserialize this component from a dictionary.
++        """
++        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
++        return default_from_dict(cls, data)
++
+     @component.output_types(documents=List[Document], links=List[str])
+     def run(self, query: str):
+         """
+@@ -76,10 +80,10 @@ def run(self, query: str):
+         payload = json.dumps(
+             {"q": query_prepend + query, "gl": "us", "hl": "en", "autocorrect": True, **self.search_params}
+         )
+-        headers = {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
++        headers = {"X-API-KEY": self.api_key.resolve_value(), "Content-Type": "application/json"}
+ 
+         try:
+-            response = requests.post(SERPERDEV_BASE_URL, headers=headers, data=payload, timeout=30)
++            response = requests.post(SERPERDEV_BASE_URL, headers=headers, data=payload, timeout=30)  # type: ignore
+             response.raise_for_status()  # Will raise an HTTPError for bad responses
+         except requests.Timeout:
+             raise TimeoutError(f"Request to {self.__class__.__name__} timed out.")
+diff --git a/haystack/utils/__init__.py b/haystack/utils/__init__.py
+index df42fc59c8..9e0ae39000 100644
+--- a/haystack/utils/__init__.py
++++ b/haystack/utils/__init__.py
+@@ -2,4 +2,4 @@
+ from haystack.utils.requests_utils import request_with_retry
+ from haystack.utils.filters import document_matches_filter
+ from haystack.utils.device import ComponentDevice, DeviceType, Device, DeviceMap
+-from haystack.utils.auth import Secret
++from haystack.utils.auth import Secret, deserialize_secrets_inplace
+diff --git a/haystack/utils/auth.py b/haystack/utils/auth.py
+index 324970d569..d4f62842ae 100644
+--- a/haystack/utils/auth.py
++++ b/haystack/utils/auth.py
+@@ -1,6 +1,6 @@
+ from enum import Enum
+ import os
+-from typing import Any, Dict, List, Optional, Union
++from typing import Any, Dict, Iterable, List, Optional, Union
+ from dataclasses import dataclass
+ from abc import ABC, abstractmethod
+ 
+@@ -193,3 +193,21 @@ def resolve_value(self) -> Optional[Any]:
+         if out is None and self._strict:
+             raise ValueError(f"None of the following authentication environment variables are set: {self._env_vars}")
+         return out
++
++
++def deserialize_secrets_inplace(data: Dict[str, Any], keys: Iterable[str], *, recursive: bool = False):
++    """
++    Deserialize secrets in a dictionary inplace.
++
++    :param data:
++        The dictionary with the serialized data.
++    :param keys:
++        The keys of the secrets to deserialize.
++    :param recursive:
++        Whether to recursively deserialize nested dictionaries.
++    """
++    for k, v in data.items():
++        if isinstance(v, dict) and recursive:
++            deserialize_secrets_inplace(v, keys)
++        elif k in keys and v is not None:
++            data[k] = Secret.from_dict(v)
+diff --git a/releasenotes/notes/secret-handling-for-components-d576a28135a224db.yaml b/releasenotes/notes/secret-handling-for-components-d576a28135a224db.yaml
+index 31e2fa8b38..0548d9d269 100644
+--- a/releasenotes/notes/secret-handling-for-components-d576a28135a224db.yaml
++++ b/releasenotes/notes/secret-handling-for-components-d576a28135a224db.yaml
+@@ -4,3 +4,37 @@ features:
+     Expose a `Secret` type to provide consistent API for any component that requires secrets for authentication.
+     Currently supports string tokens and environment variables. Token-based secrets are automatically
+     prevented from being serialized to disk (to prevent accidental leakage of secrets).
++    ```python
++    @component
++    class MyComponent:
++      def __init__(self, api_key: Optional[Secret] = None, **kwargs):
++        self.api_key = api_key
++        self.backend = None
++
++      def warm_up(self):
++        # Call resolve_value to yield a single result. The semantics of the result is policy-dependent.
++        # Currently, all supported policies will return a single string token.
++        self.backend = SomeBackend(api_key=self.api_key.resolve_value() if self.api_key else None, ...)
++
++      def to_dict(self):
++        # Serialize the policy like any other (custom) data. If the policy is token-based, it will
++        # raise an error.
++        return default_to_dict(self, api_key=self.api_key.to_dict() if self.api_key else None, ...)
++
++      @classmethod
++      def from_dict(cls, data):
++        # Deserialize the policy data before passing it to the generic from_dict function.
++        api_key_data = data["init_parameters"]["api_key"]
++        api_key = Secret.from_dict(api_key_data) if api_key_data is not None else None
++        data["init_parameters"]["api_key"] = api_key
++        return default_from_dict(cls, data)
++
++    # No authentication.
++    component = MyComponent(api_key=None)
++    # Token based authentication
++    component = MyComponent(api_key=Secret.from_token("sk-randomAPIkeyasdsa32ekasd32e"))
++    component.to_dict() # Error! Can't serialize authentication tokens
++    # Environment variable based authentication
++    component = MyComponent(api_key=Secret.from_env("OPENAI_API_KEY"))
++    component.to_dict() # This is fine
++    ```
+diff --git a/releasenotes/notes/update-secret-handling-in-components-925d4f3c3c9530db.yaml b/releasenotes/notes/update-secret-handling-in-components-925d4f3c3c9530db.yaml
+new file mode 100644
+index 0000000000..6e91c89526
+--- /dev/null
++++ b/releasenotes/notes/update-secret-handling-in-components-925d4f3c3c9530db.yaml
+@@ -0,0 +1,8 @@
++---
++upgrade:
++  - |
++    Update secret handling for components using the `Secret` type. The following components are affected:
++    `RemoteWhisperTranscriber`, `AzureOCRDocumentConverter`, `AzureOpenAIDocumentEmbedder`, `AzureOpenAITextEmbedder`, `HuggingFaceTEIDocumentEmbedder`, `HuggingFaceTEITextEmbedder`, `OpenAIDocumentEmbedder`, `SentenceTransformersDocumentEmbedder`, `SentenceTransformersTextEmbedder`, `AzureOpenAIGenerator`, `AzureOpenAIChatGenerator`, `HuggingFaceLocalChatGenerator`, `HuggingFaceTGIChatGenerator`, `OpenAIChatGenerator`, `HuggingFaceLocalGenerator`, `HuggingFaceTGIGenerator`, `OpenAIGenerator`, `TransformersSimilarityRanker`, `SearchApiWebSearch`, `SerperDevWebSearch`
++
++    The default init parameters for `api_key`, `token`, `azure_ad_token` have been adjusted to use environment variables wherever possible. The `azure_ad_token_provider` parameter has been removed from Azure-based components. Components based on Hugging
++    Face are now required to either use a token or an environment variable if authentication is required - The on-disk local token file is no longer supported.

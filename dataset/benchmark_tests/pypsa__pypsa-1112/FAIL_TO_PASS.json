@@ -1,0 +1,15 @@
+[
+  "test/test_consistency_check.py::test_consistency[True]",
+  "test/test_consistency_check.py::test_missing_bus[True]",
+  "test/test_consistency_check.py::test_missing_bus[False]",
+  "test/test_consistency_check.py::test_infeasible_capacity_limits[True]",
+  "test/test_consistency_check.py::test_infeasible_capacity_limits[False]",
+  "test/test_consistency_check.py::test_nans_in_capacity_limits[True]",
+  "test/test_consistency_check.py::test_nans_in_capacity_limits[False]",
+  "test/test_consistency_check.py::test_shapes_with_missing_idx[True]",
+  "test/test_consistency_check.py::test_shapes_with_missing_idx[False]",
+  "test/test_consistency_check.py::test_unknown_carriers[True]",
+  "test/test_consistency_check.py::test_unknown_carriers[False]",
+  "test/test_consistency_check.py::test_inconsistent_e_sum_values[True]",
+  "test/test_consistency_check.py::test_inconsistent_e_sum_values[False]"
+]

@@ -1,0 +1,969 @@
+diff --git a/.spellcheck-en-custom.txt b/.spellcheck-en-custom.txt
+index 4e40197534..00e495076e 100644
+--- a/.spellcheck-en-custom.txt
++++ b/.spellcheck-en-custom.txt
+@@ -93,9 +93,11 @@ Nvidia
+ NVidia
+ OCI
+ oneMKL
++OOM
+ orchestrator
+ ots
+ parallelized
++PEFT
+ Pareja
+ PEFT
+ PlantUML
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index f63633106e..1d8916f29b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -16,6 +16,7 @@
+   * `test`
+ * Intel Gaudi software has been updated to 1.17.1 with Python 3.11 and
+   Torch 2.3.1 support.
++* `--legacy` has been removed and replaced with `--pipeline=simple` in `ilab model train`
+ 
+ ### Features
+ 
+@@ -24,6 +25,8 @@
+ * `ilab model evaluate --max-workers=auto` is now supported and is the default option. When
+   auto is specified, the optimal value is determined based on your GPUs, CPUs, and
+   configuration.
++* `ilab model train` now supports `--pipeline`. The supported pipelines are `simple`, `full`, and `accelerated`. Simple preserves the functionality found in `--legacy` and current MacOS training. Full introduces a new training loop optimized for CPU and MacOS performance. `accelerated` allows users with dedicated graphics cards to run the full fine tuning and multi-phase training found in our training library.
++* `--device` in `ilab model train` now supports `mps` which stands for Metal Performance Shaders. This is a PyTorch device for MacOS training that allows us to utilize the same code path for Linux and MacOS.
+ 
+ ## v0.18.1
+ 
+diff --git a/docs/ci.md b/docs/ci.md
+index 76d35a61d9..f8c576b3d8 100644
+--- a/docs/ci.md
++++ b/docs/ci.md
+@@ -46,20 +46,22 @@ the E2E job configuration files found
+ | --- | --- |
+ | `e` | Run model evaluation |
+ | `F` | Run "fullsize" SDG |
+-| `L` | Run legacy training |
++| `q` | Run the 'simple' training pipeline with 4 bit quantization |
++| `s` | Run the 'simple' training pipeline |
++| `f` | Use the 'full' training pipeline optimized for CPU and MPS rather than simple training |
++| `a` | Use the 'accelerated' training library rather than simple or full training |
+ | `m` | Run minimal configuration (lower number of instructions and training epochs) |
+ | `M` | Use Mixtral model (4-bit quantized) instead of Merlinite (4-bit quantized) |
+ | `P` | Use the phased training within the 'full' training library |
+-| `T` | Use the 'full' training library rather than legacy training |
+ | `v` | Run with vLLM for serving |
+ 
+ ### Current E2E Jobs
+ 
+ | Name | T-Shirt Size | Runner Host | Instance Type | OS | GPU Type | Script flags | Runs when? | Slack reporting? |
+ | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+-| [`e2e-nvidia-t4-x1.yml`](https://github.com/instructlab/instructlab/blob/main/.github/workflows/e2e-nvidia-t4-x1.yml) | Small | AWS | [`g4dn.2xlarge`](https://aws.amazon.com/ec2/instance-types/g4/) | CentOS Stream 9 | 1 x NVIDIA Tesla T4 w/ 16 GB VRAM | `m` | Pull Requests, Push to `main` or `release-*` branch | No |
+-| [`e2e-nvidia-a10g-x1.yml`](https://github.com/instructlab/instructlab/blob/main/.github/workflows/e2e-nvidia-a10g-x1.yml) | Medium | AWS |[`g5.2xlarge`](https://aws.amazon.com/ec2/instance-types/g5/) | CentOS Stream 9 | 1 x NVIDIA A10G w/ 24 GB VRAM | `mf` | Manually by Maintainers | No |
+-| [`e2e-nvidia-a10g-x4.yml`](https://github.com/instructlab/instructlab/blob/main/.github/workflows/e2e-nvidia-a10g-x4.yml) | Large | AWS |[`g5.12xlarge`](https://aws.amazon.com/ec2/instance-types/g5/) | CentOS Stream 9 | 4 x NVIDIA A10G w/ 24 GB VRAM (98 GB) | `mevFMT` | Manually by Maintainers, Automatically against `main` branch at 8AM/8PM UTC | Yes |
++| [`e2e-nvidia-t4-x1.yml`](https://github.com/instructlab/instructlab/blob/main/.github/workflows/e2e-nvidia-t4-x1.yml) | Small | AWS | [`g4dn.2xlarge`](https://aws.amazon.com/ec2/instance-types/g4/) | CentOS Stream 9 | 1 x NVIDIA Tesla T4 w/ 16 GB VRAM | `msq` | Pull Requests, Push to `main` or `release-*` branch | No |
++| [`e2e-nvidia-a10g-x1.yml`](https://github.com/instructlab/instructlab/blob/main/.github/workflows/e2e-nvidia-a10g-x1.yml) | Medium | AWS |[`g5.4xlarge`](https://aws.amazon.com/ec2/instance-types/g5/) | CentOS Stream 9 | 1 x NVIDIA A10G w/ 24 GB VRAM | `mf` | Manually by Maintainers | No |
++| [`e2e-nvidia-a10g-x4.yml`](https://github.com/instructlab/instructlab/blob/main/.github/workflows/e2e-nvidia-a10g-x4.yml) | Large | AWS |[`g5.12xlarge`](https://aws.amazon.com/ec2/instance-types/g5/) | CentOS Stream 9 | 4 x NVIDIA A10G w/ 24 GB VRAM (98 GB) | `mevFMa` | Manually by Maintainers, Automatically against `main` branch at 8AM/8PM UTC | Yes |
+ 
+ ### E2E Test Coverage Matrix
+ 
+@@ -69,15 +71,16 @@ the E2E job configuration files found
+ |              | vllm                     |⎯|⎯|✅|
+ | **Generate** | simple                   |✅|✅|⎯|
+ |              | full                     |⎯|⎯|✅|
+-| **Training** | legacy+Linux             |⎯|❌|⎯|
+-|              | legacy+Linux+4-bit-quant |✅|⎯|⎯|
+-|              | training-lib             |⎯|⎯|✅|
+-| **Eval**     | eval                     |⎯|❌(*2)|✅|
++| **Training** | simple                   |✅(*1)|⎯|⎯|
++|              | full                     |⎯ |✅|⎯|
++|              | accelerated              |⎯|⎯|✅(*2)|
++| **Eval**     | eval                     |⎯|❌(*3)|✅|
+ 
+ Points of clarification (*):
+ 
+-1. The `training-lib` testing is not testing using the output of the Generate step. <https://github.com/instructlab/instructlab/issues/1655>
+-2. The `eval` testing is not evaluating the output of the Training step. <https://github.com/instructlab/instructlab/issues/1642>
++1. The `simple` training pipeline uses 4-bit-quantization.
++2. The `accelerated` testing is not using the output of the Generate step. <https://github.com/instructlab/instructlab/issues/1655>
++3. The `eval` testing is not evaluating the output of the Training step. <https://github.com/instructlab/instructlab/issues/1642>
+ 
+ ### Current E2E Status against `main`
+ 
+diff --git a/requirements.txt b/requirements.txt
+index 5576b64f35..afde39cd33 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -35,3 +35,4 @@ transformers>=4.41.2
+ trl>=0.9.4
+ wandb>=0.16.4
+ xdg-base-dirs>=6.0.1
++psutil>=6.0.0
+diff --git a/src/instructlab/configuration.py b/src/instructlab/configuration.py
+index c209bdf4d1..3e03ce050c 100644
+--- a/src/instructlab/configuration.py
++++ b/src/instructlab/configuration.py
+@@ -1275,6 +1275,8 @@ def map_train_to_library(ctx, params):
+ 
+     train_args.deepspeed_options = ds_args
+     train_args.lora = lora_args
++    if params["pipeline"] == "full":
++        train_args.disable_flash_attn = True
+ 
+     return train_args, torch_args
+ 
+diff --git a/src/instructlab/model/full_train.py b/src/instructlab/model/full_train.py
+new file mode 100644
+index 0000000000..2c920b0860
+--- /dev/null
++++ b/src/instructlab/model/full_train.py
+@@ -0,0 +1,324 @@
++# Standard
++from copy import copy
++from functools import partial
++from pathlib import Path
++import logging
++import math
++import os
++
++# Third Party
++from instructlab_quantize import run_quantize
++from tqdm import tqdm
++from transformers import Adafactor, AutoModelForCausalLM
++import numpy as np
++import psutil
++
++# First Party
++from instructlab.llamacpp import llamacpp_convert_to_gguf
++
++logger = logging.getLogger(__name__)
++
++
++def train(train_args, device):
++    """
++    train runs a CPU and MacOS optimized version of full fine tuning.
++    Adafactor is the optimizer of choice and the multiprocessing method is set to spawn.
++    Dataloading functions imported from the training library.
++    """
++
++    # pylint: disable=no-name-in-module
++    # Third Party
++    from instructlab.training import config
++    from instructlab.training import data_process as dp
++    from instructlab.training import (
++        multipack_sampler,
++        token_dataset,
++        tokenizer_utils,
++        utils,
++    )
++    from torch.utils.data import DataLoader
++    import torch
++
++    dp.main(
++        config.DataProcessArgs(
++            data_output_path=train_args.data_output_dir,
++            model_path=train_args.model_path,
++            data_path=train_args.data_path,
++            max_seq_len=train_args.max_seq_len,
++            chat_tmpl_path=train_args.chat_tmpl_path,
++        )
++    )
++
++    # load chat template based on path in the args
++    CHAT_TEMPLATE, SPECIAL_TOKENS = utils.retrieve_chat_template(
++        train_args.chat_tmpl_path
++    )
++    # get the tokenizer for the model
++    tokenizer = tokenizer_utils.setup_tokenizer(
++        train_args.model_path, SPECIAL_TOKENS, CHAT_TEMPLATE
++    )
++
++    # setup the dataset and place it in data.jsonl, this needs to be used for training NOT the jsonl produced by sdg
++    dataset = token_dataset.setup_dataset(
++        os.path.join(train_args.data_output_dir, "data.jsonl"),
++    )
++
++    # based on the length of the dataset, figure out the max batch len
++    packing_max_batch_len, _ = (
++        multipack_sampler.find_packing_max_batch_len_and_grad_accum(
++            num_gpus=1,
++            avg_sample_len=dataset.get_lengths().mean(),
++            effective_batch_size=train_args.effective_batch_size,
++            max_batch_len_per_gpu=train_args.max_batch_len,
++            is_padding=train_args.is_padding_free,
++            pad_id=tokenizer.pad_token_id,
++            dataset=dataset,
++            seed=47,
++        )
++    )
++
++    collate_fn = partial(pad_collate_fn, pad_token_id=tokenizer.pad_token_id)
++
++    # use a multipack sampler since this is a non-dist. scenario, training library defaults to this as well
++    sampler = multipack_sampler.MultipackDistributedBatchSampler(
++        batch_max_length=packing_max_batch_len,
++        lengths=dataset.get_lengths(),
++        num_replicas=1,
++        rank=0,
++        seed=47,
++        padding=True,
++    )
++    sampler = {"batch_sampler": sampler}
++
++    # 4 workers for the dataloader as compared to the original 8 to optimize performance
++    # this dataloader needs a spawn multiproc method to optimize memory and to work on Apple Silicon.
++    dataloader = DataLoader(
++        dataset,
++        **sampler,
++        num_workers=4,
++        collate_fn=collate_fn,
++    )
++    dataloader.multiprocessing_context = "spawn"
++
++    # set device based off argument given
++    dev = torch.device(device)
++    # auto model based on model path
++    model = AutoModelForCausalLM.from_pretrained(train_args.model_path)
++    if len(tokenizer) > model.config.vocab_size:
++        logger.warning(
++            f"WARNING: tokenizer has {len(tokenizer)} tokens but model has {model.config.vocab_size} vocab size"
++        )
++        model.resize_token_embeddings(
++            int(8 * math.ceil(len(tokenizer) / 8.0))
++        )  # make the vocab size multiple of 8 for sharding the embedding layer.
++
++    # Fix any discrepancy between model and tokenizer
++    # bos and eos tokens mark the beginning and end of a sequence/sentence
++    if (
++        model.config.pad_token_id is not None
++        and tokenizer.pad_token_id is not None
++        and model.config.pad_token_id != tokenizer.pad_token_id
++    ):
++        logger.warning(
++            f"There is a mismatch between pad token id of model ({model.config.pad_token_id}) and tokenizer ({tokenizer.pad_token_id}). Fixing model pad token id to be same as tokenizer's pad token id."
++        )
++        model.config.pad_token_id = tokenizer.pad_token_id
++    if (
++        model.config.bos_token_id is not None
++        and tokenizer.bos_token_id is not None
++        and model.config.bos_token_id != tokenizer.bos_token_id
++    ):
++        logger.warning(
++            f"There is a mismatch between bos token id of model ({model.config.bos_token_id}) and tokenizer ({tokenizer.bos_token_id}). These tokens denote the start of a sequence of data. Fixing model bos token id to be same as tokenizer's bos token id."
++        )
++        model.config.bos_token_id = tokenizer.bos_token_id
++    if (
++        model.config.eos_token_id is not None
++        and tokenizer.eos_token_id
++        and model.config.eos_token_id != tokenizer.eos_token_id
++    ):
++        logger.warning(
++            f"There is a mismatch between eos token id of model ({model.config.eos_token_id}) and tokenizer ({tokenizer.eos_token_id}). These tokens denote the end of a sequence of data. Fixing model eos token id to be same as tokenizer's eos token id."
++        )
++        model.config.eos_token_id = tokenizer.eos_token_id
++
++    model = utils.convert_loss_to_reduce_sum(model, is_granite=False)
++    model = utils.add_noisy_embeddings(model, noise_alpha=None)
++
++    # Get virtual memory statistics
++    memory_info = psutil.virtual_memory()
++
++    # Total RAM
++    total_ram = memory_info.total / (1024**3)  # Convert to GB
++    logger.info(f"Total RAM: {total_ram:.2f} GB")
++    # if RAM is <= 16, we need to use fp16 not fp32. This will yield a worse model but will allow the full pipeline to run
++    accum = 1
++    if total_ram <= 16:
++        # if <= 16GB ram, use gradinent accum and hald precision
++        logger.warning(
++            f"Your system has {total_ram:.2f} GB of RAM. This is below our reccomendation of 32GB for this type of training. Using half precision."
++        )
++        model = model.to(dev).half()  # Convert model to float16
++        accum = 4
++    else:
++        model = model.to(dev)
++
++    # adafactor and gradient checkpointing are memory friendly, we opt to use these in the CPU/MPS loop to fit 7b models.
++    optimizer = Adafactor(
++        model.parameters(), lr=1e-5, scale_parameter=True, relative_step=False
++    )
++    model.gradient_checkpointing_enable()
++
++    model.train()
++
++    # For each epoch do the following:
++    # 1. Incremement Loading Bar
++    # 2. put zeros onto the proper device so we can store some values we need
++    # 3. put each part of the batch onto the device as well using fp6
++    # 4. Forward pass on the model. If using half, we need to do some special handling. If not, then just put the batch onto the device using fp32
++    # 5. Calculate the loss
++    # 6. backward pass on the loss
++    # 7. We are using gradient accumulation to be memory efficient, so if this step is divisible by 4, take a step and zero out the gradients (freeing memory)
++    # 8. clear out some caches if on MPS
++    # 9. Incrememnt loading bar
++    # 10. at the end og the epoch, save the checpoint to a samples folder and convert to GGUF as well
++    for epoch in range(train_args.num_epochs):
++        dataloader.batch_sampler.set_epoch(epoch)
++        inner_pb = tqdm(range(len(dataloader)), desc=f"Epoch {epoch}")
++        aggregated_values = torch.zeros(3, dtype=torch.float16).to(dev)
++
++        for step, batch in enumerate(dataloader):
++            aggregated_values[0] = batch.pop("num_loss_counted_tokens")
++            aggregated_values[1] = len(batch["input_ids"])
++
++            # Move and cast batch data to device
++            for k in batch:
++                if total_ram < 16:
++                    if k in ["input_ids", "attention_mask"]:
++                        # these two need to be of type long if using .half()
++                        batch[k] = batch[k].to(device=dev, dtype=torch.long)
++                    else:
++                        batch[k] = batch[k].to(device=dev, dtype=torch.float16)
++                else:
++                    batch[k] = batch[k].to(device=dev)
++
++            output = model(**batch, use_cache=False)
++            loss = output.loss
++            aggregated_values[2] = loss.item()
++
++            num_loss_counted_tokens = aggregated_values[0]
++            loss = loss / num_loss_counted_tokens
++
++            loss = loss / accum  # Scale the loss for accumulation steps
++
++            logger.info(f"\nEpoch: {epoch}, Step: {step + 1}, Rank: 0, loss = {loss}")
++
++            # Gradient accumulation
++            loss.backward()  # Backward pass
++
++            # Clear cache before optimizer step
++            # below we clear the MPS cache quite a bit. MPS caching is different from CPU.
++            # on MPS systems with 32 or 64 GB of unified memory, it is important to clear the cache beacuse often we are paging a lot of the data that can't fit directly on GPU
++            # CPU doesn't have an equivalent cache clearing method, only GPU devices like MPS, CUDA, ROCM, etc.
++            if dev.type == "mps":
++                torch.mps.empty_cache()
++
++            # if we are on a step which is divisible by 4, step and zero gradients
++            if (step + 1) % accum == 0:
++                optimizer.step()  # Optimizer step
++                optimizer.zero_grad()  # Zero gradients
++
++                # Clear cache after optimizer step
++                if dev.type == "mps":
++                    torch.mps.empty_cache()
++
++            inner_pb.update(1)
++
++        # Clear cache at the end of the epoch if needed
++        if dev.type == "mps":
++            torch.mps.empty_cache()
++
++        output_dir = (
++            Path(train_args.ckpt_output_dir) / "hf_format" / f"samples_{(epoch*8)}"
++        )
++
++        logger.info(f"Saving Model to: {output_dir}")
++        model_state = model.state_dict()
++        output_dir.mkdir(parents=True, exist_ok=True)
++        output_model_file = output_dir / "pytorch_model.bin"
++        output_config_file = output_dir / "config.json"
++
++        tmp_conf = copy(model.config)
++
++        torch.save(model_state, str(output_model_file))
++        tmp_conf.to_json_file(str(output_config_file))
++        tokenizer.save_pretrained(str(output_dir))
++
++        # convert to GGUF at the end so llamacpp can serve the model originally in .bin
++        llamacpp_convert_to_gguf.convert_llama_to_gguf(
++            model=output_dir,
++            pad_vocab=True,
++            skip_unknown=True,
++            outfile=os.path.join(output_dir, "pytorch_model.gguf"),
++        )
++
++        # quantize the model so everyone can run it
++        gguf_model_dir = os.path.join(output_dir, "pytorch_model.gguf")
++        gguf_model_q_dir = os.path.join(output_dir, "pytorch_model-Q4_K_M.gguf")
++        run_quantize(gguf_model_dir, gguf_model_q_dir, "Q4_K_M")
++
++
++def pad_collate_fn(batch, pad_token_id):
++    lens = np.array([len(item["input_ids"]) for item in batch])
++    max_len = max(lens)
++    # Third Party
++    import torch
++    import torch.nn.functional as F
++
++    input_ids = torch.stack(
++        [
++            F.pad(
++                item["input_ids"],
++                (max_len - len(item["input_ids"]), 0),
++                mode="constant",
++                value=pad_token_id,
++            )
++            for item in batch
++        ]
++    )
++    labels = torch.stack(
++        [
++            F.pad(
++                item["labels"],
++                (max_len - len(item["labels"]), 0),
++                mode="constant",
++                value=-100,
++            )
++            for item in batch
++        ]
++    )
++    num_loss_counted_tokens = (labels != -100).sum()
++
++    attention_mask = torch.stack(
++        [
++            F.pad(
++                item["attention_mask"],
++                (max_len - len(item["attention_mask"]), 0),
++                mode="constant",
++                value=0,
++            )
++            for item in batch
++        ]
++    )
++    logger.info(
++        f"\033[96m total tokens: {max_len * len(batch)} num samples: {len(batch)} num padding tokens: {max_len * len(batch) - lens.sum()} - rank: {0} "
++        f"max len: {max_len} min len: {min(lens)} avg len: {lens.mean()} "
++        f"num_loss_counted_tokens: {num_loss_counted_tokens}\033[0m"
++    )
++
++    return {
++        "input_ids": input_ids,
++        "labels": labels,
++        "num_loss_counted_tokens": num_loss_counted_tokens,
++        "attention_mask": attention_mask,
++    }
+diff --git a/src/instructlab/model/train.py b/src/instructlab/model/train.py
+index 0c9dc8f199..223044a493 100644
+--- a/src/instructlab/model/train.py
++++ b/src/instructlab/model/train.py
+@@ -124,12 +124,13 @@ def clickpath_setup(is_dir: bool) -> click.Path:
+ )
+ @click.option(
+     "--device",
+-    type=click.Choice(["cpu", "cuda", "hpu"]),
++    type=click.Choice(["cpu", "cuda", "hpu", "mps"]),
+     show_default=True,
+     default="cpu",
+     help=(
+-        "PyTorch device for Linux training. Use 'cuda' "
++        "PyTorch device for full training. Use 'cuda' "
+         "for NVidia CUDA / AMD ROCm GPU, to use specific GPU, set visible GPU before run train command."
++        "use 'cpu' for laptop CPU training and 'mps' for MacOS Metal Performance Shader training."
+     ),
+ )
+ @click.option(
+@@ -276,11 +277,6 @@ def clickpath_setup(is_dir: bool) -> click.Path:
+     config_sections=ADDITIONAL_ARGUMENTS,
+     required=True,  # default from config
+ )
+-@click.option(
+-    "--legacy",
+-    is_flag=True,
+-    help="if true, enables the legacy linux training code path from release 0.17.0 and prior.",
+-)
+ @click.option(
+     "--strategy",
+     type=click.Choice(
+@@ -356,6 +352,14 @@ def clickpath_setup(is_dir: bool) -> click.Path:
+     is_flag=True,
+     help="By default, checkpoints are saved at the end of each training epoch. This option disables this behavior.",
+ )
++@click.option(
++    "--pipeline",
++    type=click.Choice(["simple", "full", "accelerated"]),
++    default="accelerated",
++    help="Model fidelity pipeline for training: 'simple' uses SFTTrainer on Linux or MLX on MacOS, producing low-fidelity models quickly for rapid prototyping."
++    "'full' employs CPU and MPS optimized InstructLab fine-tuning, generating medium-fidelity models over a longer period."
++    "'accelerated' utilizes GPU acceleration and distributed training, yielding high-fidelity models but requiring more time. Choose based on your hardware, time constraints, and desired model quality",
++)
+ @click.pass_context
+ @clickext.display_params
+ def train(
+@@ -372,7 +376,6 @@ def train(
+     num_epochs,
+     device: str,
+     four_bit_quant: bool,
+-    legacy,
+     strategy: str | None,
+     phased_base_dir: pathlib.Path,
+     phased_phase1_data: pathlib.Path | None,
+@@ -386,12 +389,19 @@ def train(
+     phased_mt_bench_judge: pathlib.Path | None,
+     skip_user_confirm: bool,
+     enable_serving_output: bool,
++    pipeline: str,
+     **kwargs,
+ ):
+     """
+     Takes synthetic data generated locally with `ilab data generate` and the previous model and learns a new model using the MLX API.
+     On success, writes newly learned model to {model_dir}/mlx_model, which is where `chatmlx` will look for a model.
+     """
++    if (
++        pipeline in ("full", "simple")
++        and strategy == SupportedTrainingStrategies.LAB_MULTIPHASE.value
++    ):
++        ctx.fail("Multi Phase training is only supported with `--pipeline accelerated`")
++
+     if not input_dir:
+         # By default, generate output-dir is used as train input-dir
+         input_dir = ctx.obj.config.generate.output_dir
+@@ -463,218 +473,238 @@ def get_files(directory: str, pattern: str) -> list[str]:
+         shutil.copy(train_files[0], train_file)
+         shutil.copy(test_files[0], test_file)
+ 
+-    # if macos, preserve that path
+-    if utils.is_macos_with_m_chip() and not strategy:
+-        # Local
+-        from ..mlx_explore.gguf_convert_to_mlx import load
+-        from ..mlx_explore.utils import fetch_tokenizer_from_hub
+-        from ..train.lora_mlx.convert import convert_between_mlx_and_pytorch
+-        from ..train.lora_mlx.lora import load_and_train
+-        from ..train.lora_mlx.make_data import make_data
+-
+-        if not skip_preprocessing:
+-            try:
+-                make_data(data_dir=data_path)
+-            except FileNotFoundError as exc:
+-                click.secho(
+-                    f"Could not read from data directory: {exc}",
+-                    fg="red",
+-                )
+-                raise click.exceptions.Exit(1)
+-
+-        # NOTE we can skip this if we have a way ship MLX
+-        # PyTorch safetensors to MLX safetensors
+-        model_dir_local = model_path.replace("/", "-")
+-        model_dir_local = f"{ckpt_output_dir}/{model_dir_local}"
+-        model_dir_mlx = f"{model_dir_local}-mlx"
+-        model_dir_mlx_quantized = f"{model_dir_local}-mlx-q"
+-
+-        if skip_quantize:
+-            dest_model_dir = model_dir_mlx
+-            quantize_arg = False
+-        else:
+-            dest_model_dir = model_dir_mlx_quantized
+-            quantize_arg = True
++    if (
++        pipeline == "full"
++        or pipeline == "accelerated"
++        or strategy == SupportedTrainingStrategies.LAB_MULTIPHASE.value
++    ):
++        if not os.path.isfile(data_path):
++            ctx.fail(
++                f"Data path must be to a valid .jsonl file. Value given: {data_path}"
++            )
+ 
+-        if tokenizer_dir is not None and gguf_model_path is not None:
+-            if not local:
+-                tokenizer_dir_local = tokenizer_dir.replace("/", "-")
+-                fetch_tokenizer_from_hub(tokenizer_dir, tokenizer_dir_local)
++        # pull the trainrandom.randinting and torch args from the flags
++        # the flags are populated from the config as a base.
++        train_args, torch_args = map_train_to_library(ctx, ctx.params)
++        logger.debug(
++            "Rendered training arguments:\n%s", pprint.pformat(train_args.model_dump())
++        )
+ 
+-            # no need to pass quantize_arg for now, script automatically detects if quantization is necessary based on whether gguf model is quantized or not
+-            load(gguf=gguf_model_path, repo=tokenizer_dir, mlx_path=dest_model_dir)
++    if strategy == SupportedTrainingStrategies.LAB_MULTIPHASE.value:
++        if not (phased_phase1_data and phased_phase2_data):
++            raise ctx.fail(
++                "End-to-end training minimally requires: `--phased-phase1-data`, and `--phased-phase2-data`. One or more wasn't correctly specified."
++            )
+ 
+-            for filename in os.listdir(model_dir_local):
+-                shutil.copy(
+-                    os.path.join(model_dir_local, filename),
+-                    os.path.join(dest_model_dir, filename),
+-                )
+-            shutil.rmtree(model_dir_local, ignore_errors=True)
++        # if they both exist, must be Path objects
++        if not (phased_phase1_data.exists() and phased_phase2_data.exists()):
++            raise FileNotFoundError(
++                "Data for both phase1 and phase2 must be specified for phased training."
++            )
+ 
++        mt_bench_judge: pathlib.Path
++        if phased_mt_bench_judge is None:
++            ctx.fail("No MT-Bench model was provided with '--phased-mt-bench-judge'")
++        elif not phased_mt_bench_judge.resolve().exists():
++            raise FileNotFoundError(
++                f"MT-Bench model directory could not be found: {phased_mt_bench_judge}\nMust be an absolute path to a model directory."
++            )
+         else:
+-            # Downloading PyTorch SafeTensor and Converting to MLX SafeTensor
+-            convert_between_mlx_and_pytorch(
+-                hf_path=model_path,
+-                mlx_path=dest_model_dir,
+-                quantize=quantize_arg,
+-                local=local,
++            # makes MyPy happy because 'mt_bench_judge' isn't Path | None
++            mt_bench_judge = phased_mt_bench_judge
++        if not skip_user_confirm:
++            click.confirm(
++                f"""\n\nSTARTING END-TO-END TRAINING.\nProceeding will OVERWRITE any metadata (checkpoints, intermediate results) that are stored at {phased_base_dir}.\n\nWould you like to proceed?""",
++                abort=True,
+             )
+ 
+-        adapter_file_path = f"{dest_model_dir}/adapters.npz"
+-
+-        # train the model with LoRA
+-        load_and_train(
+-            model=dest_model_dir,
+-            train=True,
+-            data=data_path,
+-            adapter_file=adapter_file_path,
+-            iters=iters,
+-            save_every=10,
+-            steps_per_eval=10,
+-        )
+-    elif legacy:
+-        # Local
+-        from ..llamacpp.llamacpp_convert_to_gguf import convert_llama_to_gguf
+-        from ..train.linux_train import linux_train
++        _prepare_phased_base_dir(phased_base_dir)
+ 
+-        training_results_dir = linux_train(
++        _run_phased_training(
+             ctx=ctx,
+-            train_file=train_file,
+-            test_file=test_file,
+-            model_name=model_path,
+-            num_epochs=num_epochs,
+-            train_device=device,
+-            four_bit_quant=four_bit_quant,
++            train_args=train_args,
++            torch_args=torch_args,  # pylint: disable=possibly-used-before-assignment
++            base_dir=phased_base_dir,
++            phase1_data=phased_phase1_data,
++            phase1_num_epochs=phased_phase1_num_epochs,
++            phase1_samples_per_save=phased_phase1_samples_per_save,
++            phase1_checkpoints_dir=phased_base_dir / "phase1" / "checkpoints",
++            phased_phase1_effective_batch_size=phased_phase1_effective_batch_size,
++            phase2_data=phased_phase2_data,
++            phase2_num_epochs=phased_phase2_num_epochs,
++            phase2_samples_per_save=phased_phase2_samples_per_save,
++            phase2_checkpoints_dir=phased_base_dir / "phase2" / "checkpoints",
++            phased_phase2_effective_batch_size=phased_phase2_effective_batch_size,
++            phase2_eval_cache=phased_base_dir / "phase2" / "eval_cache",
++            mtbench_judge=mt_bench_judge,
++            enable_serving_output=enable_serving_output,
+         )
+ 
+-        final_results_dir = training_results_dir / "final"
+-        if final_results_dir.exists():
+-            shutil.rmtree(final_results_dir)
+-        final_results_dir.mkdir()
+-
+-        gguf_models_dir = Path(DEFAULTS.CHECKPOINTS_DIR)
+-        gguf_models_dir.mkdir(exist_ok=True)
+-        gguf_models_file = gguf_models_dir / "ggml-model-f16.gguf"
+-
+-        # Remove previously trained model, its taking up space we may need in the next step
+-        gguf_models_file.unlink(missing_ok=True)
+-
+-        # TODO: Figure out what to do when there are multiple checkpoint dirs.
+-        # Right now it's just copying files from the first one numerically not necessarily the best one
+-        for fpath in (
+-            "checkpoint-*/added_tokens.json",
+-            "checkpoint-*/special_tokens_map.json",
+-            "checkpoint-*/tokenizer.json",
+-            "checkpoint-*/tokenizer.model",
+-            "checkpoint-*/tokenizer_config.json",
+-            "merged_model/config.json",
+-            "merged_model/generation_config.json",
+-        ):
+-            file_ = next(training_results_dir.glob(fpath))
+-            shutil.copy(file_, final_results_dir)
+-            print(f"Copied {file_} to {final_results_dir}")
+-
+-        for file in training_results_dir.glob("merged_model/*.safetensors"):
+-            shutil.move(file, final_results_dir)
+-            print(f"Moved {file} to {final_results_dir}")
+-
+-        if four_bit_quant:
+-            print(
+-                "SKIPPING CONVERSION to gguf. This is unsupported with --4-bit-quant. "
+-                + "See https://github.com/instructlab/instructlab/issues/579."
+-            )
+-            return
+-
+-        gguf_file_path = convert_llama_to_gguf(model=final_results_dir, pad_vocab=True)
+-
+-        # Remove safetensors files to save space, were done with them here
+-        # and the huggingface lib has them cached
+-        for file in final_results_dir.glob("*.safetensors"):
+-            file.unlink()
+-
+-        shutil.move(gguf_file_path, gguf_models_file)
+-        print(f"Save trained model to {gguf_models_file}")
+-
+-        # cleanup checkpoint dir since it's name is unpredictable
+-        # TODO: figure out how checkpoint dirs should be cleaned up
+-        # checkpoint_dirs = training_results_dir.glob("checkpoint*")
+-        # shutil.rmtree(checkpoint_dirs[0])
+     else:
+-        # run_training is a dynamic attribute, pylint is not clever enough
+-        # to detect it.
+-        # Third Party
+-        from instructlab.training import (  # pylint: disable=no-name-in-module
+-            run_training,
+-        )
+-
+-        # pull the trainrandom.randinting and torch args from the flags
+-        # the flags are populated from the config as a base.
+-        train_args, torch_args = map_train_to_library(ctx, ctx.params)
+-        logger.debug(
+-            "Rendered training arguments:\n%s", pprint.pformat(train_args.model_dump())
+-        )
++        # we can use train_args locally to run lower fidelity training
++        if is_high_fidelity(device=device) and pipeline == "accelerated":
++            # run_training is a dynamic attribute, pylint is not clever enough
++            # to detect it.
++            # Third Party
++            from instructlab.training import (
++                run_training,  # pylint: disable=no-name-in-module
++            )
+ 
+-        if strategy == SupportedTrainingStrategies.LAB_MULTIPHASE.value:
+-            if not (phased_phase1_data and phased_phase2_data):
+-                raise ctx.fail(
+-                    "End-to-end training minimally requires: `--phased-phase1-data`, and `--phased-phase2-data`. One or more wasn't correctly specified."
++            run_training(train_args=train_args, torch_args=torch_args)
++        elif not is_high_fidelity(device=device) and pipeline == "full":
++            # Third Party
++            import torch
++
++            torch.set_autocast_enabled(False)
++            # Local
++            from . import full_train
++
++            # if on CPU or MPS, execute full train, which is based
++            # off of the structure of the training repo, just with different optimizers, model sizes, and special data gradient accumulation to get it
++            # to fit on most consumer laptops
++            full_train.train(train_args=train_args, device=device)
++        elif pipeline == "simple":
++            if utils.is_macos_with_m_chip() and not strategy:
++                # Local
++                from ..mlx_explore.gguf_convert_to_mlx import load
++                from ..mlx_explore.utils import fetch_tokenizer_from_hub
++                from ..train.lora_mlx.convert import convert_between_mlx_and_pytorch
++                from ..train.lora_mlx.lora import load_and_train
++                from ..train.lora_mlx.make_data import make_data
++
++                if not skip_preprocessing:
++                    try:
++                        make_data(data_dir=data_path)
++                    except FileNotFoundError as exc:
++                        click.secho(
++                            f"Could not read from data directory: {exc}",
++                            fg="red",
++                        )
++                        raise click.exceptions.Exit(1)
++
++                # NOTE we can skip this if we have a way to ship MLX
++                # PyTorch safetensors to MLX safetensors
++                model_dir_local = model_path.replace("/", "-")
++                model_dir_local = f"{ckpt_output_dir}/{model_dir_local}"
++                model_dir_mlx = f"{model_dir_local}-mlx"
++                model_dir_mlx_quantized = f"{model_dir_local}-mlx-q"
++
++                if skip_quantize:
++                    dest_model_dir = model_dir_mlx
++                    quantize_arg = False
++                else:
++                    dest_model_dir = model_dir_mlx_quantized
++                    quantize_arg = True
++
++                if tokenizer_dir is not None and gguf_model_path is not None:
++                    if not local:
++                        tokenizer_dir_local = tokenizer_dir.replace("/", "-")
++                        fetch_tokenizer_from_hub(tokenizer_dir, tokenizer_dir_local)
++
++                    # no need to pass quantize_arg for now, script automatically detects if quantization is necessary based on whether gguf model is quantized or not
++                    load(
++                        gguf=gguf_model_path,
++                        repo=tokenizer_dir,
++                        mlx_path=dest_model_dir,
++                    )
++
++                    for filename in os.listdir(model_dir_local):
++                        shutil.copy(
++                            os.path.join(model_dir_local, filename),
++                            os.path.join(dest_model_dir, filename),
++                        )
++                    shutil.rmtree(model_dir_local, ignore_errors=True)
++
++                else:
++                    # Downloading PyTorch SafeTensor and Converting to MLX SafeTensor
++                    convert_between_mlx_and_pytorch(
++                        hf_path=model_path,
++                        mlx_path=dest_model_dir,
++                        quantize=quantize_arg,
++                        local=local,
++                    )
++
++                adapter_file_path = f"{dest_model_dir}/adapters.npz"
++
++                # train the model with LoRA
++                load_and_train(
++                    model=dest_model_dir,
++                    train=True,
++                    data=data_path,
++                    adapter_file=adapter_file_path,
++                    iters=iters,
++                    save_every=10,
++                    steps_per_eval=10,
+                 )
+-
+-            # if they both exist, must be Path objects
+-            if not (phased_phase1_data.exists() and phased_phase2_data.exists()):
+-                raise FileNotFoundError(
+-                    "Data for both phase1 and phase2 must be specified for phased training."
++            else:
++                # Local
++                from ..llamacpp.llamacpp_convert_to_gguf import convert_llama_to_gguf
++                from ..train.linux_train import linux_train
++
++                training_results_dir = linux_train(
++                    ctx=ctx,
++                    train_file=train_file,
++                    test_file=test_file,
++                    model_name=model_path,
++                    num_epochs=num_epochs,
++                    train_device=device,
++                    four_bit_quant=four_bit_quant,
+                 )
+ 
+-            mt_bench_judge: pathlib.Path
+-            if phased_mt_bench_judge is None:
+-                ctx.fail(
+-                    "No MT-Bench model was provided with '--phased-mt-bench-judge'"
++                final_results_dir = training_results_dir / "final"
++                if final_results_dir.exists():
++                    shutil.rmtree(final_results_dir)
++                final_results_dir.mkdir()
++
++                gguf_models_dir = Path(DEFAULTS.CHECKPOINTS_DIR)
++                gguf_models_dir.mkdir(exist_ok=True)
++                gguf_models_file = gguf_models_dir / "ggml-model-f16.gguf"
++
++                # Remove previously trained model, its taking up space we may need in the next step
++                gguf_models_file.unlink(missing_ok=True)
++
++                # TODO: Figure out what to do when there are multiple checkpoint dirs.
++                # Right now it's just copying files from the first one numerically not necessarily the best one
++                for fpath in (
++                    "checkpoint-*/added_tokens.json",
++                    "checkpoint-*/special_tokens_map.json",
++                    "checkpoint-*/tokenizer.json",
++                    "checkpoint-*/tokenizer.model",
++                    "checkpoint-*/tokenizer_config.json",
++                    "merged_model/config.json",
++                    "merged_model/generation_config.json",
++                ):
++                    file_ = next(training_results_dir.glob(fpath))
++                    shutil.copy(file_, final_results_dir)
++                    logger.info(f"Copied {file_} to {final_results_dir}")
++
++                for file in training_results_dir.glob("merged_model/*.safetensors"):
++                    shutil.move(file, final_results_dir)
++                    logger.info(f"Moved {file} to {final_results_dir}")
++
++                if four_bit_quant:
++                    logger.info(
++                        "SKIPPING CONVERSION to gguf. This is unsupported with --4-bit-quant. "
++                        + "See https://github.com/instructlab/instructlab/issues/579."
++                    )
++                    return
++
++                gguf_file_path = convert_llama_to_gguf(
++                    model=final_results_dir, pad_vocab=True
+                 )
+-            elif not phased_mt_bench_judge.resolve().exists():
+-                raise FileNotFoundError(
+-                    f"MT-Bench model directory could not be found: {phased_mt_bench_judge}\nMust be an absolute path to a model directory."
+-                )
+-            else:
+-                # makes MyPy happy because 'mt_bench_judge' isn't Path | None
+-                mt_bench_judge = phased_mt_bench_judge
+ 
+-            if not skip_user_confirm:
+-                click.confirm(
+-                    f"""\n\nSTARTING END-TO-END TRAINING.\nProceeding will OVERWRITE any metadata (checkpoints, intermediate results) that are stored at {phased_base_dir}.\n\nWould you like to proceed?""",
+-                    abort=True,
+-                )
++                # Remove safetensors files to save space, were done with them here
++                # and the huggingface lib has them cached
++                for file in final_results_dir.glob("*.safetensors"):
++                    file.unlink()
+ 
+-            _prepare_phased_base_dir(phased_base_dir)
+-
+-            _run_phased_training(
+-                ctx=ctx,
+-                train_args=train_args,
+-                torch_args=torch_args,
+-                base_dir=phased_base_dir,
+-                phase1_data=phased_phase1_data,
+-                phase1_num_epochs=phased_phase1_num_epochs,
+-                phase1_samples_per_save=phased_phase1_samples_per_save,
+-                phase1_checkpoints_dir=phased_base_dir / "phase1" / "checkpoints",
+-                phased_phase1_effective_batch_size=phased_phase1_effective_batch_size,
+-                phase2_data=phased_phase2_data,
+-                phase2_num_epochs=phased_phase2_num_epochs,
+-                phase2_samples_per_save=phased_phase2_samples_per_save,
+-                phase2_checkpoints_dir=phased_base_dir / "phase2" / "checkpoints",
+-                phased_phase2_effective_batch_size=phased_phase2_effective_batch_size,
+-                phase2_eval_cache=phased_base_dir / "phase2" / "eval_cache",
+-                mtbench_judge=mt_bench_judge,
+-                enable_serving_output=enable_serving_output,
+-            )
++                shutil.move(gguf_file_path, gguf_models_file)
++                logger.info(f"Save trained model to {gguf_models_file}")
+ 
+-        else:
+-            if not os.path.isfile(data_path):
+-                ctx.fail(
+-                    f"Data path must be to a valid .jsonl file. Value given: {data_path}"
+-                )
+ 
+-            # TODO: should we have this wrapped in a try-except?
+-            run_training(train_args=train_args, torch_args=torch_args)
++# chooses which type of training to run depending on the device provided
++def is_high_fidelity(device):
++    return device in ("cuda", "hpu")
+ 
+ 
+ def _prepare_phased_base_dir(phased_base_dir: pathlib.Path) -> None:
+@@ -794,7 +824,6 @@ def _mtbench(
+     enable_serving_output: bool,
+ ) -> float:
+     # TODO: optimization: run all generations in serial and then do all judgments at once to save time loading/unloading prometheus.
+-
+     # Third Party
+     from instructlab.eval.mt_bench import MTBenchEvaluator
+     import torch
+diff --git a/tox.ini b/tox.ini
+index d07969f5f4..5cc8fadf95 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -142,6 +142,7 @@ deps =
+   types-PyYAML
+   types-requests
+   types-tqdm
++  types-psutil
+   pytest
+ commands =
+   mypy {posargs}

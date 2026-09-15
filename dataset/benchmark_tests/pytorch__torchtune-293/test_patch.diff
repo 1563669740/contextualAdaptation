@@ -1,0 +1,88 @@
+diff --git a/integration_tests/test_llama_inference_parity.py b/integration_tests/test_llama_inference_parity.py
+index ec6ff2d55f..cc995a6ec3 100644
+--- a/integration_tests/test_llama_inference_parity.py
++++ b/integration_tests/test_llama_inference_parity.py
+@@ -12,7 +12,7 @@
+ 
+ from tests.test_utils import assert_expected
+ from torch import nn
+-from torchtune.models.llama2 import llama2, llama2_tokenizer
++from torchtune.models.llama2 import llama2_7b, llama2_tokenizer
+ from torchtune.modules import Tokenizer
+ from torchtune.utils.generation import GenerationUtils
+ from torchtune.utils.seed import set_seed
+@@ -70,19 +70,6 @@ def generate(
+ 
+             return generations
+ 
+-    def llama2_7b(self, max_batch_size: Optional[int] = None):
+-        # TODO: Replace with definition in torchtune/models/llama2.py once defaults are reset
+-        return llama2(
+-            vocab_size=32_000,
+-            num_layers=32,
+-            num_heads=32,
+-            max_seq_len=4096,
+-            num_kv_heads=32,
+-            embed_dim=4096,
+-            norm_eps=1e-5,
+-            max_batch_size=max_batch_size,
+-        )
+-
+     def test_parity_with_huggingface(
+         self, prompts: List[str], llama2_path: str, tokenizer_path: str
+     ):
+@@ -95,7 +82,7 @@ def test_parity_with_huggingface(
+         ]
+ 
+         with torch.device("cpu"):
+-            decoder = self.llama2_7b()
++            decoder = llama2_7b()
+ 
+         state_dict = torch.load(
+             llama2_path,
+@@ -114,7 +101,7 @@ def test_parity_with_huggingface(
+         del decoder
+ 
+         with torch.device("cpu"):
+-            decoder_kv = self.llama2_7b(max_batch_size=2)
++            decoder_kv = llama2_7b(max_batch_size=2)
+ 
+         missing, unexpected = decoder_kv.load_state_dict(
+             state_dict["model"], strict=False
+diff --git a/tests/torchtune/models/llama2/scripts/compare_decoder_layer.py b/tests/torchtune/models/llama2/scripts/compare_decoder_layer.py
+index d2091b1c43..4d8effdf34 100644
+--- a/tests/torchtune/models/llama2/scripts/compare_decoder_layer.py
++++ b/tests/torchtune/models/llama2/scripts/compare_decoder_layer.py
+@@ -38,7 +38,7 @@
+ 
+ 
+ class RMSNormRef(torch.nn.Module):
+-    def __init__(self, dim: int, eps: float = 1e-6):
++    def __init__(self, dim: int, eps: float = 1e-5):
+         super().__init__()
+         self.eps = eps
+         self.weight = nn.Parameter(torch.ones(dim))
+@@ -120,7 +120,7 @@ def compare_decoder_layer(
+         block_out = transformer_block(x=input_t, freqs_cis=freq_cis, mask=mask)
+ 
+     # current implementation; initialize with constant to compare outputs
+-    norm_eps = 1e-6
++    norm_eps = 1e-5
+     head_dim = embed_dim // num_heads
+     num_kv_heads = num_kv_heads if num_kv_heads else num_heads
+     rope = RotaryPositionalEmbeddings(dim=head_dim, max_seq_len=max_seq_len)
+diff --git a/tests/torchtune/models/test_lora_llama2.py b/tests/torchtune/models/test_lora_llama2.py
+index a98ce46606..7e1cebea73 100644
+--- a/tests/torchtune/models/test_lora_llama2.py
++++ b/tests/torchtune/models/test_lora_llama2.py
+@@ -109,8 +109,8 @@ def get_ref_llama2(self, vocab_size):
+     @pytest.mark.parametrize(
+         "lora_modules, expected",
+         [
+-            (["q_proj", "v_proj"], torch.tensor(5638870.5)),
+-            (["q_proj", "k_proj", "v_proj", "output_proj"], torch.tensor(5684272.5)),
++            (["q_proj", "v_proj"], torch.tensor(5638859.0)),
++            (["q_proj", "k_proj", "v_proj", "output_proj"], torch.tensor(5684263.5)),
+             (["k_proj"], torch.tensor(5608697.5)),
+         ],
+     )

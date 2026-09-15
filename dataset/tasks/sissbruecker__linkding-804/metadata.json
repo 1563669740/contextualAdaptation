@@ -1,0 +1,41 @@
+{
+  "task_id": "sissbruecker__linkding-804",
+  "repo": "sissbruecker/linkding",
+  "pull_number": "804",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=4 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.9,
+  "base_commit": "36a84276a20d418105ee973b5960ea79f7635018",
+  "repo_commit": "36a84276a20d418105ee973b5960ea79f7635018",
+  "gold_commit": "b03802a61446f9407609b4253dc4ec7012882146",
+  "gold_commit_count": 3,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 5,
+  "gold_loc_added": 30,
+  "gold_loc_deleted": 102,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 748,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

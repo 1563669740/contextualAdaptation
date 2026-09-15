@@ -1,0 +1,59 @@
+diff --git a/conans/client/graph/compute_pid.py b/conans/client/graph/compute_pid.py
+index 0948a03fe3a..a81497bb002 100644
+--- a/conans/client/graph/compute_pid.py
++++ b/conans/client/graph/compute_pid.py
+@@ -21,7 +21,7 @@ def compute_package_id(node, new_config):
+ 
+     python_requires = getattr(conanfile, "python_requires", None)
+     if python_requires:
+-        python_requires = python_requires.all_refs()
++        python_requires = python_requires.info_requires()
+ 
+     data = OrderedDict()
+     build_data = OrderedDict()
+diff --git a/conans/client/graph/python_requires.py b/conans/client/graph/python_requires.py
+index dc24ff7fb51..a861e53df44 100644
+--- a/conans/client/graph/python_requires.py
++++ b/conans/client/graph/python_requires.py
+@@ -31,6 +31,10 @@ def serialize(self):
+     def all_refs(self):
+         return [r.ref for r in self._pyrequires.values()]
+ 
++    def info_requires(self):
++        return {pyreq.ref: getattr(pyreq.conanfile, "package_id_python_mode", None)
++                for pyreq in self._pyrequires.values()}
++
+     def items(self):
+         return self._pyrequires.items()
+ 
+diff --git a/conans/model/info.py b/conans/model/info.py
+index 00743eb3884..a2b9ee85387 100644
+--- a/conans/model/info.py
++++ b/conans/model/info.py
+@@ -66,6 +66,7 @@ def __init__(self, ref, package_id, default_package_id_mode):
+         self._package_id = package_id
+         self.name = self.version = self.user = self.channel = self.package_id = None
+         self.recipe_revision = None
++        self.package_id_mode = default_package_id_mode
+ 
+         try:
+             func_package_id_mode = getattr(self, default_package_id_mode)
+@@ -234,14 +235,15 @@ class PythonRequiresInfo:
+     def __init__(self, refs, default_package_id_mode):
+         self._default_package_id_mode = default_package_id_mode
+         if refs:
+-            self._refs = [RequirementInfo(r, None, default_package_id_mode=default_package_id_mode)
+-                          for r in sorted(refs)]
++            self._refs = [RequirementInfo(r, None,
++                                          default_package_id_mode=mode or default_package_id_mode)
++                          for r, mode in sorted(refs.items())]
+         else:
+             self._refs = None
+ 
+     def copy(self):
+         # For build_id() implementation
+-        refs = [r._ref for r in self._refs] if self._refs else None
++        refs = {r._ref: r.package_id_mode for r in self._refs} if self._refs else None
+         return PythonRequiresInfo(refs, self._default_package_id_mode)
+ 
+     def __bool__(self):

@@ -1,0 +1,64 @@
+diff --git a/tests/cli/test_install.py b/tests/cli/test_install.py
+index 4686fc9796..2889cbc0ee 100644
+--- a/tests/cli/test_install.py
++++ b/tests/cli/test_install.py
+@@ -327,7 +327,7 @@ def test_fix_package_type_and_update(fixture_project, pdm, working_set):
+ @pytest.mark.parametrize("args", exclusion_cases)
+ def test_install_all_with_excluded_groups(project, working_set, pdm, args):
+     project.add_dependencies({"urllib3": parse_requirement("urllib3")}, "url")
+-    project.add_dependencies({"pytz": parse_requirement("pytz")}, "tz")
++    project.add_dependencies({"pytz": parse_requirement("pytz")}, "tz", True)
+     project.add_dependencies({"pyopenssl": parse_requirement("pyopenssl")}, "ssl")
+     pdm(["install", *args], obj=project, strict=True)
+     assert "urllib3" in working_set
+@@ -338,7 +338,7 @@ def test_install_all_with_excluded_groups(project, working_set, pdm, args):
+ @pytest.mark.parametrize("args", exclusion_cases)
+ def test_sync_all_with_excluded_groups(project, working_set, pdm, args):
+     project.add_dependencies({"urllib3": parse_requirement("urllib3")}, "url")
+-    project.add_dependencies({"pytz": parse_requirement("pytz")}, "tz")
++    project.add_dependencies({"pytz": parse_requirement("pytz")}, "tz", True)
+     project.add_dependencies({"pyopenssl": parse_requirement("pyopenssl")}, "ssl")
+     pdm(["lock", "-G:all"], obj=project, strict=True)
+     pdm(["sync", *args], obj=project, strict=True)
+diff --git a/tests/cli/test_lock.py b/tests/cli/test_lock.py
+index 0ffd91e7e7..b722388959 100644
+--- a/tests/cli/test_lock.py
++++ b/tests/cli/test_lock.py
+@@ -274,3 +274,24 @@ def test_lock_exclude_newer(project, pdm):
+ 
+     pdm(["lock"], obj=project, strict=True, cleanup=False)
+     assert project.locked_repository.all_candidates["zipp"].version == "3.7.0"
++
++
++exclusion_cases = [
++    pytest.param(("-G", ":all", "--without", "tz,ssl"), id="-G :all --without tz,ssl"),
++    pytest.param(("-G", ":all", "--without", "tz", "--without", "ssl"), id="-G :all --without tz --without ssl"),
++    pytest.param(("--with", ":all", "--without", "tz,ssl"), id="--with all --without tz,ssl"),
++    pytest.param(("--with", ":all", "--without", "tz", "--without", "ssl"), id="--with all --without tz --without ssl"),
++    pytest.param(("--without", "tz", "--without", "ssl"), id="--without tz --without ssl"),
++    pytest.param(("--without", "tz,ssl"), id="--without tz,ssl"),
++]
++
++
++@pytest.mark.parametrize("args", exclusion_cases)
++def test_lock_all_with_excluded_groups(project, pdm, args):
++    project.add_dependencies({"urllib3": parse_requirement("urllib3")}, "url")
++    project.add_dependencies({"pytz": parse_requirement("pytz")}, "tz", True)
++    project.add_dependencies({"pyopenssl": parse_requirement("pyopenssl")}, "ssl")
++    pdm(["lock", *args], obj=project, strict=True)
++    assert "urllib3" in project.locked_repository.all_candidates
++    assert "pytz" not in project.locked_repository.all_candidates
++    assert "pyopenssl" not in project.locked_repository.all_candidates
+diff --git a/tests/test_utils.py b/tests/test_utils.py
+index b82ffac078..a5099e6cc8 100644
+--- a/tests/test_utils.py
++++ b/tests/test_utils.py
+@@ -513,7 +513,7 @@ def test_dependency_group_selection(project, args, golden):
+     [
+         ({"groups": [":all"], "excluded_groups": ["web"]}, ["default", "auth", "test", "doc"]),
+         ({"groups": [":all"], "excluded_groups": ["web", "auth"]}, ["default", "test", "doc"]),
+-        ({"groups": [":all"], "excluded_groups": ["default", "test"]}, ["default", "web", "auth", "test", "doc"]),
++        ({"groups": [":all"], "excluded_groups": ["default", "test"]}, ["default", "web", "auth", "doc"]),
+     ],
+ )
+ def test_exclude_optional_groups_from_all(project, args, golden):

@@ -1,0 +1,328 @@
+diff --git a/pvlib/tests/test_clearsky.py b/pvlib/tests/test_clearsky.py
+index 4e353e997c..509db83469 100644
+--- a/pvlib/tests/test_clearsky.py
++++ b/pvlib/tests/test_clearsky.py
+@@ -749,6 +749,7 @@ def test_bird():
+     tz = -7  # test timezone
+     gmt_tz = pytz.timezone('Etc/GMT%+d' % -(tz))
+     times = times.tz_localize(gmt_tz)  # set timezone
++    times_utc = times.tz_convert('UTC')
+     # match test data from BIRD_08_16_2012.xls
+     latitude = 40.
+     longitude = -105.
+@@ -759,9 +760,9 @@ def test_bird():
+     aod_380nm = 0.15
+     b_a = 0.85
+     alb = 0.2
+-    eot = solarposition.equation_of_time_spencer71(times.dayofyear)
++    eot = solarposition.equation_of_time_spencer71(times_utc.dayofyear)
+     hour_angle = solarposition.hour_angle(times, longitude, eot) - 0.5 * 15.
+-    declination = solarposition.declination_spencer71(times.dayofyear)
++    declination = solarposition.declination_spencer71(times_utc.dayofyear)
+     zenith = solarposition.solar_zenith_analytical(
+         np.deg2rad(latitude), np.deg2rad(hour_angle), declination
+     )
+@@ -777,32 +778,35 @@ def test_bird():
+     Eb, Ebh, Gh, Dh = (irrads[_] for _ in field_names)
+     data_path = DATA_DIR / 'BIRD_08_16_2012.csv'
+     testdata = pd.read_csv(data_path, usecols=range(1, 26), header=1).dropna()
+-    testdata.index = times[1:48]
+-    assert np.allclose(testdata['DEC'], np.rad2deg(declination[1:48]))
+-    assert np.allclose(testdata['EQT'], eot[1:48], rtol=1e-4)
+-    assert np.allclose(testdata['Hour Angle'], hour_angle[1:48])
+-    assert np.allclose(testdata['Zenith Ang'], zenith[1:48])
++    testdata[['DEC', 'EQT']] = testdata[['DEC', 'EQT']].shift(tz)
++    testdata = testdata[:tz]
++    end = 48 + tz
++    testdata.index = times[1:end]
++    assert np.allclose(testdata['DEC'], np.rad2deg(declination[1:end]))
++    assert np.allclose(testdata['EQT'], eot[1:end], rtol=1e-4)
++    assert np.allclose(testdata['Hour Angle'], hour_angle[1:end], rtol=1e-2)
++    assert np.allclose(testdata['Zenith Ang'], zenith[1:end], rtol=1e-2)
+     dawn = zenith < 88.
+     dusk = testdata['Zenith Ang'] < 88.
+     am = pd.Series(np.where(dawn, airmass, 0.), index=times).fillna(0.0)
+     assert np.allclose(
+-        testdata['Air Mass'].where(dusk, 0.), am[1:48], rtol=1e-3
++        testdata['Air Mass'].where(dusk, 0.), am[1:end], rtol=1e-3
+     )
+     direct_beam = pd.Series(np.where(dawn, Eb, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata['Direct Beam'].where(dusk, 0.), direct_beam[1:48], rtol=1e-3
++        testdata['Direct Beam'].where(dusk, 0.), direct_beam[1:end], rtol=1e-3
+     )
+     direct_horz = pd.Series(np.where(dawn, Ebh, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata['Direct Hz'].where(dusk, 0.), direct_horz[1:48], rtol=1e-3
++        testdata['Direct Hz'].where(dusk, 0.), direct_horz[1:end], rtol=1e-3
+     )
+     global_horz = pd.Series(np.where(dawn, Gh, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata['Global Hz'].where(dusk, 0.), global_horz[1:48], rtol=1e-3
++        testdata['Global Hz'].where(dusk, 0.), global_horz[1:end], rtol=1e-3
+     )
+     diffuse_horz = pd.Series(np.where(dawn, Dh, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata['Dif Hz'].where(dusk, 0.), diffuse_horz[1:48], rtol=1e-3
++        testdata['Dif Hz'].where(dusk, 0.), diffuse_horz[1:end], rtol=1e-3
+     )
+     # repeat test with albedo as a Series
+     alb_series = pd.Series(0.2, index=times)
+@@ -813,19 +817,19 @@ def test_bird():
+     Eb, Ebh, Gh, Dh = (irrads[_] for _ in field_names)
+     direct_beam = pd.Series(np.where(dawn, Eb, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata['Direct Beam'].where(dusk, 0.), direct_beam[1:48], rtol=1e-3
++        testdata['Direct Beam'].where(dusk, 0.), direct_beam[1:end], rtol=1e-3
+     )
+     direct_horz = pd.Series(np.where(dawn, Ebh, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata['Direct Hz'].where(dusk, 0.), direct_horz[1:48], rtol=1e-3
++        testdata['Direct Hz'].where(dusk, 0.), direct_horz[1:end], rtol=1e-3
+     )
+     global_horz = pd.Series(np.where(dawn, Gh, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata['Global Hz'].where(dusk, 0.), global_horz[1:48], rtol=1e-3
++        testdata['Global Hz'].where(dusk, 0.), global_horz[1:end], rtol=1e-3
+     )
+     diffuse_horz = pd.Series(np.where(dawn, Dh, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata['Dif Hz'].where(dusk, 0.), diffuse_horz[1:48], rtol=1e-3
++        testdata['Dif Hz'].where(dusk, 0.), diffuse_horz[1:end], rtol=1e-3
+     )
+ 
+     # test keyword parameters
+@@ -835,22 +839,25 @@ def test_bird():
+     Eb2, Ebh2, Gh2, Dh2 = (irrads2[_] for _ in field_names)
+     data_path = DATA_DIR / 'BIRD_08_16_2012_patm.csv'
+     testdata2 = pd.read_csv(data_path, usecols=range(1, 26), header=1).dropna()
+-    testdata2.index = times[1:48]
++    testdata2[['DEC', 'EQT']] = testdata2[['DEC', 'EQT']].shift(tz)
++    testdata2 = testdata2[:tz]
++    testdata2.index = times[1:end]
+     direct_beam2 = pd.Series(np.where(dawn, Eb2, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata2['Direct Beam'].where(dusk, 0.), direct_beam2[1:48], rtol=1e-3
++        testdata2['Direct Beam'].where(dusk, 0.), direct_beam2[1:end],
++        rtol=1e-3
+     )
+     direct_horz2 = pd.Series(np.where(dawn, Ebh2, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata2['Direct Hz'].where(dusk, 0.), direct_horz2[1:48], rtol=1e-3
++        testdata2['Direct Hz'].where(dusk, 0.), direct_horz2[1:end], rtol=1e-3
+     )
+     global_horz2 = pd.Series(np.where(dawn, Gh2, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata2['Global Hz'].where(dusk, 0.), global_horz2[1:48], rtol=1e-3
++        testdata2['Global Hz'].where(dusk, 0.), global_horz2[1:end], rtol=1e-3
+     )
+     diffuse_horz2 = pd.Series(np.where(dawn, Dh2, 0.), index=times).fillna(0.)
+     assert np.allclose(
+-        testdata2['Dif Hz'].where(dusk, 0.), diffuse_horz2[1:48], rtol=1e-3
++        testdata2['Dif Hz'].where(dusk, 0.), diffuse_horz2[1:end], rtol=1e-3
+     )
+     # test scalars just at noon
+     # XXX: calculations start at 12am so noon is at index = 12
+diff --git a/pvlib/tests/test_irradiance.py b/pvlib/tests/test_irradiance.py
+index 0eb951f9a1..3636b3b400 100644
+--- a/pvlib/tests/test_irradiance.py
++++ b/pvlib/tests/test_irradiance.py
+@@ -603,11 +603,11 @@ def test_poa_components(irrad_data, ephem_data, dni_et, relative_airmass):
+ 
+ @pytest.mark.parametrize('pressure,expected', [
+     (93193,  [[830.46567,   0.79742,   0.93505],
+-              [676.09497,   0.63776,   3.02102]]),
++              [676.18340,   0.63782,   3.02102]]),
+     (None,   [[868.72425,   0.79742,   1.01664],
+-              [680.66679,   0.63776,   3.28463]]),
++              [680.73800,   0.63782,   3.28463]]),
+     (101325, [[868.72425,   0.79742,   1.01664],
+-              [680.66679,   0.63776,   3.28463]])
++              [680.73800,   0.63782,   3.28463]])
+ ])
+ def test_disc_value(pressure, expected):
+     # see GH 449 for pressure=None vs. 101325.
+@@ -1080,7 +1080,7 @@ def test_dirindex(times):
+                                             pressure=pressure,
+                                             use_delta_kt_prime=True,
+                                             temp_dew=tdew).values
+-    expected_out = np.array([np.nan, 0., 748.31562753, 630.72592644])
++    expected_out = np.array([np.nan, 0., 748.31562800, 630.73752100])
+ 
+     tolerance = 1e-8
+     assert np.allclose(out, expected_out, rtol=tolerance, atol=0,
+diff --git a/pvlib/tests/test_solarposition.py b/pvlib/tests/test_solarposition.py
+index 472383acce..6fae71ef79 100644
+--- a/pvlib/tests/test_solarposition.py
++++ b/pvlib/tests/test_solarposition.py
+@@ -139,7 +139,8 @@ def test_spa_python_numpy_physical_dst(expected_solpos, golden):
+     assert_frame_equal(expected_solpos, ephem_data[expected_solpos.columns])
+ 
+ 
+-def test_sun_rise_set_transit_spa(expected_rise_set_spa, golden):
++@pytest.mark.parametrize('delta_t', [65.0, None])
++def test_sun_rise_set_transit_spa(expected_rise_set_spa, golden, delta_t):
+     # solution from NREL SAP web calculator
+     south = Location(-35.0, 0.0, tz='UTC')
+     times = pd.DatetimeIndex([datetime.datetime(1996, 7, 5, 0),
+@@ -160,7 +161,7 @@ def test_sun_rise_set_transit_spa(expected_rise_set_spa, golden):
+ 
+     result = solarposition.sun_rise_set_transit_spa(times, south.latitude,
+                                                     south.longitude,
+-                                                    delta_t=65.0)
++                                                    delta_t=delta_t)
+     result_rounded = pd.DataFrame(index=result.index)
+     # need to iterate because to_datetime does not accept 2D data
+     # the rounding fails on pandas < 0.17
+@@ -172,7 +173,7 @@ def test_sun_rise_set_transit_spa(expected_rise_set_spa, golden):
+     # test for Golden, CO compare to NREL SPA
+     result = solarposition.sun_rise_set_transit_spa(
+         expected_rise_set_spa.index, golden.latitude, golden.longitude,
+-        delta_t=65.0)
++        delta_t=delta_t)
+ 
+     # round to nearest minute
+     result_rounded = pd.DataFrame(index=result.index)
+@@ -529,17 +530,18 @@ def test_get_solarposition_method_pyephem(expected_solpos, golden):
+     assert_frame_equal(expected_solpos, ephem_data[expected_solpos.columns])
+ 
+ 
+-def test_nrel_earthsun_distance():
++@pytest.mark.parametrize('delta_t', [64.0, None])
++def test_nrel_earthsun_distance(delta_t):
+     times = pd.DatetimeIndex([datetime.datetime(2015, 1, 2),
+                               datetime.datetime(2015, 8, 2)]
+                              ).tz_localize('MST')
+-    result = solarposition.nrel_earthsun_distance(times, delta_t=64.0)
++    result = solarposition.nrel_earthsun_distance(times, delta_t=delta_t)
+     expected = pd.Series(np.array([0.983289204601, 1.01486146446]),
+                          index=times)
+     assert_series_equal(expected, result)
+ 
+     times = datetime.datetime(2015, 1, 2)
+-    result = solarposition.nrel_earthsun_distance(times, delta_t=64.0)
++    result = solarposition.nrel_earthsun_distance(times, delta_t=delta_t)
+     expected = pd.Series(np.array([0.983289204601]),
+                          index=pd.DatetimeIndex([times, ]))
+     assert_series_equal(expected, result)
+@@ -579,19 +581,20 @@ def test_declination():
+ def test_analytical_zenith():
+     times = pd.date_range(start="1/1/2015 0:00", end="12/31/2015 23:00",
+                           freq="h").tz_localize('Etc/GMT+8')
++    times_utc = times.tz_convert('UTC')
+     lat, lon = 37.8, -122.25
+     lat_rad = np.deg2rad(lat)
+     output = solarposition.spa_python(times, lat, lon, 100)
+     solar_zenith = np.deg2rad(output['zenith'])  # spa
+     # spencer
+-    eot = solarposition.equation_of_time_spencer71(times.dayofyear)
++    eot = solarposition.equation_of_time_spencer71(times_utc.dayofyear)
+     hour_angle = np.deg2rad(solarposition.hour_angle(times, lon, eot))
+-    decl = solarposition.declination_spencer71(times.dayofyear)
++    decl = solarposition.declination_spencer71(times_utc.dayofyear)
+     zenith_1 = solarposition.solar_zenith_analytical(lat_rad, hour_angle, decl)
+     # pvcdrom and cooper
+-    eot = solarposition.equation_of_time_pvcdrom(times.dayofyear)
++    eot = solarposition.equation_of_time_pvcdrom(times_utc.dayofyear)
+     hour_angle = np.deg2rad(solarposition.hour_angle(times, lon, eot))
+-    decl = solarposition.declination_cooper69(times.dayofyear)
++    decl = solarposition.declination_cooper69(times_utc.dayofyear)
+     zenith_2 = solarposition.solar_zenith_analytical(lat_rad, hour_angle, decl)
+     assert np.allclose(zenith_1, solar_zenith, atol=0.015)
+     assert np.allclose(zenith_2, solar_zenith, atol=0.025)
+@@ -600,22 +603,23 @@ def test_analytical_zenith():
+ def test_analytical_azimuth():
+     times = pd.date_range(start="1/1/2015 0:00", end="12/31/2015 23:00",
+                           freq="h").tz_localize('Etc/GMT+8')
++    times_utc = times.tz_convert('UTC')
+     lat, lon = 37.8, -122.25
+     lat_rad = np.deg2rad(lat)
+     output = solarposition.spa_python(times, lat, lon, 100)
+     solar_azimuth = np.deg2rad(output['azimuth'])  # spa
+     solar_zenith = np.deg2rad(output['zenith'])
+     # spencer
+-    eot = solarposition.equation_of_time_spencer71(times.dayofyear)
++    eot = solarposition.equation_of_time_spencer71(times_utc.dayofyear)
+     hour_angle = np.deg2rad(solarposition.hour_angle(times, lon, eot))
+-    decl = solarposition.declination_spencer71(times.dayofyear)
++    decl = solarposition.declination_spencer71(times_utc.dayofyear)
+     zenith = solarposition.solar_zenith_analytical(lat_rad, hour_angle, decl)
+     azimuth_1 = solarposition.solar_azimuth_analytical(lat_rad, hour_angle,
+                                                        decl, zenith)
+     # pvcdrom and cooper
+-    eot = solarposition.equation_of_time_pvcdrom(times.dayofyear)
++    eot = solarposition.equation_of_time_pvcdrom(times_utc.dayofyear)
+     hour_angle = np.deg2rad(solarposition.hour_angle(times, lon, eot))
+-    decl = solarposition.declination_cooper69(times.dayofyear)
++    decl = solarposition.declination_cooper69(times_utc.dayofyear)
+     zenith = solarposition.solar_zenith_analytical(lat_rad, hour_angle, decl)
+     azimuth_2 = solarposition.solar_azimuth_analytical(lat_rad, hour_angle,
+                                                        decl, zenith)
+@@ -665,21 +669,45 @@ def test_hour_angle():
+         '2015-01-02 12:04:44.6340'
+     ]).tz_localize('Etc/GMT+7')
+     eot = np.array([-3.935172, -4.117227, -4.026295])
+-    hours = solarposition.hour_angle(times, longitude, eot)
++    hourangle = solarposition.hour_angle(times, longitude, eot)
+     expected = (-70.682338, 70.72118825000001, 0.000801250)
+     # FIXME: there are differences from expected NREL SPA calculator values
+     # sunrise: 4 seconds, sunset: 48 seconds, transit: 0.2 seconds
+     # but the differences may be due to other SPA input parameters
+-    assert np.allclose(hours, expected)
++    assert np.allclose(hourangle, expected)
++
++    hours = solarposition._hour_angle_to_hours(
++        times, hourangle, longitude, eot)
++    result = solarposition._times_to_hours_after_local_midnight(times)
++    assert np.allclose(result, hours)
++
++    result = solarposition._local_times_from_hours_since_midnight(times, hours)
++    assert result.equals(times)
++
++    times = times.tz_convert(None)
++    with pytest.raises(ValueError):
++        solarposition.hour_angle(times, longitude, eot)
++    with pytest.raises(ValueError):
++        solarposition._hour_angle_to_hours(times, hourangle, longitude, eot)
++    with pytest.raises(ValueError):
++        solarposition._times_to_hours_after_local_midnight(times)
++    with pytest.raises(ValueError):
++        solarposition._local_times_from_hours_since_midnight(times, hours)
+ 
+ 
+ def test_sun_rise_set_transit_geometric(expected_rise_set_spa, golden_mst):
+     """Test geometric calculations for sunrise, sunset, and transit times"""
+     times = expected_rise_set_spa.index
++    times_utc = times.tz_convert('UTC')
+     latitude = golden_mst.latitude
+     longitude = golden_mst.longitude
+-    eot = solarposition.equation_of_time_spencer71(times.dayofyear)  # minutes
+-    decl = solarposition.declination_spencer71(times.dayofyear)  # radians
++    eot = solarposition.equation_of_time_spencer71(
++        times_utc.dayofyear)  # minutes
++    decl = solarposition.declination_spencer71(times_utc.dayofyear)  # radians
++    with pytest.raises(ValueError):
++        solarposition.sun_rise_set_transit_geometric(
++            times.tz_convert(None), latitude=latitude, longitude=longitude,
++            declination=decl, equation_of_time=eot)
+     sr, ss, st = solarposition.sun_rise_set_transit_geometric(
+         times, latitude=latitude, longitude=longitude, declination=decl,
+         equation_of_time=eot)
+@@ -781,7 +809,7 @@ def test_nrel_earthsun_distance_microsecond_index(tz):
+ 
+ 
+ @requires_pandas_2_0
+-@pytest.mark.parametrize('tz', [None, 'utc', 'US/Eastern'])
++@pytest.mark.parametrize('tz', ['utc', 'US/Eastern'])
+ def test_hour_angle_microsecond_index(tz):
+     # https://github.com/pvlib/pvlib-python/issues/1932
+ 
+@@ -813,7 +841,7 @@ def test_rise_set_transit_spa_microsecond_index(tz):
+ 
+ 
+ @requires_pandas_2_0
+-@pytest.mark.parametrize('tz', [None, 'utc', 'US/Eastern'])
++@pytest.mark.parametrize('tz', ['utc', 'US/Eastern'])
+ def test_rise_set_transit_geometric_microsecond_index(tz):
+     # https://github.com/pvlib/pvlib-python/issues/1932
+ 

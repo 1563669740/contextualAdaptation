@@ -1,0 +1,3 @@
+[
+  "IPython/core/tests/test_prefilter.py::test_autocall_regression_gh_14513"
+]

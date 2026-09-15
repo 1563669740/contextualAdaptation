@@ -1,0 +1,11 @@
+[
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status0-instance0-expected0]",
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status1-instance1-expected1]",
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status2-instance2-expected2]",
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status3-instance3-expected3]",
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status4-instance4-expected4]",
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status5-instance5-expected5]",
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status6-instance6-expected6]",
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status7-instance7-expected7]",
+  "test/unit/module/context/conditions/test_conditions.py::test_evolve_from_instance[current_status8-instance8-expected8]"
+]

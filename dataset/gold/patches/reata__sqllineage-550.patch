@@ -1,0 +1,49 @@
+diff --git a/sqllineage/core/models.py b/sqllineage/core/models.py
+index fd96c609..8eb012fb 100644
+--- a/sqllineage/core/models.py
++++ b/sqllineage/core/models.py
+@@ -58,7 +58,7 @@ def __init__(self, name: str, schema: Schema = Schema(), **kwargs):
+             self.raw_name = escape_identifier_name(table_name)
+             if schema:
+                 warnings.warn("Name is in schema.table format, schema param is ignored")
+-        self.alias = kwargs.pop("alias", self.raw_name)
++        self.alias = escape_identifier_name(kwargs.pop("alias", self.raw_name))
+ 
+     def __str__(self):
+         return f"{self.schema}.{self.raw_name}"
+diff --git a/sqllineage/core/parser/sqlfluff/extractors/base.py b/sqllineage/core/parser/sqlfluff/extractors/base.py
+index 1f1ca364..275e3f16 100644
+--- a/sqllineage/core/parser/sqlfluff/extractors/base.py
++++ b/sqllineage/core/parser/sqlfluff/extractors/base.py
+@@ -156,7 +156,7 @@ def _add_dataset_from_expression_element(
+                     )
+                 if "." not in table_identifier.raw:
+                     cte_dict = {s.alias: s for s in holder.cte}
+-                    cte = cte_dict.get(table_identifier.raw)
++                    cte = cte_dict.get(escape_identifier_name(table_identifier.raw))
+                     if cte is not None:
+                         # could reference CTE with or without alias
+                         tables.append(
+diff --git a/sqllineage/core/parser/sqlparse/handlers/source.py b/sqllineage/core/parser/sqlparse/handlers/source.py
+index 8f5b77cd..f6c62b48 100644
+--- a/sqllineage/core/parser/sqlparse/handlers/source.py
++++ b/sqllineage/core/parser/sqlparse/handlers/source.py
+@@ -27,6 +27,7 @@
+     is_values_clause,
+ )
+ from sqllineage.exceptions import SQLLineageException
++from sqllineage.utils.helpers import escape_identifier_name
+ 
+ 
+ class SourceHandler(SourceHandlerMixin, NextTokenBaseHandler):
+@@ -151,7 +152,9 @@ def _add_dataset_from_identifier(
+             else:
+                 cte_dict = {s.alias: s for s in holder.cte}
+                 if "." not in identifier.value:
+-                    cte = cte_dict.get(identifier.get_real_name())
++                    cte = cte_dict.get(
++                        escape_identifier_name(identifier.get_real_name())
++                    )
+                     if cte is not None:
+                         # could reference CTE with or without alias
+                         read = SqlParseSubQuery.of(

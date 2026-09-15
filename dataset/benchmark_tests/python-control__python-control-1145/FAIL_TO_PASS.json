@@ -1,0 +1,5 @@
+[
+  "control/tests/ctrlplot_test.py::test_plot_ax_processing[frequency_response-nichols_plot]",
+  "control/tests/ctrlplot_test.py::test_plot_ax_processing[describing_function_response-describing_function_plot]",
+  "control/tests/ctrlplot_test.py::test_plot_ax_processing[nyquist_response-nyquist_plot]"
+]

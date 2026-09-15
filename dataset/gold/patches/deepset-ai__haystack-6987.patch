@@ -1,0 +1,37 @@
+diff --git a/haystack/core/pipeline/pipeline.py b/haystack/core/pipeline/pipeline.py
+index f81a8e43d5..73dbe59dcc 100644
+--- a/haystack/core/pipeline/pipeline.py
++++ b/haystack/core/pipeline/pipeline.py
+@@ -5,7 +5,7 @@
+ import itertools
+ import logging
+ from collections import defaultdict
+-from copy import copy
++from copy import copy, deepcopy
+ from datetime import datetime
+ from pathlib import Path
+ from typing import Any, Dict, List, Mapping, Optional, Set, TextIO, Tuple, Type, TypeVar, Union
+@@ -686,6 +686,12 @@ def run(self, word: str):
+         # never received by this method. It's handled by the `run()` method of the `Pipeline` class
+         # defined in `haystack/pipeline.py`.
+         # As of now we're ok with this, but we'll need to merge those two classes at some point.
++
++        # deepcopying the inputs prevents the Pipeline run logic from being altered unexpectedly
++        # when the same input reference is passed to multiple components.
++        for component_name, component_inputs in data.items():
++            data[component_name] = {k: deepcopy(v) for k, v in component_inputs.items()}
++
+         for component_name, component_inputs in data.items():
+             if component_name not in self.graph.nodes:
+                 # This is not a component name, it must be the name of one or more input sockets.
+diff --git a/releasenotes/notes/pipeline-same-input-ref-different-components-68d74cb17b35f8db.yaml b/releasenotes/notes/pipeline-same-input-ref-different-components-68d74cb17b35f8db.yaml
+new file mode 100644
+index 0000000000..fbb7301fb2
+--- /dev/null
++++ b/releasenotes/notes/pipeline-same-input-ref-different-components-68d74cb17b35f8db.yaml
+@@ -0,0 +1,5 @@
++---
++fixes:
++  - |
++    Previously, when using the same input reference in different components, the Pipeline run logic had an
++    unexpected behavior. This has been fixed by deepcopying the inputs before passing them to the components.

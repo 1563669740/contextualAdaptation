@@ -1,0 +1,3 @@
+[
+  "tests/framework/cli/test_starters.py::TestNewFromUserPromptsInvalid::test_cookiecutter_exception_if_no_verbose"
+]

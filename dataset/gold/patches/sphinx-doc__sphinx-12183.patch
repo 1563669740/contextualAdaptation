@@ -1,0 +1,52 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 4549b9f682f..69845d33e74 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -131,6 +131,9 @@ Bugs fixed
+   may be used,
+   when multiple suffixes are specified in :confval:`source_suffix`.
+   Patch by Sutou Kouhei.
++* #10786: improve the error message when a file to be copied (e.g., an asset)
++  is removed during Sphinx execution.
++  Patch by Bénédikt Tran.
+ 
+ Testing
+ -------
+diff --git a/sphinx/util/osutil.py b/sphinx/util/osutil.py
+index 93fc625280b..97a298ed05f 100644
+--- a/sphinx/util/osutil.py
++++ b/sphinx/util/osutil.py
+@@ -11,13 +11,14 @@
+ import unicodedata
+ from io import StringIO
+ from os import path
+-from typing import TYPE_CHECKING, Any
++from typing import TYPE_CHECKING
+ 
+ from sphinx.deprecation import _deprecation_warning
+ 
+ if TYPE_CHECKING:
+     from collections.abc import Iterator
+     from types import TracebackType
++    from typing import Any
+ 
+ # SEP separates path elements in the canonical file names
+ #
+@@ -89,8 +90,16 @@ def copytimes(source: str | os.PathLike[str], dest: str | os.PathLike[str]) -> N
+ def copyfile(source: str | os.PathLike[str], dest: str | os.PathLike[str]) -> None:
+     """Copy a file and its modification times, if possible.
+ 
+-    Note: ``copyfile`` skips copying if the file has not been changed
++    :param source: An existing source to copy.
++    :param dest: The destination path.
++    :raise FileNotFoundError: The *source* does not exist.
++
++    .. note:: :func:`copyfile` is a no-op if *source* and *dest* are identical.
+     """
++    if not path.exists(source):
++        msg = f'{os.fsdecode(source)} does not exist'
++        raise FileNotFoundError(msg)
++
+     if not path.exists(dest) or not filecmp.cmp(source, dest):
+         shutil.copyfile(source, dest)
+         with contextlib.suppress(OSError):

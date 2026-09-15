@@ -1,0 +1,13 @@
+{
+  "task_id": "ipython__ipython-14486",
+  "repo": "ipython/ipython",
+  "issue_number": "14483",
+  "issue_url": "https://github.com/ipython/ipython/issues/14483",
+  "issue_created_at": "1970-01-01 00:28:41.653598+00:00",
+  "issue_title": "Bug with autocall",
+  "issue_body": "Hi,\r\n\r\nWe are seeing the following bug with autocall (where below is showing valid code for a type hint):\r\n```\r\n $ ipython\r\nPython 3.11.8 (main, Mar 15 2024, 12:37:54) [GCC 10.3.1 20210422 (Red Hat 10.3.1-1)]\r\nType 'copyright', 'credits' or 'license' for more information\r\nIPython 8.22.2 -- An enhanced Interactive Python. Type '?' for help.\r\n\r\nIn [1]: import collections.abc\r\n\r\nIn [2]: collections.abc.Callable[[int], None]\r\nOut[2]: collections.abc.Callable[[int], None]\r\n\r\nIn [3]: %autocall 1\r\n   ...: \r\nAutomatic calling is: Smart\r\n\r\nIn [4]: collections.abc.Callable[[int], None]\r\n   ...: \r\n------> collections.abc.Callable([[int], None])\r\n---------------------------------------------------------------------------\r\nTypeError                                 Traceback (most recent call last)\r\nCell In[4], line 1\r\n----> 1 collections.abc.Callable([[int], None])\r\n\r\nTypeError: Callable() takes no arguments\r\n```",
+  "problem_statement": "Bug with autocall\nHi,\r\n\r\nWe are seeing the following bug with autocall (where below is showing valid code for a type hint):\r\n```\r\n $ ipython\r\nPython 3.11.8 (main, Mar 15 2024, 12:37:54) [GCC 10.3.1 20210422 (Red Hat 10.3.1-1)]\r\nType 'copyright', 'credits' or 'license' for more information\r\nIPython 8.22.2 -- An enhanced Interactive Python. Type '?' for help.\r\n\r\nIn [1]: import collections.abc\r\n\r\nIn [2]: collections.abc.Callable[[int], None]\r\nOut[2]: collections.abc.Callable[[int], None]\r\n\r\nIn [3]: %autocall 1\r\n   ...: \r\nAutomatic calling is: Smart\r\n\r\nIn [4]: collections.abc.Callable[[int], None]\r\n   ...: \r\n------> collections.abc.Callable([[int], None])\r\n---------------------------------------------------------------------------\r\nTypeError                                 Traceback (most recent call last)\r\nCell In[4], line 1\r\n----> 1 collections.abc.Callable([[int], None])\r\n\r\nTypeError: Callable() takes no arguments\r\n```\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

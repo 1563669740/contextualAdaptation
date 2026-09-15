@@ -1,0 +1,90 @@
+diff --git a/doc/data/messages/p/possibly-used-before-assignment/details.rst b/doc/data/messages/p/possibly-used-before-assignment/details.rst
+index 1136b6965a..6ebce4a3e2 100644
+--- a/doc/data/messages/p/possibly-used-before-assignment/details.rst
++++ b/doc/data/messages/p/possibly-used-before-assignment/details.rst
+@@ -17,6 +17,11 @@ You can use ``assert_never`` to mark exhaustive choices:
+     if suffix in "dmy":
+         handle_date_suffix(suffix)
+ 
++Or, instead of `assert_never()`, you can call a function with a return
++annotation of `Never` or `NoReturn`. Unlike in the general case, where
++by design pylint ignores type annotations and does its own static analysis,
++here, pylint treats these special annotations like a disable comment.
++
+ Pylint currently allows repeating the same test like this, even though this
+ lets some error cases through, as pylint does not assess the intervening code:
+ 
+diff --git a/doc/whatsnew/fragments/9674.false_positive b/doc/whatsnew/fragments/9674.false_positive
+new file mode 100644
+index 0000000000..d1e3fb6814
+--- /dev/null
++++ b/doc/whatsnew/fragments/9674.false_positive
+@@ -0,0 +1,5 @@
++Prevent emitting ``possibly-used-before-assignment`` when relying on names
++only potentially not defined in conditional blocks guarded by functions
++annotated with ``typing.Never`` or ``typing.NoReturn``.
++
++Closes #9674
+diff --git a/pylint/checkers/utils.py b/pylint/checkers/utils.py
+index b1cadda1d6..c49487981d 100644
+--- a/pylint/checkers/utils.py
++++ b/pylint/checkers/utils.py
+@@ -25,6 +25,8 @@
+ from astroid.nodes._base_nodes import ImportNode, Statement
+ from astroid.typing import InferenceResult, SuccessfulInferenceResult
+ 
++from pylint.constants import TYPING_NEVER, TYPING_NORETURN
++
+ if TYPE_CHECKING:
+     from functools import _lru_cache_wrapper
+ 
+@@ -2150,7 +2152,9 @@ def is_singleton_const(node: nodes.NodeNG) -> bool:
+ 
+ 
+ def is_terminating_func(node: nodes.Call) -> bool:
+-    """Detect call to exit(), quit(), os._exit(), or sys.exit()."""
++    """Detect call to exit(), quit(), os._exit(), sys.exit(), or
++    functions annotated with `typing.NoReturn` or `typing.Never`.
++    """
+     if (
+         not isinstance(node.func, nodes.Attribute)
+         and not (isinstance(node.func, nodes.Name))
+@@ -2165,6 +2169,25 @@ def is_terminating_func(node: nodes.Call) -> bool:
+                 and inferred.qname() in TERMINATING_FUNCS_QNAMES
+             ):
+                 return True
++            # Unwrap to get the actual function node object
++            if isinstance(inferred, astroid.BoundMethod) and isinstance(
++                inferred._proxied, astroid.UnboundMethod
++            ):
++                inferred = inferred._proxied._proxied
++            if (
++                isinstance(inferred, nodes.FunctionDef)
++                and isinstance(inferred.returns, nodes.Name)
++                and (inferred_func := safe_infer(inferred.returns))
++                and hasattr(inferred_func, "qname")
++                and inferred_func.qname()
++                in (
++                    *TYPING_NEVER,
++                    *TYPING_NORETURN,
++                    # In Python 3.7 - 3.8, NoReturn is alias of '_SpecialForm'
++                    "typing._SpecialForm",
++                )
++            ):
++                return True
+     except (StopIteration, astroid.InferenceError):
+         pass
+ 
+diff --git a/pylint/checkers/variables.py b/pylint/checkers/variables.py
+index 8e8b0e0bfb..bfc80697c4 100644
+--- a/pylint/checkers/variables.py
++++ b/pylint/checkers/variables.py
+@@ -2630,7 +2630,7 @@ def _loopvar_name(self, node: astroid.Name) -> None:
+                 else_stmt, (nodes.Return, nodes.Raise, nodes.Break, nodes.Continue)
+             ):
+                 return
+-            # TODO: 4.0: Consider using RefactoringChecker._is_function_def_never_returning
++            # TODO: 4.0: Consider using utils.is_terminating_func
+             if isinstance(else_stmt, nodes.Expr) and isinstance(
+                 else_stmt.value, nodes.Call
+             ):

@@ -1,0 +1,5 @@
+[
+  "test/contrib/test_pyopenssl.py::TestSocketClosing::test_socket_shutdown_stops_recv",
+  "test/test_response.py::TestResponse::test_no_shutdown",
+  "test/with_dummyserver/test_socketlevel.py::TestSocketClosing::test_socket_shutdown_stops_recv"
+]

@@ -1,0 +1,13 @@
+{
+  "task_id": "stanfordnlp__dspy-1741",
+  "repo": "stanfordnlp/dspy",
+  "issue_number": "1738",
+  "issue_url": "https://github.com/stanfordnlp/dspy/issues/1738",
+  "issue_created_at": "1970-01-01 00:28:50.533921+00:00",
+  "issue_title": "Add ability to return a predictor instead of modifying in place.",
+  "issue_body": "Currently, to load a predictor after optimization, you need to do it in two lines:\r\n```python\r\npredictor = dspy.Predict(\"question -> answer\")\r\npredictor.load(saved_path)\r\n```\r\n\r\nDesired behavior\r\n```python\r\npredictor = dspy.Predict(\"question -> answer\").load(saved_path, return_self=True)\r\n```\r\n\r\nThis fix is as adding a bool to the `load` method of `BaseModule` to return self.",
+  "problem_statement": "Add ability to return a predictor instead of modifying in place.\nCurrently, to load a predictor after optimization, you need to do it in two lines:\r\n```python\r\npredictor = dspy.Predict(\"question -> answer\")\r\npredictor.load(saved_path)\r\n```\r\n\r\nDesired behavior\r\n```python\r\npredictor = dspy.Predict(\"question -> answer\").load(saved_path, return_self=True)\r\n```\r\n\r\nThis fix is as adding a bool to the `load` method of `BaseModule` to return self.\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

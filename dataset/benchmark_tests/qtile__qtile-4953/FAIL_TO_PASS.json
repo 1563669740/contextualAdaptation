@@ -1,0 +1,4 @@
+[
+  "test/widgets/test_notify.py::test_invoke_and_clear[1-x11]",
+  "test/widgets/test_wlan.py::test_wlan_display_escape_essid[1-x11]"
+]

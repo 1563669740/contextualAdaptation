@@ -1,0 +1,12 @@
+diff --git a/src/cfnlint/rules/functions/GetAttFormat.py b/src/cfnlint/rules/functions/GetAttFormat.py
+index a7fd660855..7495b2eb0c 100644
+--- a/src/cfnlint/rules/functions/GetAttFormat.py
++++ b/src/cfnlint/rules/functions/GetAttFormat.py
+@@ -30,6 +30,7 @@ def __init__(self):
+         self._resource_type_exceptions = [
+             "AWS::CloudFormation::CustomResource",
+             "AWS::CloudFormation::Stack",
++            "AWS::ServiceCatalog::CloudFormationProvisionedProduct",
+         ]
+ 
+     def validate(

@@ -1,0 +1,6 @@
+[
+  "tests/test_converters.py::TestOptional::test_converter_instance",
+  "tests/test_converters.py::TestOptionalPipe::test_optional",
+  "tests/test_converters.py::TestOptionalPipe::test_pipe",
+  "tests/test_converters.py::TestOptionalPipe::test_instance"
+]

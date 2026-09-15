@@ -1,0 +1,39 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 5dd840a5816..b7c230c6dbb 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -4,6 +4,9 @@ Release 7.4.2 (in development)
+ Bugs fixed
+ ----------
+ 
++* #12580, #12583: Resolve failures with the C domain on incremental builds
++  with Sphinx 7.3.7 and earlier.
++  Patch by Adam Turner.
+ 
+ Release 7.4.1 (released Jul 15, 2024)
+ =====================================
+diff --git a/sphinx/environment/__init__.py b/sphinx/environment/__init__.py
+index e662e59b42b..deb6af7975a 100644
+--- a/sphinx/environment/__init__.py
++++ b/sphinx/environment/__init__.py
+@@ -59,7 +59,7 @@
+ 
+ # This is increased every time an environment attribute is added
+ # or changed to properly invalidate pickle files.
+-ENV_VERSION = 61
++ENV_VERSION = 62
+ 
+ # config status
+ CONFIG_UNSET = -1
+diff --git a/utils/generate_js_fixtures.py b/utils/generate_js_fixtures.py
+index 34c6fbdcdba..4e126899026 100755
+--- a/utils/generate_js_fixtures.py
++++ b/utils/generate_js_fixtures.py
+@@ -34,6 +34,6 @@ def build(srcdir: Path) -> None:
+     print('done')
+ 
+     print(f'Copying {searchindex} to {destination} ... ', end='')
+-    destination.parent.mkdir(exist_ok=True)
++    destination.parent.mkdir(exist_ok=True, parents=True)
+     shutil.copy2(searchindex, destination)
+     print('done')

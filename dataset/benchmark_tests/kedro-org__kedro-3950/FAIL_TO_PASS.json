@@ -1,0 +1,3 @@
+[
+  "tests/io/test_data_catalog.py::TestDataCatalog::test_shallow_copy_returns_correct_class_type"
+]

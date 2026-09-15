@@ -1,0 +1,20 @@
+diff --git a/changes/1638.bugfix.rst b/changes/1638.bugfix.rst
+new file mode 100644
+index 000000000..d7b0396ae
+--- /dev/null
++++ b/changes/1638.bugfix.rst
+@@ -0,0 +1,1 @@
++When Briefcase can't find ``rpmbuild` on an RPM-based system, the message giving install instructions now uses the correct package name.
+diff --git a/src/briefcase/platforms/linux/system.py b/src/briefcase/platforms/linux/system.py
+index 6a986c4cd..974904a8b 100644
+--- a/src/briefcase/platforms/linux/system.py
++++ b/src/briefcase/platforms/linux/system.py
+@@ -852,7 +852,7 @@ def _verify_packaging_tools(self, app: AppConfig):
+         """Verify that the local environment contains the packaging tools."""
+         tool_name, executable_name, package_name = {
+             "deb": ("dpkg", "dpkg-deb", "dpkg-dev"),
+-            "rpm": ("rpm-build", "rpmbuild", "rpmbuild"),
++            "rpm": ("rpm-build", "rpmbuild", "rpm-build"),
+             "pkg": ("makepkg", "makepkg", "pacman"),
+         }[app.packaging_format]
+ 

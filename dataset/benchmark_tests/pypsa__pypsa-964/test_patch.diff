@@ -1,0 +1,41 @@
+diff --git a/test/conftest.py b/test/conftest.py
+index 30e207f4a..07b4458d9 100644
+--- a/test/conftest.py
++++ b/test/conftest.py
+@@ -123,10 +123,10 @@ def all_networks(
+ ):
+     return [
+         ac_dc_network,
+-        # ac_dc_network_r,
+-        # ac_dc_network_multiindexed,
+-        # ac_dc_network_shapes,
+-        # storage_hvdc_network,
++        ac_dc_network_r,
++        ac_dc_network_multiindexed,
++        ac_dc_network_shapes,
++        storage_hvdc_network,
+     ]
+ 
+ 
+diff --git a/test/test_lopf_global_constraints.py b/test/test_lopf_global_constraints.py
+index 52908cf69..d72112ddd 100644
+--- a/test/test_lopf_global_constraints.py
++++ b/test/test_lopf_global_constraints.py
+@@ -5,7 +5,7 @@
+ 
+ 
+ def test_operational_limit_ac_dc_meshed(ac_dc_network):
+-    n = ac_dc_network
++    n = ac_dc_network.copy()
+ 
+     limit = 30_000
+ 
+@@ -25,7 +25,7 @@ def test_operational_limit_ac_dc_meshed(ac_dc_network):
+ 
+ 
+ def test_operational_limit_storage_hvdc(storage_hvdc_network):
+-    n = storage_hvdc_network
++    n = storage_hvdc_network.copy()
+ 
+     limit = 5_000
+ 

@@ -1,0 +1,47 @@
+diff --git a/doc/whatsnew/fragments/9451.false_positive b/doc/whatsnew/fragments/9451.false_positive
+new file mode 100644
+index 0000000000..ea2045f91d
+--- /dev/null
++++ b/doc/whatsnew/fragments/9451.false_positive
+@@ -0,0 +1,4 @@
++Fix false positive for ``used-before-assignment`` in a ``finally`` block
++when assignments took place in both the ``try`` block and each exception handler.
++
++Closes #9451
+diff --git a/pylint/checkers/variables.py b/pylint/checkers/variables.py
+index bc20d1987e..e38bec03e3 100644
+--- a/pylint/checkers/variables.py
++++ b/pylint/checkers/variables.py
+@@ -667,7 +667,7 @@ def get_next_to_consume(self, node: nodes.Name) -> list[nodes.NodeNG] | None:
+         if found_nodes:
+             uncertain_nodes = (
+                 self._uncertain_nodes_in_try_blocks_when_evaluating_finally_blocks(
+-                    found_nodes, node_statement
++                    found_nodes, node_statement, name
+                 )
+             )
+             self.consumed_uncertain[node.name] += uncertain_nodes
+@@ -1140,7 +1140,9 @@ def _uncertain_nodes_in_try_blocks_when_evaluating_except_blocks(
+ 
+     @staticmethod
+     def _uncertain_nodes_in_try_blocks_when_evaluating_finally_blocks(
+-        found_nodes: list[nodes.NodeNG], node_statement: _base_nodes.Statement
++        found_nodes: list[nodes.NodeNG],
++        node_statement: _base_nodes.Statement,
++        name: str,
+     ) -> list[nodes.NodeNG]:
+         uncertain_nodes: list[nodes.NodeNG] = []
+         (
+@@ -1187,6 +1189,12 @@ def _uncertain_nodes_in_try_blocks_when_evaluating_finally_blocks(
+                 )
+             ):
+                 continue
++            # Is the name defined in all exception clauses?
++            if other_node_try_finally_ancestor.handlers and all(
++                NamesConsumer._defines_name_raises_or_returns_recursive(name, handler)
++                for handler in other_node_try_finally_ancestor.handlers
++            ):
++                continue
+             # Passed all tests for uncertain execution
+             uncertain_nodes.append(other_node)
+         return uncertain_nodes

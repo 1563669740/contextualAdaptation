@@ -1,0 +1,4 @@
+[
+  "tests/cli/test_others.py::test_export_to_requirements_txt",
+  "tests/cli/test_others.py::test_export_with_vcs_deps"
+]

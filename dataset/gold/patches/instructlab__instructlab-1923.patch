@@ -1,0 +1,140 @@
+diff --git a/src/instructlab/configuration.py b/src/instructlab/configuration.py
+index ba0ba75144..4ce650d903 100644
+--- a/src/instructlab/configuration.py
++++ b/src/instructlab/configuration.py
+@@ -326,6 +326,7 @@ class _generate(BaseModel):
+     output_dir: StrictStr = Field(default_factory=lambda: DEFAULTS.DATASETS_DIR)
+     prompt_file: StrictStr = Field(default_factory=lambda: DEFAULTS.PROMPT_FILE)
+     seed_file: StrictStr = Field(default_factory=lambda: DEFAULTS.SEED_FILE)
++    gpus: Optional[int] = None
+ 
+ 
+ class _mmlu(BaseModel):
+diff --git a/src/instructlab/data/generate.py b/src/instructlab/data/generate.py
+index c5e4916626..d8aaf7be8a 100644
+--- a/src/instructlab/data/generate.py
++++ b/src/instructlab/data/generate.py
+@@ -1,6 +1,7 @@
+ # SPDX-License-Identifier: Apache-2.0
+ 
+ # Standard
++import copy
+ import logging
+ import os.path
+ 
+@@ -155,6 +156,12 @@
+     is_flag=True,
+     help="Print serving engine logs.",
+ )
++@click.option(
++    "--gpus",
++    type=click.IntRange(min=0),
++    cls=clickext.ConfigOption,
++    help="Number of GPUs to run generation on",
++)
+ @click.pass_context
+ @clickext.display_params
+ def generate(
+@@ -181,6 +188,7 @@ def generate(
+     pipeline,
+     enable_serving_output,
+     batch_size,
++    gpus,
+ ):
+     """Generates synthetic data to enhance your example data"""
+     # pylint: disable=import-outside-toplevel
+@@ -214,10 +222,28 @@ def generate(
+         from instructlab.model.backends.llama_cpp import Server as llama_cpp_server
+ 
+         # TODO (cdoern): we really should not edit the cfg object
+-        ctx.obj.config.serve.llama_cpp.llm_family = model_family
++        gen_cfg = copy.deepcopy(ctx.obj.config)
++        gen_cfg.generate.teacher.llama_cpp.llm_family = model_family
++        if gpus is not None:
++            tps_prefix = "--tensor-parallel-size"
++            if backends.vllm.contains_argument(
++                tps_prefix, gen_cfg.generte.teacher.vllm.vllm_args
++            ):
++                click.secho(
++                    "Using gpus from --gpus. Ignoring --tensor-parallel-size configured in generate.teacher vllm_args",
++                    fg="yellow",
++                )
++            gen_cfg.generate.teacher.vllm.vllm_args.extend([tps_prefix, str(gpus)])
+         backend_instance = backends.select_backend(
+-            cfg=ctx.obj.config.generate.teacher, model_path=model_path
++            cfg=gen_cfg.generate.teacher, model_path=model_path
+         )
++        if (
++            backend_instance.get_backend_type() is not backends.VLLM
++            and gpus is not None
++        ):
++            logger.debug(
++                "Cannot specify '--gpus' with a llama-cpp backend, ignoring this flag."
++            )
+ 
+         try:
+             # Run the backend server
+diff --git a/src/instructlab/model/backends/backends.py b/src/instructlab/model/backends/backends.py
+index 923860dbce..970604154a 100644
+--- a/src/instructlab/model/backends/backends.py
++++ b/src/instructlab/model/backends/backends.py
+@@ -105,6 +105,10 @@ def shutdown(self):
+     def register_resources(self, resources: typing.Iterable[Closeable]) -> None:
+         self.resources.extend(resources)
+ 
++    @abc.abstractmethod
++    def get_backend_type(self):
++        """Return which type of backend this is, llama-cpp or vllm"""
++
+ 
+ def safe_close_all(resources: typing.Iterable[Closeable]):
+     for resource in resources:
+diff --git a/src/instructlab/model/backends/llama_cpp.py b/src/instructlab/model/backends/llama_cpp.py
+index 000e7f0e34..565d9de40c 100644
+--- a/src/instructlab/model/backends/llama_cpp.py
++++ b/src/instructlab/model/backends/llama_cpp.py
+@@ -24,6 +24,7 @@
+     API_ROOT_WELCOME_MESSAGE,
+     CHAT_TEMPLATE_AUTO,
+     CHAT_TEMPLATE_TOKENIZER,
++    LLAMA_CPP,
+     BackendServer,
+     ServerException,
+     UvicornServer,
+@@ -142,6 +143,9 @@ def shutdown(self):
+             self.queue.close()
+             self.queue.join_thread()
+ 
++    def get_backend_type(self):
++        return LLAMA_CPP
++
+ 
+ def server(
+     model_path: pathlib.Path,
+diff --git a/src/instructlab/model/backends/vllm.py b/src/instructlab/model/backends/vllm.py
+index fa8f6f58a1..a2fb8e50c8 100644
+--- a/src/instructlab/model/backends/vllm.py
++++ b/src/instructlab/model/backends/vllm.py
+@@ -118,6 +118,9 @@ def shutdown(self):
+         if self.process is not None:
+             shutdown_process(self.process, 20)
+ 
++    def get_backend_type(self):
++        return VLLM
++
+ 
+ def format_template(model_family: str, model_path: pathlib.Path) -> str:
+     template, eos_token, bos_token = get_model_template(model_family, model_path)
+diff --git a/src/instructlab/model/evaluate.py b/src/instructlab/model/evaluate.py
+index 8e3c517348..8318bd4636 100644
+--- a/src/instructlab/model/evaluate.py
++++ b/src/instructlab/model/evaluate.py
+@@ -426,7 +426,7 @@ def launch_server(
+ )
+ @click.option(
+     "--gpus",
+-    type=click.INT,
++    type=click.IntRange(min=0),
+     help="Number of GPUs to utilize for evaluation (not applicable to llama-cpp)",
+ )
+ @click.option(

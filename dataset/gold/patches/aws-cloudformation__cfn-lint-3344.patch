@@ -1,0 +1,12 @@
+diff --git a/src/cfnlint/schema/_getatts.py b/src/cfnlint/schema/_getatts.py
+index ae4c3ef75e..22343251fd 100644
+--- a/src/cfnlint/schema/_getatts.py
++++ b/src/cfnlint/schema/_getatts.py
+@@ -273,7 +273,6 @@ def _process_schema(self, obj: dict[str, Any], schema: "Schema", path: str):
+             # so we only look at an array of strings, etc.
+             if obj.get("items", {}).get("type") in ["object", "array"]:
+                 return
+-            path = f"{path}/*"
+             self._attrs[self._pointer_to_attr(path)] = path
+         elif obj.get("$ref"):
+             _, obj = schema.resolver.resolve(obj.get("$ref"))

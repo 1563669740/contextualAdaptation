@@ -1,0 +1,4 @@
+[
+  "tests/test_functional.py::test_functional[used_before_assignment_postponed_evaluation]",
+  "tests/test_functional.py::test_functional[used_before_assignment_typing]"
+]

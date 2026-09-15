@@ -1,0 +1,4 @@
+[
+  "tests/test_fsm/test_scene.py::TestSceneInheritance::test_override_handlers",
+  "tests/test_fsm/test_scene.py::TestSceneInheritance::test_override_non_function_handler_by_function"
+]

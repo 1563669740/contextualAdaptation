@@ -1,0 +1,34 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index d75bde8eb86..1f9c6a17dcd 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -154,6 +154,8 @@ Bugs fixed
+   Previously, each domain used language-specific nesting rules,
+   which removed control from document authors.
+   Patch by Jakob Lykke Andersen and Adam Turner.
++* #11041: linkcheck: Ignore URLs that respond with non-Unicode content.
++  Patch by James Addison.
+ 
+ Testing
+ -------
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index c5814035203..d50cfa21957 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -471,9 +471,13 @@ def _check_uri(self, uri: str, hyperlink: Hyperlink) -> tuple[str, str, int]:
+                     _user_agent=self.user_agent,
+                     _tls_info=(self.tls_verify, self.tls_cacerts),
+                 ) as response:
+-                    if (self.check_anchors and response.ok and anchor
+-                            and not contains_anchor(response, anchor)):
+-                        raise Exception(__("Anchor '%s' not found") % quote(anchor))
++                    if anchor and self.check_anchors and response.ok:
++                        try:
++                            found = contains_anchor(response, anchor)
++                        except UnicodeDecodeError:
++                            return 'ignored', 'unable to decode response content', 0
++                        if not found:
++                            return 'broken', __("Anchor '%s' not found") % quote(anchor), 0
+ 
+                 # Copy data we need from the (closed) response
+                 status_code = response.status_code

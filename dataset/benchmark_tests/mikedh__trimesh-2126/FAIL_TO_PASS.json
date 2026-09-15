@@ -1,0 +1,5 @@
+[
+  "tests/test_color.py::VisualTest::test_concatenate_empty_mesh",
+  "tests/test_gltf.py::GLTFTest::test_postprocess",
+  "tests/test_stl.py::STLTests::test_ascii_multibody"
+]

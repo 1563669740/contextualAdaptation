@@ -1,0 +1,113 @@
+diff --git a/doc/data/messages/c/contextmanager-generator-missing-cleanup/bad.py b/doc/data/messages/c/contextmanager-generator-missing-cleanup/bad.py
+index e65906a4fb..b2072f7b19 100644
+--- a/doc/data/messages/c/contextmanager-generator-missing-cleanup/bad.py
++++ b/doc/data/messages/c/contextmanager-generator-missing-cleanup/bad.py
+@@ -9,6 +9,6 @@ def cm():
+     print("cm exit")
+ 
+ 
+-def genfunc_with_cm():  # [contextmanager-generator-missing-cleanup]
+-    with cm() as context:
++def genfunc_with_cm():
++    with cm() as context:  # [contextmanager-generator-missing-cleanup]
+         yield context * 2
+diff --git a/doc/data/messages/c/contextmanager-generator-missing-cleanup/details.rst b/doc/data/messages/c/contextmanager-generator-missing-cleanup/details.rst
+index 88860d279a..50b948fb54 100644
+--- a/doc/data/messages/c/contextmanager-generator-missing-cleanup/details.rst
++++ b/doc/data/messages/c/contextmanager-generator-missing-cleanup/details.rst
+@@ -8,3 +8,24 @@ because the ways to use a contextmanager are many.
+ A contextmanager can be used as a decorator (which immediately has ``__enter__``/``__exit__`` applied)
+ and the use of ``as ...`` or discard of the return value also implies whether the context needs cleanup or not.
+ So for this message, warning the invoker of the contextmanager is important.
++
++The check can create false positives if ``yield`` is used inside an ``if-else`` block without custom cleanup. Use ``pylint: disable`` for these.
++
++.. code-block:: python
++
++    from contextlib import contextmanager
++
++    @contextmanager
++    def good_cm_no_cleanup():
++        contextvar = "acquired context"
++        print("cm enter")
++        if some_condition:
++            yield contextvar
++        else:
++            yield contextvar
++
++
++    def good_cm_no_cleanup_genfunc():
++        # pylint: disable-next=contextmanager-generator-missing-cleanup
++        with good_cm_no_cleanup() as context:
++            yield context * 2
+diff --git a/doc/data/messages/c/contextmanager-generator-missing-cleanup/good.py b/doc/data/messages/c/contextmanager-generator-missing-cleanup/good.py
+index 406d984529..2287e86a59 100644
+--- a/doc/data/messages/c/contextmanager-generator-missing-cleanup/good.py
++++ b/doc/data/messages/c/contextmanager-generator-missing-cleanup/good.py
+@@ -47,3 +47,15 @@ def good_cm_finally():
+ def good_cm_finally_genfunc():
+     with good_cm_finally() as context:
+         yield context * 2
++
++
++@contextlib.contextmanager
++def good_cm_no_cleanup():
++    contextvar = "acquired context"
++    print("cm enter")
++    yield contextvar
++
++
++def good_cm_no_cleanup_genfunc():
++    with good_cm_no_cleanup() as context:
++        yield context * 2
+diff --git a/doc/whatsnew/fragments/9625.false_positive b/doc/whatsnew/fragments/9625.false_positive
+new file mode 100644
+index 0000000000..90d4a7a076
+--- /dev/null
++++ b/doc/whatsnew/fragments/9625.false_positive
+@@ -0,0 +1,4 @@
++Exclude context manager without cleanup from
++``contextmanager-generator-missing-cleanup`` checks.
++
++Closes #9625
+diff --git a/pylint/checkers/base/function_checker.py b/pylint/checkers/base/function_checker.py
+index bf85747119..f7d92a4649 100644
+--- a/pylint/checkers/base/function_checker.py
++++ b/pylint/checkers/base/function_checker.py
+@@ -72,7 +72,7 @@ def _check_contextmanager_generator_missing_cleanup(
+                 if self._node_fails_contextmanager_cleanup(inferred_node, yield_nodes):
+                     self.add_message(
+                         "contextmanager-generator-missing-cleanup",
+-                        node=node,
++                        node=with_node,
+                         args=(node.name,),
+                     )
+ 
+@@ -85,6 +85,7 @@ def _node_fails_contextmanager_cleanup(
+         Current checks for a contextmanager:
+             - only if the context manager yields a non-constant value
+             - only if the context manager lacks a finally, or does not catch GeneratorExit
++            - only if some statement follows the yield, some manually cleanup happens
+ 
+         :param node: Node to check
+         :type node: nodes.FunctionDef
+@@ -114,6 +115,19 @@ def check_handles_generator_exceptions(try_node: nodes.Try) -> bool:
+             for yield_node in yield_nodes
+         ):
+             return False
++
++        # Check if yield expression is last statement
++        yield_nodes = list(node.nodes_of_class(nodes.Yield))
++        if len(yield_nodes) == 1:
++            n = yield_nodes[0].parent
++            while n is not node:
++                if n.next_sibling() is not None:
++                    break
++                n = n.parent
++            else:
++                # No next statement found
++                return False
++
+         # if function body has multiple Try, filter down to the ones that have a yield node
+         try_with_yield_nodes = [
+             try_node

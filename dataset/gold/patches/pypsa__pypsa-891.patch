@@ -1,0 +1,44 @@
+diff --git a/doc/release_notes.rst b/doc/release_notes.rst
+index c5d9e0403..0c8455b3f 100644
+--- a/doc/release_notes.rst
++++ b/doc/release_notes.rst
+@@ -12,6 +12,8 @@ Release Notes
+ 
+ * HiGHS becomes the new default solver for ``n.optimize()``.
+ 
++* Bugfix: Retain investment periods and weightings when clustering networks.
++
+ PyPSA 0.28.0 (8th May 2024)
+ =================================
+ 
+diff --git a/examples/notebooks/scigrid-sclopf.ipynb b/examples/notebooks/scigrid-sclopf.ipynb
+index c20d9439b..00731bd79 100644
+--- a/examples/notebooks/scigrid-sclopf.ipynb
++++ b/examples/notebooks/scigrid-sclopf.ipynb
+@@ -61,9 +61,7 @@
+    "outputs": [],
+    "source": [
+     "branch_outages = network.lines.index[:15]\n",
+-    "network.optimize.optimize_security_constrained(\n",
+-    "    now, branch_outages=branch_outages\n",
+-    ")"
++    "network.optimize.optimize_security_constrained(now, branch_outages=branch_outages)"
+    ]
+   },
+   {
+diff --git a/pypsa/clustering/spatial.py b/pypsa/clustering/spatial.py
+index ae01b33a6..5852ca285 100644
+--- a/pypsa/clustering/spatial.py
++++ b/pypsa/clustering/spatial.py
+@@ -490,6 +490,11 @@ def get_clustering_from_busmap(
+     if with_time:
+         clustered.set_snapshots(n.snapshots)
+         clustered.snapshot_weightings = n.snapshot_weightings.copy()
++        if not n.investment_periods.empty:
++            clustered.set_investment_periods(n.investment_periods)
++            clustered.investment_period_weightings = (
++                n.investment_period_weightings.copy()
++            )
+         for attr, df in lines_t.items():
+             if not df.empty:
+                 io.import_series_from_dataframe(clustered, df, "Line", attr)

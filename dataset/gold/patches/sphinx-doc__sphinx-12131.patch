@@ -1,0 +1,113 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 8ffe9365d67..04733657806 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -22,6 +22,9 @@ Deprecated
+ Features added
+ --------------
+ 
++* #12131: Added :confval:`show_warning_types` configuration option.
++  Patch by Chris Sewell.
++
+ * #11701: HTML Search: Adopt the new `<search>`_ element.
+   Patch by Bénédikt Tran.
+ 
+diff --git a/doc/conf.py b/doc/conf.py
+index 37f86232dce..2816935e6c0 100644
+--- a/doc/conf.py
++++ b/doc/conf.py
+@@ -23,6 +23,7 @@
+ release = version
+ show_authors = True
+ nitpicky = True
++show_warning_types = True
+ 
+ html_theme = 'sphinx13'
+ html_theme_path = ['_themes']
+diff --git a/doc/usage/configuration.rst b/doc/usage/configuration.rst
+index c7b30d054af..b5a2b84934a 100644
+--- a/doc/usage/configuration.rst
++++ b/doc/usage/configuration.rst
+@@ -326,11 +326,19 @@ General configuration
+ 
+    .. versionadded:: 0.5
+ 
++.. confval:: show_warning_types
++
++   If ``True``, the type of each warning is added as a suffix to the warning message,
++   e.g., ``WARNING: [...] [index]`` or ``WARNING: [...] [toc.circular]``.
++   The default is ``False``.
++
++   .. versionadded:: 7.3.0
++
+ .. confval:: suppress_warnings
+ 
+    A list of warning types to suppress arbitrary warning messages.
+ 
+-   Sphinx supports following warning types:
++   Sphinx core supports following warning types:
+ 
+    * ``app.add_node``
+    * ``app.add_directive``
+@@ -359,11 +367,11 @@ General configuration
+    * ``toc.not_readable``
+    * ``toc.secnum``
+ 
++   Then extensions can also define their own warning types.
++
+    You can choose from these types.  You can also give only the first
+    component to exclude all warnings attached to it.
+ 
+-   Now, this option should be considered *experimental*.
+-
+    .. versionadded:: 1.4
+ 
+    .. versionchanged:: 1.5
+diff --git a/sphinx/config.py b/sphinx/config.py
+index e90c7ebfcb8..dc8c1c11d72 100644
+--- a/sphinx/config.py
++++ b/sphinx/config.py
+@@ -227,6 +227,7 @@ class Config:
+         'template_bridge': _Opt(None, 'html', frozenset((str,))),
+         'keep_warnings': _Opt(False, 'env', ()),
+         'suppress_warnings': _Opt([], 'env', ()),
++        'show_warning_types': _Opt(False, 'env', frozenset((bool,))),
+         'modindex_common_prefix': _Opt([], 'html', ()),
+         'rst_epilog': _Opt(None, 'env', frozenset((str,))),
+         'rst_prolog': _Opt(None, 'env', frozenset((str,))),
+diff --git a/sphinx/util/logging.py b/sphinx/util/logging.py
+index baff073253c..a74369862ba 100644
+--- a/sphinx/util/logging.py
++++ b/sphinx/util/logging.py
+@@ -480,6 +480,7 @@ class SphinxLogRecordTranslator(logging.Filter):
+ 
+     * Make a instance of SphinxLogRecord
+     * docname to path if location given
++    * append warning type/subtype to message if :confval:`show_warning_types` is ``True``
+     """
+ 
+     LogRecordClass: type[logging.LogRecord]
+@@ -522,6 +523,23 @@ class WarningLogRecordTranslator(SphinxLogRecordTranslator):
+ 
+     LogRecordClass = SphinxWarningLogRecord
+ 
++    def filter(self, record: SphinxWarningLogRecord) -> bool:  # type: ignore[override]
++        ret = super().filter(record)
++
++        try:
++            show_warning_types = self.app.config.show_warning_types
++        except AttributeError:
++            # config is not initialized yet (ex. in conf.py)
++            show_warning_types = False
++        if show_warning_types:
++            if log_type := getattr(record, 'type', ''):
++                if log_subtype := getattr(record, 'subtype', ''):
++                    record.msg += f' [{log_type}.{log_subtype}]'
++                else:
++                    record.msg += f' [{log_type}]'
++
++        return ret
++
+ 
+ def get_node_location(node: Node) -> str | None:
+     source, line = get_source_line(node)

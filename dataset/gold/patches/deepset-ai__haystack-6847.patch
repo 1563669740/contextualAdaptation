@@ -1,0 +1,51 @@
+diff --git a/haystack/core/component/component.py b/haystack/core/component/component.py
+index ab264ce11a..9db5a7aabc 100644
+--- a/haystack/core/component/component.py
++++ b/haystack/core/component/component.py
+@@ -147,6 +147,12 @@ def __call__(cls, *args, **kwargs):
+                 if run_signature.parameters[param].default != inspect.Parameter.empty:
+                     socket_kwargs["default_value"] = run_signature.parameters[param].default
+                 instance.__haystack_input__[param] = InputSocket(**socket_kwargs)
++
++        # Since a Component can't be used in multiple Pipelines at the same time
++        # we need to know if it's already owned by a Pipeline when adding it to one.
++        # We use this flag to check that.
++        instance.__haystack_added_to_pipeline__ = None
++
+         return instance
+ 
+ 
+diff --git a/haystack/core/pipeline/pipeline.py b/haystack/core/pipeline/pipeline.py
+index 4339db9e03..eeecdcea49 100644
+--- a/haystack/core/pipeline/pipeline.py
++++ b/haystack/core/pipeline/pipeline.py
+@@ -190,10 +190,19 @@ def add_component(self, name: str, instance: Component) -> None:
+                 f"'{type(instance)}' doesn't seem to be a component. Is this class decorated with @component?"
+             )
+ 
++        if getattr(instance, "__haystack_added_to_pipeline__", None):
++            msg = (
++                "Component has already been added in another Pipeline. "
++                "Components can't be shared between Pipelines. Create a new instance instead."
++            )
++            raise PipelineError(msg)
++
+         # Create the component's input and output sockets
+         input_sockets = getattr(instance, "__haystack_input__", {})
+         output_sockets = getattr(instance, "__haystack_output__", {})
+ 
++        setattr(instance, "__haystack_added_to_pipeline__", self)
++
+         # Add component to the graph, disconnected
+         logger.debug("Adding component '%s' (%s)", name, instance)
+         self.graph.add_node(
+diff --git a/releasenotes/notes/components-reuse-ccc5f2d4b9d7f9ff.yaml b/releasenotes/notes/components-reuse-ccc5f2d4b9d7f9ff.yaml
+new file mode 100644
+index 0000000000..1ef0554411
+--- /dev/null
++++ b/releasenotes/notes/components-reuse-ccc5f2d4b9d7f9ff.yaml
+@@ -0,0 +1,4 @@
++---
++enhancements:
++  - |
++    Change `Pipeline.add_component()` to fail if the `Component` instance has already been added in another `Pipeline`.

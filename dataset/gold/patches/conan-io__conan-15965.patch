@@ -1,0 +1,35 @@
+diff --git a/conan/tools/gnu/autotoolstoolchain.py b/conan/tools/gnu/autotoolstoolchain.py
+index e106367c047..4142494a474 100644
+--- a/conan/tools/gnu/autotoolstoolchain.py
++++ b/conan/tools/gnu/autotoolstoolchain.py
+@@ -56,7 +56,7 @@ def __init__(self, conanfile, namespace=None, prefix="/"):
+ 
+         # Cross build triplets
+         self._host = self._conanfile.conf.get("tools.gnu:host_triplet")
+-        self._build = None
++        self._build = self._conanfile.conf.get("tools.gnu:build_triplet")
+         self._target = None
+ 
+         self.apple_arch_flag = self.apple_isysroot_flag = None
+@@ -78,7 +78,8 @@ def __init__(self, conanfile, namespace=None, prefix="/"):
+             if not self._host:
+                 self._host = _get_gnu_triplet(os_host, arch_host, compiler=compiler)
+             # Build triplet
+-            self._build = _get_gnu_triplet(os_build, arch_build, compiler=compiler)
++            if not self._build:
++                self._build = _get_gnu_triplet(os_build, arch_build, compiler=compiler)
+             # Apple Stuff
+             if os_build == "Macos" and is_apple_os(conanfile):
+                 # SDK path is mandatory for cross-building
+diff --git a/conans/model/conf.py b/conans/model/conf.py
+index d35ec8fa752..f74ee2107c4 100644
+--- a/conans/model/conf.py
++++ b/conans/model/conf.py
+@@ -86,6 +86,7 @@
+     "tools.gnu:make_program": "Indicate path to make program",
+     "tools.gnu:define_libcxx11_abi": "Force definition of GLIBCXX_USE_CXX11_ABI=1 for libstdc++11",
+     "tools.gnu:pkg_config": "Path to pkg-config executable used by PkgConfig build helper",
++    "tools.gnu:build_triplet": "Custom build triplet to pass to Autotools scripts",
+     "tools.gnu:host_triplet": "Custom host triplet to pass to Autotools scripts",
+     "tools.google.bazel:configs": "List of Bazel configurations to be used as 'bazel build --config=config1 ...'",
+     "tools.google.bazel:bazelrc_path": "List of paths to bazelrc files to be used as 'bazel --bazelrc=rcpath1 ... build'",

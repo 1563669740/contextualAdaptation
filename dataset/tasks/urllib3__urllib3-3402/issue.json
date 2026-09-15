@@ -1,0 +1,13 @@
+{
+  "task_id": "urllib3__urllib3-3402",
+  "repo": "urllib3/urllib3",
+  "issue_number": "3290",
+  "issue_url": "https://github.com/urllib3/urllib3/issues/3290",
+  "issue_created_at": "1970-01-01 00:28:38.021183+00:00",
+  "issue_title": "Add check for correct h2 version range",
+  "issue_body": "Similar to our other third-party package support, we should be checking which version of h2 is installed and raise an error in the case we get an unsupported version. We know that h2 uses semver, so we can check the major version is in our desired range.",
+  "problem_statement": "Add check for correct h2 version range\nSimilar to our other third-party package support, we should be checking which version of h2 is installed and raise an error in the case we get an unsupported version. We know that h2 uses semver, so we can check the major version is in our desired range.\n",
+  "hints_text": "@sethmlarson Took the freedom to create the check. Looking forward to some feedback.\n\n",
+  "all_hints_text": "@sethmlarson Took the freedom to create the check. Looking forward to some feedback.\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

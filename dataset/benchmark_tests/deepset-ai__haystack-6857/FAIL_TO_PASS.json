@@ -1,0 +1,4 @@
+[
+  "test/dataclasses/test_byte_stream.py::test_from_file_path",
+  "test/dataclasses/test_byte_stream.py::test_from_string"
+]

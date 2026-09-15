@@ -1,0 +1,46 @@
+diff --git a/docs/sphinx/source/whatsnew/v0.10.4.rst b/docs/sphinx/source/whatsnew/v0.10.4.rst
+index 3cab3fc8ad..5c529f6383 100644
+--- a/docs/sphinx/source/whatsnew/v0.10.4.rst
++++ b/docs/sphinx/source/whatsnew/v0.10.4.rst
+@@ -14,6 +14,8 @@ Bug fixes
+ ~~~~~~~~~
+ * :py:class:`~pvlib.modelchain.ModelChain` now raises a more useful error when
+   ``temperature_model_parameters`` are specified on the passed ``system`` instead of on its ``arrays``. (:issue:`1759`).
++* :py:func:`pvlib.irradiance.ghi_from_poa_driesse_2023` now correctly makes use
++  of the ``xtol`` argument. Previously, it was ignored. (:issue:`1970`, :pull:`1971`)
+ 
+ Testing
+ ~~~~~~~
+diff --git a/pvlib/irradiance.py b/pvlib/irradiance.py
+index 34098147ef..38b683585c 100644
+--- a/pvlib/irradiance.py
++++ b/pvlib/irradiance.py
+@@ -1557,8 +1557,8 @@ def ghi_from_poa_driesse_2023(surface_tilt, surface_azimuth,
+     albedo : numeric, default 0.25
+         Ground surface albedo. [unitless]
+     xtol : numeric, default 0.01
+-        Convergence criterion.  The estimated GHI will be within xtol of the
+-        true value. [W/m^2]
++        Convergence criterion. The estimated GHI will be within xtol of the
++        true value. Must be positive. [W/m^2]
+     full_output : boolean, default False
+         If full_output is False, only ghi is returned, otherwise the return
+         value is (ghi, converged, niter). (see Returns section for details).
+@@ -1593,13 +1593,16 @@ def ghi_from_poa_driesse_2023(surface_tilt, surface_azimuth,
+     '''
+     # Contributed by Anton Driesse (@adriesse), PV Performance Labs. Nov., 2023
+ 
++    if xtol <= 0:
++        raise ValueError(f"xtol too small ({xtol:g} <= 0)")
++
+     ghi_from_poa_array = np.vectorize(_ghi_from_poa)
+ 
+     ghi, conv, niter = ghi_from_poa_array(surface_tilt, surface_azimuth,
+                                           solar_zenith, solar_azimuth,
+                                           poa_global,
+                                           dni_extra, airmass, albedo,
+-                                          xtol=0.01)
++                                          xtol=xtol)
+ 
+     if isinstance(poa_global, pd.Series):
+         ghi = pd.Series(ghi, poa_global.index)

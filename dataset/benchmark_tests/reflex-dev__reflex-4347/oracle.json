@@ -1,0 +1,11 @@
+{
+  "task_id": "reflex-dev__reflex-4347",
+  "log_parser": "pytest",
+  "test_cmds": [
+    "poetry run pytest -rA tests/units"
+  ],
+  "fail_to_pass_count": 2,
+  "pass_to_pass_count": 2817,
+  "resolution_rule": "resolved iff every FAIL_TO_PASS test passes AND every PASS_TO_PASS test still passes after applying the candidate patch",
+  "visibility": "evaluation_only"
+}

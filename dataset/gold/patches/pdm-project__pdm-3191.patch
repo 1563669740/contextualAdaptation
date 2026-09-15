@@ -1,0 +1,20 @@
+diff --git a/news/3190.bugfix.md b/news/3190.bugfix.md
+new file mode 100644
+index 0000000000..0ad5fb87b6
+--- /dev/null
++++ b/news/3190.bugfix.md
+@@ -0,0 +1,1 @@
++Fix the `pre_install` and `post_install` signals receiving an exhausted generator, instead of a list of packages.
+diff --git a/src/pdm/cli/actions.py b/src/pdm/cli/actions.py
+index 99be844680..be167a6bfa 100644
+--- a/src/pdm/cli/actions.py
++++ b/src/pdm/cli/actions.py
+@@ -281,7 +281,7 @@ def do_sync(
+         selection.validate()
+         for group in selection:
+             requirements.extend(project.get_dependencies(group))
+-    packages = resolve_from_lockfile(project, requirements, groups=list(selection))
++    packages = list(resolve_from_lockfile(project, requirements, groups=list(selection)))
+     if tracked_names and dry_run:
+         packages = [p for p in packages if p.candidate.identify() in tracked_names]
+     synchronizer = project.get_synchronizer()(

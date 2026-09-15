@@ -1,0 +1,3 @@
+[
+  "tests/units/test_state.py::test_duplicate_substate_class"
+]

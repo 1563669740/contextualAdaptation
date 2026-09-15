@@ -1,0 +1,4 @@
+[
+  "tests/middleware/test_base.py::test_run_background_tasks_raise_exceptions[asyncio]",
+  "tests/middleware/test_base.py::test_run_background_tasks_raise_exceptions[trio]"
+]

@@ -1,0 +1,18 @@
+diff --git a/conans/client/graph/range_resolver.py b/conans/client/graph/range_resolver.py
+index 16336607ca4..535cc5ce279 100644
+--- a/conans/client/graph/range_resolver.py
++++ b/conans/client/graph/range_resolver.py
+@@ -17,7 +17,12 @@ def __init__(self, conan_app, global_conf, editable_packages):
+         self._resolve_prereleases = global_conf.get('core.version_ranges:resolve_prereleases')
+ 
+     def resolve(self, require, base_conanref, remotes, update):
+-        version_range = require.version_range
++        try:
++            version_range = require.version_range
++        except Exception as e:
++            base = base_conanref or "conanfile"
++            raise ConanException(f"\n    Recipe '{base}' requires '{require.ref}' "
++                                 f"version-range definition error:\n    {e}")
+         if version_range is None:
+             return
+         assert isinstance(version_range, VersionRange)

@@ -1,0 +1,214 @@
+diff --git a/RELEASE.md b/RELEASE.md
+index 34c23572e4..620abccf2c 100644
+--- a/RELEASE.md
++++ b/RELEASE.md
+@@ -3,6 +3,7 @@
+ ## Major features and improvements
+ 
+ ## Bug fixes and other changes
++* User defined catch-all dataset factory patterns now override the default pattern provided by the runner.
+ 
+ ## Breaking changes to the API
+ 
+diff --git a/docs/source/data/kedro_dataset_factories.md b/docs/source/data/kedro_dataset_factories.md
+index fea61cad38..cd591e353e 100644
+--- a/docs/source/data/kedro_dataset_factories.md
++++ b/docs/source/data/kedro_dataset_factories.md
+@@ -223,19 +223,14 @@ The matches are ranked according to the following criteria:
+ You can use dataset factories to define a catch-all pattern which will overwrite the default [`MemoryDataset`](/api/kedro.io.MemoryDataset) creation.
+ 
+ ```yaml
+-"{a_default_dataset}":
++"{default_dataset}":
+   type: pandas.CSVDataset
+-  filepath: data/{a_default_dataset}.csv
++  filepath: data/{default_dataset}.csv
+ 
+ ```
+ Kedro will now treat all the datasets mentioned in your project's pipelines that do not appear as specific patterns or explicit entries in your catalog
+ as `pandas.CSVDataset`.
+ 
+-```{note}
+-Under the hood Kedro uses the pattern name "{default}" to generate the default datasets set in the runners. If you want to overwrite this pattern you should make sure you choose a name that comes
+-before "default" in the alphabet for it to be resolved first.
+-```
+-
+ ## CLI commands for dataset factories
+ 
+ To manage your dataset factories, two new commands have been added to the Kedro CLI: `kedro catalog rank` (0.18.12) and `kedro catalog resolve` (0.18.13).
+@@ -322,9 +317,9 @@ shuttles:
+   type: pandas.ParquetDataset
+   filepath: data/02_intermediate/preprocessed_{name}.pq
+ 
+-"{a_default}":
++"{default}":
+   type: pandas.ParquetDataset
+-  filepath: data/03_primary/{a_default}.pq
++  filepath: data/03_primary/{default}.pq
+ ```
+ </details>
+ 
+diff --git a/kedro/framework/cli/catalog.py b/kedro/framework/cli/catalog.py
+index a07b5d4b73..a0f6b413bd 100644
+--- a/kedro/framework/cli/catalog.py
++++ b/kedro/framework/cli/catalog.py
+@@ -87,10 +87,12 @@ def list_datasets(metadata: ProjectMetadata, pipeline: str, env: str) -> None:
+         for ds_name in default_ds:
+             matched_pattern = data_catalog._match_pattern(
+                 data_catalog._dataset_patterns, ds_name
+-            )
++            ) or data_catalog._match_pattern(data_catalog._default_pattern, ds_name)
+             if matched_pattern:
+                 ds_config_copy = copy.deepcopy(
+-                    data_catalog._dataset_patterns[matched_pattern]
++                    data_catalog._dataset_patterns.get(matched_pattern)
++                    or data_catalog._default_pattern.get(matched_pattern)
++                    or {}
+                 )
+ 
+                 ds_config = data_catalog._resolve_config(
+@@ -215,7 +217,10 @@ def rank_catalog_factories(metadata: ProjectMetadata, env: str) -> None:
+     session = _create_session(metadata.package_name, env=env)
+     context = session.load_context()
+ 
+-    catalog_factories = context.catalog._dataset_patterns
++    catalog_factories = {
++        **context.catalog._dataset_patterns,
++        **context.catalog._default_pattern,
++    }
+     if catalog_factories:
+         click.echo(yaml.dump(list(catalog_factories.keys())))
+     else:
+@@ -259,10 +264,12 @@ def resolve_patterns(metadata: ProjectMetadata, env: str) -> None:
+ 
+         matched_pattern = data_catalog._match_pattern(
+             data_catalog._dataset_patterns, ds_name
+-        )
++        ) or data_catalog._match_pattern(data_catalog._default_pattern, ds_name)
+         if matched_pattern:
+             ds_config_copy = copy.deepcopy(
+-                data_catalog._dataset_patterns[matched_pattern]
++                data_catalog._dataset_patterns.get(matched_pattern)
++                or data_catalog._default_pattern.get(matched_pattern)
++                or {}
+             )
+ 
+             ds_config = data_catalog._resolve_config(
+diff --git a/kedro/io/data_catalog.py b/kedro/io/data_catalog.py
+index 411cf14e09..ea0fb12f75 100644
+--- a/kedro/io/data_catalog.py
++++ b/kedro/io/data_catalog.py
+@@ -144,6 +144,7 @@ def __init__(  # noqa: PLR0913
+         dataset_patterns: Patterns | None = None,
+         load_versions: dict[str, str] | None = None,
+         save_version: str | None = None,
++        default_pattern: Patterns | None = None,
+     ) -> None:
+         """``DataCatalog`` stores instances of ``AbstractDataset``
+         implementations to provide ``load`` and ``save`` capabilities from
+@@ -172,6 +173,8 @@ def __init__(  # noqa: PLR0913
+                 case-insensitive string that conforms with operating system
+                 filename limitations, b) always return the latest version when
+                 sorted in lexicographical order.
++            default_pattern: A dictionary of the default catch-all pattern that overrides the default
++                pattern provided through the runners.
+ 
+         Example:
+         ::
+@@ -190,6 +193,7 @@ def __init__(  # noqa: PLR0913
+         self._dataset_patterns = dataset_patterns or {}
+         self._load_versions = load_versions or {}
+         self._save_version = save_version
++        self._default_pattern = default_pattern or {}
+ 
+         if feed_dict:
+             self.add_feed_dict(feed_dict)
+@@ -281,6 +285,7 @@ class to be loaded is specified with the key ``type`` and their
+         credentials = copy.deepcopy(credentials) or {}
+         save_version = save_version or generate_timestamp()
+         load_versions = copy.deepcopy(load_versions) or {}
++        user_default = {}
+ 
+         for ds_name, ds_config in catalog.items():
+             ds_config = _resolve_credentials(  # noqa: PLW2901
+@@ -295,6 +300,12 @@ class to be loaded is specified with the key ``type`` and their
+                     ds_name, ds_config, load_versions.get(ds_name), save_version
+                 )
+         sorted_patterns = cls._sort_patterns(dataset_patterns)
++        if sorted_patterns:
++            # If the last pattern is a catch-all pattern, pop it and set it as the default
++            if cls._specificity(list(sorted_patterns.keys())[-1]) == 0:
++                last_pattern = sorted_patterns.popitem()
++                user_default = {last_pattern[0]: last_pattern[1]}
++
+         missing_keys = [
+             key
+             for key in load_versions.keys()
+@@ -311,6 +322,7 @@ class to be loaded is specified with the key ``type`` and their
+             dataset_patterns=sorted_patterns,
+             load_versions=load_versions,
+             save_version=save_version,
++            default_pattern=user_default,
+         )
+ 
+     @staticmethod
+@@ -346,6 +358,13 @@ def _sort_patterns(cls, dataset_patterns: Patterns) -> dict[str, dict[str, Any]]
+                 pattern,
+             ),
+         )
++        catch_all = [
++            pattern for pattern in sorted_keys if cls._specificity(pattern) == 0
++        ]
++        if len(catch_all) > 1:
++            raise DatasetError(
++                f"Multiple catch-all patterns found in the catalog: {', '.join(catch_all)}. Only one catch-all pattern is allowed, remove the extras."
++            )
+         return {key: dataset_patterns[key] for key in sorted_keys}
+ 
+     @staticmethod
+@@ -369,11 +388,17 @@ def _get_dataset(
+         version: Version | None = None,
+         suggest: bool = True,
+     ) -> AbstractDataset:
+-        matched_pattern = self._match_pattern(self._dataset_patterns, dataset_name)
++        matched_pattern = self._match_pattern(
++            self._dataset_patterns, dataset_name
++        ) or self._match_pattern(self._default_pattern, dataset_name)
+         if dataset_name not in self._datasets and matched_pattern:
+             # If the dataset is a patterned dataset, materialise it and add it to
+             # the catalog
+-            config_copy = copy.deepcopy(self._dataset_patterns[matched_pattern])
++            config_copy = copy.deepcopy(
++                self._dataset_patterns.get(matched_pattern)
++                or self._default_pattern.get(matched_pattern)
++                or {}
++            )
+             dataset_config = self._resolve_config(
+                 dataset_name, matched_pattern, config_copy
+             )
+@@ -385,7 +410,7 @@ def _get_dataset(
+             )
+             if (
+                 self._specificity(matched_pattern) == 0
+-                and matched_pattern != "{default}"
++                and matched_pattern in self._default_pattern
+             ):
+                 self._logger.warning(
+                     "Config from the dataset factory pattern '%s' in the catalog will be used to "
+@@ -721,7 +746,7 @@ def shallow_copy(
+         Returns:
+             Copy of the current object.
+         """
+-        if extra_dataset_patterns:
++        if not self._default_pattern and extra_dataset_patterns:
+             unsorted_dataset_patterns = {
+                 **self._dataset_patterns,
+                 **extra_dataset_patterns,
+@@ -734,6 +759,7 @@ def shallow_copy(
+             dataset_patterns=dataset_patterns,
+             load_versions=self._load_versions,
+             save_version=self._save_version,
++            default_pattern=self._default_pattern,
+         )
+ 
+     def __eq__(self, other) -> bool:  # type: ignore[no-untyped-def]

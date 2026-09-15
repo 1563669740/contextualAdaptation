@@ -1,0 +1,384 @@
+{
+  "schema": "tifs-code-map/1.0",
+  "note": [
+    "代码索引表：把 TIFS 工作区里已经存在的复现代码，按论文位置归拢到 code/ 下。",
+    "本文件是 code/sync.py 与 code/verify.py 的唯一输入；手工维护。",
+    "source 路径相对 TIFS 根目录；target 路径相对 code/ 目录。",
+    "authoritative_root 始终是 experiment_root —— code/ 只是可追溯的镜像/入口，",
+    "因此 sync.py 只做复制，从不移动或删除 experiment_root 里的任何文件",
+    "（experiment_root 的 audit/freeze_manifest.json 记录了工具源码哈希，",
+    " 移动会直接破坏冻结包的 tree digest）。"
+  ],
+  "authoritative": "experiment_root",
+  "roots": {
+    "tools": "experiment_root/tools",
+    "evaluation": "experiment_root/evaluation",
+    "repo_cache": "experiment_root/repo_cache"
+  },
+  "adapters": {
+    "path_pin": {
+      "why": [
+        "fetch_repos.py 是全部复现代码中唯一用 __file__ 定位自身缓存目录的脚本：",
+        "  CACHE = os.path.dirname(os.path.abspath(__file__))",
+        "复制到 code/ 之后 __file__ 会指向 code/01_infra_noncontainer/，",
+        "脚本会去那里建 _inventory/_snapshots，与已冻结的 repo_cache 分叉。",
+        "因此对该文件的副本做一处行级适配：把 CACHE 钉死到权威 repo_cache。",
+        "逻辑一行未改，适配内容记录在 CODE_INDEX.json 的 adaptation 字段里。"
+      ],
+      "match": "CACHE = os.path.dirname(os.path.abspath(__file__))",
+      "replace": "CACHE = r\"{repo_cache}\"  # code-tree adapter: pin to the authoritative cache"
+    }
+  },
+  "authorship": [
+    "以下文件由本次整理新建，不是 experiment_root 的副本，不参与哈希比对：",
+    "code/README.md, code/code_map.json, code/sync.py, code/verify.py, code/run.py,",
+    "code/requirements.txt, code/CODE_INDEX.json, code/CODE_INDEX.md"
+  ],
+  "files": [
+    {
+      "source": "experiment_root/tools/task_env.py",
+      "target": "01_infra_noncontainer/task_env.py",
+      "role": "任务环境底座：按 task manifest 重建工作树、装依赖、跑可见测试",
+      "paper": "§V-E 单个 Session 流程（步骤 2–3）；方案 §2.3 每任务 environment manifest"
+    },
+    {
+      "source": "experiment_root/repo_cache/fetch_repos.py",
+      "target": "01_infra_noncontainer/fetch_repos.py",
+      "role": "38 个 base repository 抓取（git 路径）+ base commit 内容清单与快照",
+      "paper": "§IV-A 主数据源；§V-E 步骤 2 环境恢复",
+      "adapter": "path_pin"
+    },
+    {
+      "source": "experiment_root/repo_cache/fetch_repos_tarball.py",
+      "target": "01_infra_noncontainer/fetch_repos_tarball.py",
+      "role": "codeload tarball 兜底抓取（git 协商失败时补齐剩余仓库），两条路径同一 schema",
+      "paper": "§IV-A 主数据源"
+    },
+
+    {
+      "source": "experiment_root/tools/build_inventory.py",
+      "target": "02_freeze_protocol/build_inventory.py",
+      "role": "参与者可见 manifest 与 evaluation_only spec 的物理分离（强制可见性）",
+      "paper": "§V-A context 暴露规则；§III-C 发现集与验证集隔离"
+    },
+    {
+      "source": "experiment_root/tools/build_allocation.py",
+      "target": "02_freeze_protocol/build_allocation.py",
+      "role": "Pilot/Discovery/Held-out 划分、2×3 平衡分配、C1–C6 约束校验、种子 20260301 冻结",
+      "paper": "§V-C 2×3 因子与不完全区组设计；§III-D 冻结记录",
+      "note": "record['generator_sha256'] 记录的是本文件自身哈希，复制件不改变该值（它只读 experiment_root 的原件）"
+    },
+    {
+      "source": "experiment_root/tools/build_protocol.py",
+      "target": "02_freeze_protocol/build_protocol.py",
+      "role": "协议全文、事件 schema、codebook、Adaptive Policy、指标口径的冻结（M0）",
+      "paper": "§III-D 冻结记录与可复现性；§V-B 三种 delegation regime"
+    },
+    {
+      "source": "experiment_root/tools/build_env_manifests.py",
+      "target": "02_freeze_protocol/build_env_manifests.py",
+      "role": "每任务环境 manifest 与 env_hash（实验机需重录）",
+      "paper": "§V-E 步骤 2；方案 §2.3"
+    },
+    {
+      "source": "experiment_root/tools/build_context_packages.py",
+      "target": "02_freeze_protocol/build_context_packages.py",
+      "role": "Chigh context package 生成（六节结构 + 防泄漏自证，从不读 gold）",
+      "paper": "§V-A Context-Enriched（Chigh）"
+    },
+    {
+      "source": "experiment_root/tools/build_understanding_quiz.py",
+      "target": "02_freeze_protocol/build_understanding_quiz.py",
+      "role": "仓库理解检查题目（操纵检查：Chigh 8.4 vs Clow 5.9）",
+      "paper": "§V-A Manipulation 与 treatment-fidelity 检查"
+    },
+    {
+      "source": "experiment_root/tools/build_role_artifacts.py",
+      "target": "02_freeze_protocol/build_role_artifacts.py",
+      "role": "论文要求但实施方案未列出的 7 项冻结结构（理解检查、语义审查 rubric、可重放、冻结记录等）",
+      "paper": "§III-D、§V-A、§V-G、§VIII-A/B"
+    },
+    {
+      "source": "experiment_root/tools/build_paper_artefacts.py",
+      "target": "02_freeze_protocol/build_paper_artefacts.py",
+      "role": "论文图表所需的派生材料的批量构建",
+      "paper": "§VI–§IX 表 V–XV 的材料来源"
+    },
+    {
+      "source": "experiment_root/_pipeline_tick.py",
+      "target": "02_freeze_protocol/pipeline_tick.py",
+      "role": "续跑入口：把 repo 内容快照转成 context package + 环境 manifest",
+      "paper": "§V-A；§V-E 步骤 2"
+    },
+
+    {
+      "source": "experiment_root/tools/screen_answer_leakage.py",
+      "target": "03_leakage/screen_answer_leakage.py",
+      "role": "216 个任务的答案泄漏机器筛查（hints_text 评论区里的 diff 是最大发现）",
+      "paper": "§IV-B 第 6 条候选任务准入（不含明显答案泄漏）"
+    },
+    {
+      "source": "experiment_root/tools/adjudicate_leakage.py",
+      "target": "03_leakage/adjudicate_leakage.py",
+      "role": "双评审独立工作表、结论录入、一致性统计与仲裁",
+      "paper": "§IV-B 至少两名研究人员独立阅读 + 第三名仲裁"
+    },
+
+    {
+      "source": "experiment_root/tools/session_runner.py",
+      "target": "04_session/session_runner.py",
+      "role": "Session 时钟、events.jsonl、checkpoint、三 regime 权限守卫、75 分钟硬停止、结果冻结",
+      "paper": "§V-B 操作化定义；§V-E 步骤 3–6；§V-C 权限与 checkpoint 冻结"
+    },
+    {
+      "source": "experiment_root/tools/rehearse_session.py",
+      "target": "04_session/rehearse_session.py",
+      "role": "按 SOP 用真实 runner 跑一遍 14 步演练",
+      "paper": "§V-E 单个 Session 流程全链路"
+    },
+    {
+      "source": "experiment_root/tools/pilot_gates.py",
+      "target": "04_session/pilot_gates.py",
+      "role": "Pilot 八项技术门槛的机器判定（环境可重复、工作区隔离、日志完整、工具等价…）",
+      "paper": "§V-E；方案 §13.1 Pilot 技术门槛"
+    },
+
+    {
+      "source": "experiment_root/evaluation/evaluate.py",
+      "target": "05_evaluation/evaluate.py",
+      "role": "隐藏评价 harness：benchmark F2P/P2P + holdout + holdout 准入验收，独立干净工作区",
+      "paper": "§V-F 因变量与评价指标；§V-G 增强正确性 oracle"
+    },
+    {
+      "source": "experiment_root/tools/aggregate_metrics.py",
+      "target": "05_evaluation/aggregate_metrics.py",
+      "role": "指标汇总：wall clock / human active / context prep 的活动口径与 overlap_warning",
+      "paper": "§V-F；方案 §11.3 时间口径（不得相加当 wall-clock）"
+    },
+    {
+      "source": "experiment_root/tools/admission_gate.py",
+      "target": "05_evaluation/admission_gate.py",
+      "role": "预注册准入闸门：gold 自己都过不了的任务分三类并给处理规则（必须在招募前跑）",
+      "paper": "§IV-B 候选任务筛选；§V-G holdout 准入"
+    },
+    {
+      "source": "_f2p_check.py",
+      "target": "05_evaluation/f2p_check.py",
+      "role": "一次性：核对 fail-to-pass 集合在 base/gold 上的实际表现",
+      "paper": "§V-F Benchmark resolved"
+    },
+    {
+      "source": "_f2p_check2.py",
+      "target": "05_evaluation/f2p_check2.py",
+      "role": "一次性：F2P 复检（第二版）",
+      "paper": "§V-F Benchmark resolved"
+    },
+    {
+      "source": "_which_fail.py",
+      "target": "05_evaluation/which_fail.py",
+      "role": "一次性：从测试输出里定位到底哪条断言失败",
+      "paper": "§V-F Regression count/rate"
+    },
+
+    {
+      "source": "experiment_root/tools/holdout_author.py",
+      "target": "06_holdout/holdout_author.py",
+      "role": "holdout 测试编写与三条件准入（base 失败 → gold 通过 → 5 次确定性）+ 可行性标定",
+      "paper": "§V-G 增强正确性 oracle 的构造",
+      "note": "本文件用 __file__ 推导 sys.path（唯一一处）；副本请用 code/run.py 启动，或让 experiment_root/tools 与 experiment_root/evaluation 在 sys.path 上"
+    },
+    {
+      "source": "experiment_root/tools/holdout_probe.py",
+      "target": "06_holdout/holdout_probe.py",
+      "role": "差分探针：在 base/gold 上探测可调用对象的真实行为差异",
+      "paper": "§V-G 每个新增 test 必须能暴露目标缺陷"
+    },
+    {
+      "source": "_calib_summary.py",
+      "target": "06_holdout/calib_summary.py",
+      "role": "汇总 holdout 标定结果（多少任务能区分缺陷与修复）",
+      "paper": "§V-G；STATUS §2.3 ① 非容器化 oracle 可行性 50%"
+    },
+    {
+      "source": "_find_authorable.py",
+      "target": "06_holdout/find_authorable.py",
+      "role": "筛出环境真能区分缺陷/修复的任务，作为可编写 holdout 的分母",
+      "paper": "§V-G"
+    },
+    {
+      "source": "_measure_authorable.py",
+      "target": "06_holdout/measure_authorable.py",
+      "role": "测量真实的可编写分母",
+      "paper": "§V-G"
+    },
+    {
+      "source": "_make_holdout_diff.py",
+      "target": "06_holdout/make_holdout_diff.py",
+      "role": "把 tests_holdout_task.py 打成 holdout.diff 并验证（让 harness 对测试条数保持盲法）",
+      "paper": "§V-G holdout 以 patch 形式注入"
+    },
+    {
+      "source": "_make_holdout_diff2.py",
+      "target": "06_holdout/make_holdout_diff2.py",
+      "role": "同上，批量化第二版",
+      "paper": "§V-G"
+    },
+    {
+      "source": "_show_verify.py",
+      "target": "06_holdout/show_verify.py",
+      "role": "打印 holdout 验收记录",
+      "paper": "§V-G"
+    },
+    {
+      "source": "_probe_babel.py",
+      "target": "06_holdout/probes/probe_babel.py",
+      "role": "babel 仓探针",
+      "paper": "§V-G"
+    },
+    {
+      "source": "_probe_holdout.py",
+      "target": "06_holdout/probes/probe_holdout.py",
+      "role": "babel-1120 候选 holdout 行为的探针（只用公开 API 接受的输入）",
+      "paper": "§V-G"
+    },
+    {
+      "source": "_probe_lines.py",
+      "target": "06_holdout/probes/probe_lines.py",
+      "role": "按行号探测输出差异",
+      "paper": "§V-G"
+    },
+    {
+      "source": "_probe_weak_quiz.py",
+      "target": "06_holdout/probes/probe_weak_quiz.py",
+      "role": "探针：理解检查里偏弱的题目",
+      "paper": "§V-A 操纵检查"
+    },
+    {
+      "source": "_probe_widths.py",
+      "target": "06_holdout/probes/probe_widths.py",
+      "role": "找 base/gold 真正有差异的换行宽度，让断言描述事实而非预期",
+      "paper": "§V-G"
+    },
+    {
+      "source": "_probe_wrapper.py",
+      "target": "06_holdout/probes/probe_wrapper.py",
+      "role": "探测 TextWrapper 与 pofile 在 base/gold 下的确切行为",
+      "paper": "§V-G"
+    },
+
+    {
+      "source": "experiment_root/tools/rq2_coding.py",
+      "target": "07_rq2_coding/rq2_coding.py",
+      "role": "RQ2 编码手册迭代、盲法包生成、Cohen's κ 与 bootstrap CI 估计器",
+      "paper": "§VII RQ2；§V-G 语义审查 88.9% / κ = 0.82"
+    },
+    {
+      "source": "_kappa_prevalence.py",
+      "target": "07_rq2_coding/kappa_prevalence.py",
+      "role": "一致性–κ 的边界核算：88.9% raw agreement 下二元题在任何 prevalence 都到不了 κ=0.82",
+      "paper": "§V-G 独立评审一致率与 κ 的口径核对",
+      "note": "结论要求逐 rubric 条目分别报告 agreement 与 κ，不混引"
+    },
+
+    {
+      "source": "experiment_root/tools/online_policy.py",
+      "target": "08_rq3_policy/online_policy.py",
+      "role": "在线信号提取器 + Adaptive Policy 状态机（只用当时可见事件，含前瞻拒绝）",
+      "paper": "§VIII-A 从人工编码概念到在线信号；§VIII-B 从过程信号到委托规则"
+    },
+    {
+      "source": "_exercise_thresholds.py",
+      "target": "08_rq3_policy/exercise_thresholds.py",
+      "role": "用真实 120 个 Discovery 任务构造的结构化替身，演练阈值选择机制",
+      "paper": "§VIII-B 阈值按 repository 分组 5 折 CV"
+    },
+    {
+      "source": "_diag_p1.py",
+      "target": "08_rq3_policy/diagnostics/diag_p1.py",
+      "role": "一次性：P1 信号诊断",
+      "paper": "§VIII-A 过程信号 P1"
+    },
+    {
+      "source": "_diag_p1b.py",
+      "target": "08_rq3_policy/diagnostics/diag_p1b.py",
+      "role": "一次性：P1 信号诊断（第二版）",
+      "paper": "§VIII-A"
+    },
+    {
+      "source": "_diag_freq.py",
+      "target": "08_rq3_policy/diagnostics/diag_freq.py",
+      "role": "一次性：信号触发频率诊断",
+      "paper": "§VIII-A"
+    },
+
+    {
+      "source": "experiment_root/tools/simulate.py",
+      "target": "09_rq1_rq4_analysis/simulate.py",
+      "role": "按冻结分配生成 792 个合成 session（表 V / 表 XV 的目标结构），用于管线自检",
+      "paper": "§VI RQ1 表 V；§IX RQ4 表 XV",
+      "note": "产出标记 SYNTHETIC / NOT_A_RESULT，不得当作结果引用"
+    },
+    {
+      "source": "_check_pipeline.py",
+      "target": "09_rq1_rq4_analysis/check_pipeline.py",
+      "role": "管线回收检验：能否从合成样本里找回刻意放进去的已知效应与精确 cell 平衡",
+      "paper": "§VI 2×3 交互；§IX 五种 policy"
+    },
+
+    {
+      "source": "experiment_root/tools/audit.py",
+      "target": "10_audit/audit.py",
+      "role": "A–I 组审计、QA 报告、全量冻结清单（只扫 experiment_root 内固定目录）",
+      "paper": "§III-D 冻结记录；§XII 有效性威胁；方案 §13–16"
+    },
+
+    {
+      "source": "_extract_paper.py",
+      "target": "99_scratch/extract_paper.py",
+      "role": "一次性文档工具：PDF → _paper.txt",
+      "paper": "非论文产物"
+    },
+    {
+      "source": "_fix_bcp.py",
+      "target": "99_scratch/fix_bcp.py",
+      "role": "一次性：对 build_context_packages.py 做过的一处源码修补",
+      "paper": "非论文产物"
+    },
+    {
+      "source": "_fix_paths.py",
+      "target": "99_scratch/fix_paths.py",
+      "role": "一次性：批量重写脚本里的绝对路径",
+      "paper": "非论文产物"
+    },
+    {
+      "source": "_patch_fetch.py",
+      "target": "99_scratch/patch_fetch.py",
+      "role": "一次性：对 fetch_repos.py 的抓取加固补丁",
+      "paper": "非论文产物"
+    },
+    {
+      "source": "_deep_diag.py",
+      "target": "99_scratch/deep_diag.py",
+      "role": "一次性：子进程级深度诊断",
+      "paper": "非论文产物"
+    },
+    {
+      "source": "_gold_diag.py",
+      "target": "99_scratch/gold_diag.py",
+      "role": "一次性：gold patch 诊断",
+      "paper": "非论文产物"
+    },
+    {
+      "source": "_probe_local.py",
+      "target": "99_scratch/probe_local.py",
+      "role": "一次性：本地 dataset 探针",
+      "paper": "非论文产物"
+    },
+    {
+      "source": "_probe_po24.py",
+      "target": "99_scratch/probe_po24.py",
+      "role": "一次性：pofile/Python 2.4 语法相关探针",
+      "paper": "非论文产物"
+    }
+  ]
+}

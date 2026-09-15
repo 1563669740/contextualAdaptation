@@ -1,0 +1,29 @@
+diff --git a/src/cfnlint/jsonschema/_filter.py b/src/cfnlint/jsonschema/_filter.py
+index 8762323fc1..8204046465 100644
+--- a/src/cfnlint/jsonschema/_filter.py
++++ b/src/cfnlint/jsonschema/_filter.py
+@@ -8,7 +8,7 @@
+ from dataclasses import dataclass, field, fields
+ from typing import TYPE_CHECKING, Any, Sequence, Tuple
+ 
+-from cfnlint.helpers import REGEX_DYN_REF, ToPy, ensure_list
++from cfnlint.helpers import FUNCTIONS, REGEX_DYN_REF, ToPy, ensure_list
+ 
+ if TYPE_CHECKING:
+     from cfnlint.jsonschema.protocols import Validator
+@@ -106,7 +106,14 @@ def filter(self, validator: Any, instance: Any, schema: Any):
+         # Lets validate dynamic references when appropriate
+         if validator.is_type(instance, "string"):
+             if REGEX_DYN_REF.findall(instance):
+-                yield (instance, {"dynamicReference": schema})
++                # if we are in a function we can't validate
++                # dynamic references the same way
++                if not any(
++                    p in set(FUNCTIONS) - set(["Fn::If"])
++                    for p in validator.context.path.path
++                ):
++                    yield (instance, {"dynamicReference": schema})
++                    return
+                 return
+ 
+         # dependencies, required, minProperties, maxProperties

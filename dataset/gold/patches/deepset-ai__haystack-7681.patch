@@ -1,0 +1,35 @@
+diff --git a/haystack/components/fetchers/link_content.py b/haystack/components/fetchers/link_content.py
+index 00cbdeb667..0d86ff8529 100644
+--- a/haystack/components/fetchers/link_content.py
++++ b/haystack/components/fetchers/link_content.py
+@@ -151,6 +151,7 @@ def run(self, urls: List[str]):
+             for stream_metadata, stream in results:  # type: ignore
+                 if stream_metadata is not None and stream is not None:
+                     stream.meta.update(stream_metadata)
++                    stream.mime_type = stream.meta.get("content_type", None)
+                     streams.append(stream)
+ 
+         return {"streams": streams}
+diff --git a/haystack/components/routers/file_type_router.py b/haystack/components/routers/file_type_router.py
+index 08c615c7e1..fdf8830c9f 100644
+--- a/haystack/components/routers/file_type_router.py
++++ b/haystack/components/routers/file_type_router.py
+@@ -90,7 +90,7 @@ def run(self, sources: List[Union[str, Path, ByteStream]]) -> Dict[str, List[Uni
+             if isinstance(source, Path):
+                 mime_type = self._get_mime_type(source)
+             elif isinstance(source, ByteStream):
+-                mime_type = source.meta.get("content_type", None)
++                mime_type = source.mime_type
+             else:
+                 raise ValueError(f"Unsupported data source type: {type(source).__name__}")
+ 
+diff --git a/releasenotes/notes/enhanced-mime-type-handling-182fb64a0f5fb852.yaml b/releasenotes/notes/enhanced-mime-type-handling-182fb64a0f5fb852.yaml
+new file mode 100644
+index 0000000000..c0e7d07445
+--- /dev/null
++++ b/releasenotes/notes/enhanced-mime-type-handling-182fb64a0f5fb852.yaml
+@@ -0,0 +1,4 @@
++---
++enhancements:
++ - |
++   Improved MIME type management by directly setting MIME types on ByteStreams, enhancing the overall handling and routing of different file types. This update makes MIME type data more consistently accessible and simplifies the process of working with various document formats.

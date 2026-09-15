@@ -1,0 +1,21 @@
+diff --git a/news/2799.bugfix.md b/news/2799.bugfix.md
+new file mode 100644
+index 0000000000..7cb7753cd9
+--- /dev/null
++++ b/news/2799.bugfix.md
+@@ -0,0 +1,1 @@
++Make `--without` respect groups in `dev-dependencies`
+diff --git a/src/pdm/cli/filters.py b/src/pdm/cli/filters.py
+index 8c8f31dc94..9cf47244e9 100644
+--- a/src/pdm/cli/filters.py
++++ b/src/pdm/cli/filters.py
+@@ -88,8 +88,8 @@ def _translated_groups(self) -> list[str]:
+             groups_set.update(dev_groups)
+         if ":all" in groups:
+             groups_set.discard(":all")
+-            optional_groups -= set(self.excluded_groups)
+             groups_set.update(optional_groups)
++            groups_set -= set(self.excluded_groups)
+ 
+         invalid_groups = groups_set - set(project.iter_groups())
+         if invalid_groups:

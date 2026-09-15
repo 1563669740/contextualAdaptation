@@ -1,0 +1,52 @@
+diff --git a/bookmarks/tests/test_bookmark_new_view.py b/bookmarks/tests/test_bookmark_new_view.py
+index a8ebd443..cef1812f 100644
+--- a/bookmarks/tests/test_bookmark_new_view.py
++++ b/bookmarks/tests/test_bookmark_new_view.py
+@@ -210,3 +210,25 @@ def test_should_hide_notes_if_there_are_no_notes(self):
+         response = self.client.get(reverse("bookmarks:edit", args=[bookmark.id]))
+ 
+         self.assertContains(response, '<details class="notes">', count=1)
++
++    def test_should_not_check_unread_by_default(self):
++        response = self.client.get(reverse("bookmarks:new"))
++        html = response.content.decode()
++
++        self.assertInHTML(
++            '<input type="checkbox" name="unread" id="id_unread">',
++            html,
++        )
++
++    def test_should_check_unread_when_configured_in_profile(self):
++        self.user.profile.default_mark_unread = True
++        self.user.profile.save()
++
++        response = self.client.get(reverse("bookmarks:new"))
++        html = response.content.decode()
++
++        self.assertInHTML(
++            '<input type="checkbox" name="unread" value="true" '
++            'id="id_unread" checked="">',
++            html,
++        )
+diff --git a/bookmarks/tests/test_settings_general_view.py b/bookmarks/tests/test_settings_general_view.py
+index 3f6c4c7c..2598ae77 100644
+--- a/bookmarks/tests/test_settings_general_view.py
++++ b/bookmarks/tests/test_settings_general_view.py
+@@ -96,6 +96,7 @@ def test_update_profile(self):
+             "display_archive_bookmark_action": False,
+             "display_remove_bookmark_action": False,
+             "permanent_notes": True,
++            "default_mark_unread": True,
+             "custom_css": "body { background-color: #000; }",
+         }
+         response = self.client.post(reverse("bookmarks:settings.general"), form_data)
+@@ -155,6 +156,9 @@ def test_update_profile(self):
+         self.assertEqual(
+             self.user.profile.permanent_notes, form_data["permanent_notes"]
+         )
++        self.assertEqual(
++            self.user.profile.default_mark_unread, form_data["default_mark_unread"]
++        )
+         self.assertEqual(self.user.profile.custom_css, form_data["custom_css"])
+         self.assertSuccessMessage(html, "Profile updated")
+ 

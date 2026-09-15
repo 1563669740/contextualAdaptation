@@ -1,0 +1,7 @@
+[
+  "tests/test_core.py::test_parse_locale",
+  "tests/test_core.py::test_locale_parse_empty",
+  "tests/test_lists.py::test_lists_default_locale_deprecation",
+  "tests/test_numbers.py::test_format_currency_with_none_locale_with_default",
+  "tests/test_numbers.py::test_format_currency_with_none_locale"
+]

@@ -1,0 +1,8 @@
+[
+  "tests/torchtune/models/phi3/test_lora_phi3.py::TestLoRAPhi3SelfAttention::test_forward[lora_modules0-expected0]",
+  "tests/torchtune/models/phi3/test_lora_phi3.py::TestLoRAPhi3SelfAttention::test_forward[lora_modules1-expected1]",
+  "tests/torchtune/models/phi3/test_lora_phi3.py::TestLoRAPhi3SelfAttention::test_forward[lora_modules2-expected2]",
+  "tests/torchtune/models/phi3/test_lora_phi3.py::TestLoRAPhi3::test_forward[lora_modules0-False-False-expected0]",
+  "tests/torchtune/models/phi3/test_lora_phi3.py::TestLoRAPhi3::test_forward[lora_modules1-True-False-expected1]",
+  "tests/torchtune/models/phi3/test_lora_phi3.py::TestLoRAPhi3::test_forward[lora_modules2-True-True-expected2]"
+]

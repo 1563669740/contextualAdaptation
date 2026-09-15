@@ -1,0 +1,19 @@
+diff --git a/news/2829.bugfix.md b/news/2829.bugfix.md
+new file mode 100644
+index 0000000000..1e9ab9d285
+--- /dev/null
++++ b/news/2829.bugfix.md
+@@ -0,0 +1,1 @@
++Fix recursive script detection on multiple invocations.
+diff --git a/src/pdm/cli/commands/run.py b/src/pdm/cli/commands/run.py
+index 4a3681253a..69f64f2452 100644
+--- a/src/pdm/cli/commands/run.py
++++ b/src/pdm/cli/commands/run.py
+@@ -308,6 +308,7 @@ def run(
+             if task.kind == "composite":
+                 if command in seen:
+                     raise PdmUsageError(f"Script {command} is recursive.")
++                seen = seen.copy()
+                 seen.add(command)
+ 
+             self.hooks.try_emit("pre_script", script=command, args=args)

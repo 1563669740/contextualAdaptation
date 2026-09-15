@@ -1,0 +1,4 @@
+[
+  "packages/jupyter-ai/jupyter_ai/tests/completions/test_handlers.py::test_on_message_stream",
+  "packages/jupyter-ai/jupyter_ai/tests/completions/test_handlers.py::test_handle_stream_request"
+]

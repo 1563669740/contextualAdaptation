@@ -1,0 +1,13 @@
+diff --git a/conan/tools/cmake/cmake.py b/conan/tools/cmake/cmake.py
+index 2efa8f37a9b..a94bae711c0 100644
+--- a/conan/tools/cmake/cmake.py
++++ b/conan/tools/cmake/cmake.py
+@@ -20,7 +20,7 @@ def _cmake_cmd_line_args(conanfile, generator):
+ 
+     maxcpucount = conanfile.conf.get("tools.microsoft.msbuild:max_cpu_count", check_type=int)
+     if maxcpucount and "Visual Studio" in generator:
+-        args.append("/m:{}".format(njobs))
++        args.append("/m:{}".format(maxcpucount))
+ 
+     # Arguments for verbosity
+     if "Visual Studio" in generator:

@@ -1,0 +1,77 @@
+diff --git a/conan/tools/files/copy_pattern.py b/conan/tools/files/copy_pattern.py
+index 82ee8024241..0f7f659a865 100644
+--- a/conan/tools/files/copy_pattern.py
++++ b/conan/tools/files/copy_pattern.py
+@@ -37,6 +37,12 @@ def copy(conanfile, pattern, src, dst, keep_path=True, excludes=None,
+ 
+     copied_files = _copy_files(files_to_copy, src, dst, keep_path)
+     copied_files.extend(_copy_files_symlinked_to_folders(files_symlinked_to_folders, src, dst))
++    if conanfile:  # Some usages still pass None
++        copied = '\n    '.join(files_to_copy)
++        conanfile.output.debug(f"copy(pattern={pattern}) copied {len(copied_files)} files\n"
++                               f"  from {src}\n"
++                               f"  to {dst}\n"
++                               f"  Files:\n    {copied}")
+     return copied_files
+ 
+ 
+@@ -106,10 +112,7 @@ def _copy_files(files, src, dst, keep_path):
+         abs_src_name = os.path.join(src, filename)
+         filename = filename if keep_path else os.path.basename(filename)
+         abs_dst_name = os.path.normpath(os.path.join(dst, filename))
+-        try:
+-            os.makedirs(os.path.dirname(abs_dst_name))
+-        except Exception:
+-            pass
++        os.makedirs(os.path.dirname(abs_dst_name), exist_ok=True)
+         if os.path.islink(abs_src_name):
+             linkto = os.readlink(abs_src_name)  # @UndefinedVariable
+             try:
+diff --git a/conans/client/cmd/export.py b/conans/client/cmd/export.py
+index afdbd087811..4ff4f40d721 100644
+--- a/conans/client/cmd/export.py
++++ b/conans/client/cmd/export.py
+@@ -136,11 +136,9 @@ def export_source(conanfile, destination_source_folder):
+         conanfile.exports_sources = (conanfile.exports_sources,)
+ 
+     included_sources, excluded_sources = _classify_patterns(conanfile.exports_sources)
+-    copied = []
+     for pattern in included_sources:
+-        _tmp = copy(conanfile, pattern, src=conanfile.recipe_folder,
+-                    dst=destination_source_folder, excludes=excluded_sources)
+-        copied.extend(_tmp)
++        copy(conanfile, pattern, src=conanfile.recipe_folder,
++             dst=destination_source_folder, excludes=excluded_sources)
+ 
+     conanfile.folders.set_base_export_sources(destination_source_folder)
+     _run_method(conanfile, "export_sources")
+@@ -163,11 +161,9 @@ def export_recipe(conanfile, destination_folder):
+ 
+     included_exports, excluded_exports = _classify_patterns(conanfile.exports)
+ 
+-    copied = []
+     for pattern in included_exports:
+-        tmp = copy(conanfile, pattern, conanfile.recipe_folder, destination_folder,
+-                   excludes=excluded_exports)
+-        copied.extend(tmp)
++        copy(conanfile, pattern, conanfile.recipe_folder, destination_folder,
++             excludes=excluded_exports)
+ 
+     conanfile.folders.set_base_export(destination_folder)
+     _run_method(conanfile, "export")
+diff --git a/conans/util/files.py b/conans/util/files.py
+index 0a7827315c5..1005aa9b731 100644
+--- a/conans/util/files.py
++++ b/conans/util/files.py
+@@ -294,9 +294,9 @@ def exception_message_safe(exc):
+         return repr(exc)
+ 
+ 
+-def merge_directories(src, dst, excluded=None):
++def merge_directories(src, dst):
+     from conan.tools.files import copy
+-    copy(None, pattern="*", src=src, dst=dst, excludes=excluded)
++    copy(None, pattern="*", src=src, dst=dst)
+ 
+ 
+ def gather_files(folder):

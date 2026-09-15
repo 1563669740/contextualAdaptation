@@ -1,0 +1,80 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index c1d0f410acb..55fb2cf8f6c 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -110,6 +110,10 @@ Bugs fixed
+ * #12916: Restore support for custom templates named with the legacy ``_t``
+   suffix during ``apidoc`` RST rendering (regression in 7.4.0).
+   Patch by James Addison.
++* #12451: Only substitute copyright notice years with values from
++  ``SOURCE_DATE_EPOCH`` for entries that match the current system clock year,
++  and disallow substitution of future years.
++  Patch by James Addison and Adam Turner.
+ 
+ Testing
+ -------
+diff --git a/sphinx/config.py b/sphinx/config.py
+index 3096cef0359..5654eb2558f 100644
+--- a/sphinx/config.py
++++ b/sphinx/config.py
+@@ -625,22 +625,34 @@ def correct_copyright_year(_app: Sphinx, config: Config) -> None:
+ 
+     See https://reproducible-builds.org/specs/source-date-epoch/
+     """
+-    if (source_date_epoch := getenv('SOURCE_DATE_EPOCH')) is None:
++    if source_date_epoch := int(getenv('SOURCE_DATE_EPOCH', '0')):
++        source_date_epoch_year = time.gmtime(source_date_epoch).tm_year
++    else:
+         return
+ 
+-    source_date_epoch_year = str(time.gmtime(int(source_date_epoch)).tm_year)
++    # If the current year is the replacement year, there's no work to do.
++    # We also skip replacement years that are in the future.
++    current_year = time.localtime().tm_year
++    if current_year <= source_date_epoch_year:
++        return
+ 
++    current_yr = str(current_year)
++    replace_yr = str(source_date_epoch_year)
+     for k in ('copyright', 'epub_copyright'):
+         if k in config:
+             value: str | Sequence[str] = config[k]
+             if isinstance(value, str):
+-                config[k] = _substitute_copyright_year(value, source_date_epoch_year)
++                config[k] = _substitute_copyright_year(value, current_yr, replace_yr)
+             else:
+-                items = (_substitute_copyright_year(x, source_date_epoch_year) for x in value)
++                items = (
++                    _substitute_copyright_year(x, current_yr, replace_yr) for x in value
++                )
+                 config[k] = type(value)(items)  # type: ignore[call-arg]
+ 
+ 
+-def _substitute_copyright_year(copyright_line: str, replace_year: str) -> str:
++def _substitute_copyright_year(
++    copyright_line: str, current_year: str, replace_year: str
++) -> str:
+     """Replace the year in a single copyright line.
+ 
+     Legal formats are:
+@@ -657,13 +669,17 @@ def _substitute_copyright_year(copyright_line: str, replace_year: str) -> str:
+     if len(copyright_line) < 4 or not copyright_line[:4].isdigit():
+         return copyright_line
+ 
+-    if copyright_line[4:5] in {'', ' ', ','}:
++    if copyright_line[:4] == current_year and copyright_line[4:5] in {'', ' ', ','}:
+         return replace_year + copyright_line[4:]
+ 
+-    if copyright_line[4] != '-':
++    if copyright_line[4:5] != '-':
+         return copyright_line
+ 
+-    if copyright_line[5:9].isdigit() and copyright_line[9:10] in {'', ' ', ','}:
++    if (
++        copyright_line[5:9].isdigit()
++        and copyright_line[5:9] == current_year
++        and copyright_line[9:10] in {'', ' ', ','}
++    ):
+         return copyright_line[:5] + replace_year + copyright_line[9:]
+ 
+     return copyright_line

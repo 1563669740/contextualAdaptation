@@ -1,0 +1,193 @@
+diff --git a/conan/api/subapi/cache.py b/conan/api/subapi/cache.py
+index 55e986bbb5f..36068942d28 100644
+--- a/conan/api/subapi/cache.py
++++ b/conan/api/subapi/cache.py
+@@ -6,14 +6,16 @@
+ 
+ from conan.api.model import PackagesList
+ from conan.api.output import ConanOutput
++from conan.internal.cache.home_paths import HomePaths
+ from conan.internal.conan_app import ConanApp
+ from conan.internal.integrity_check import IntegrityChecker
+ from conans.client.cache.cache import ClientCache
++from conans.client.downloaders.download_cache import DownloadCache
+ from conans.errors import ConanException
+ from conans.model.package_ref import PkgReference
+ from conans.model.recipe_ref import RecipeReference
+ from conans.util.dates import revision_timestamp_now
+-from conans.util.files import rmdir, gzopen_without_timestamps, mkdir
++from conans.util.files import rmdir, gzopen_without_timestamps, mkdir, remove
+ 
+ 
+ class CacheAPI:
+@@ -69,15 +71,17 @@ def check_integrity(self, package_list):
+         checker = IntegrityChecker(app)
+         checker.check(package_list)
+ 
+-    def clean(self, package_list, source=True, build=True, download=True, temp=True):
++    def clean(self, package_list, source=True, build=True, download=True, temp=True,
++              backup_sources=False):
+         """
+         Remove non critical folders from the cache, like source, build and download (.tgz store)
+         folders.
+         :param package_list: the package lists that should be cleaned
+         :param source: boolean, remove the "source" folder if True
+         :param build: boolean, remove the "build" folder if True
+-        :param download: boolen, remove the "download (.tgz)" folder if True
++        :param download: boolean, remove the "download (.tgz)" folder if True
+         :param temp: boolean, remove the temporary folders
++        :param backup_sources: boolean, remove the "source" folder if True
+         :return:
+         """
+ 
+@@ -93,6 +97,10 @@ def clean(self, package_list, source=True, build=True, download=True, temp=True)
+                     info = os.path.join(folder, "p", "conaninfo.txt")
+                     if not os.path.exists(manifest) or not os.path.exists(info):
+                         rmdir(folder)
++        if backup_sources:
++            backup_files = self.conan_api.cache.get_backup_sources(package_list, exclude=False, only_upload=False)
++            for f in backup_files:
++                remove(f)
+ 
+         for ref, ref_bundle in package_list.refs().items():
+             ref_layout = app.cache.recipe_layout(ref)
+@@ -183,6 +191,22 @@ def restore(self, path):
+ 
+         return package_list
+ 
++    def get_backup_sources(self, package_list=None, exclude=True, only_upload=True):
++        """Get list of backup source files currently present in the cache,
++        either all of them if no argument, or filtered by those belonging to the references in the package_list
++
++        @param package_list: a PackagesList object to filter backup files from (The files should have been downloaded form any of the references in the package_list)
++        @param exclude: if True, exclude the sources that come from URLs present the core.sources:exclude_urls global conf
++        @param only_upload: if True, only return the files for packages that are set to be uploaded
++        """
++        config = self.conan_api.config.global_conf
++        download_cache_path = config.get("core.sources:download_cache")
++        download_cache_path = download_cache_path or HomePaths(
++            self.conan_api.cache_folder).default_sources_backup_folder
++        excluded_urls = config.get("core.sources:exclude_urls", check_type=list, default=[]) if exclude else []
++        download_cache = DownloadCache(download_cache_path)
++        return download_cache.get_backup_sources_files(excluded_urls, package_list, only_upload)
++
+ 
+ def _resolve_latest_ref(app, ref):
+     if ref.revision is None or ref.revision == "latest":
+diff --git a/conan/api/subapi/upload.py b/conan/api/subapi/upload.py
+index ae695ad7ef4..f39c3f3f6f0 100644
+--- a/conan/api/subapi/upload.py
++++ b/conan/api/subapi/upload.py
+@@ -3,11 +3,9 @@
+ from multiprocessing.pool import ThreadPool
+ 
+ from conan.api.output import ConanOutput
+-from conan.internal.cache.home_paths import HomePaths
+ from conan.internal.conan_app import ConanApp
+ from conan.internal.upload_metadata import gather_metadata
+ from conans.client.cmd.uploader import PackagePreparator, UploadExecutor, UploadUpstreamChecker
+-from conans.client.downloaders.download_cache import DownloadCache
+ from conans.client.pkg_sign import PkgSignaturesPlugin
+ from conans.client.rest.file_uploader import FileUploader
+ from conans.errors import ConanException, AuthenticationException, ForbiddenException
+@@ -83,7 +81,7 @@ def _upload_pkglist(pkglist, subtitle=lambda _: None):
+             if not dry_run:
+                 subtitle("Uploading artifacts")
+                 self.upload(pkglist, remote)
+-                backup_files = self.get_backup_sources(pkglist)
++                backup_files = self.conan_api.cache.get_backup_sources(pkglist)
+                 self.upload_backup_sources(backup_files)
+ 
+         t = time.time()
+@@ -101,17 +99,6 @@ def _upload_pkglist(pkglist, subtitle=lambda _: None):
+         elapsed = time.time() - t
+         ConanOutput().success(f"Upload completed in {int(elapsed)}s\n")
+ 
+-    def get_backup_sources(self, package_list=None):
+-        """Get list of backup source files currently present in the cache,
+-        either all of them if no argument, else filter by those belonging to the references in the package_list"""
+-        config = self.conan_api.config.global_conf
+-        download_cache_path = config.get("core.sources:download_cache")
+-        download_cache_path = download_cache_path or HomePaths(
+-            self.conan_api.cache_folder).default_sources_backup_folder
+-        excluded_urls = config.get("core.sources:exclude_urls", check_type=list, default=[])
+-        download_cache = DownloadCache(download_cache_path)
+-        return download_cache.get_backup_sources_files_to_upload(excluded_urls, package_list)
+-
+     def upload_backup_sources(self, files):
+         config = self.conan_api.config.global_conf
+         url = config.get("core.sources:upload_url", check_type=str)
+diff --git a/conan/cli/commands/cache.py b/conan/cli/commands/cache.py
+index 466297eab9d..cee37527287 100644
+--- a/conan/cli/commands/cache.py
++++ b/conan/cli/commands/cache.py
+@@ -79,6 +79,8 @@ def cache_clean(conan_api: ConanAPI, parser, subparser, *args):
+                            help="Clean download and metadata folders")
+     subparser.add_argument("-t", "--temp", action='store_true', default=False,
+                            help="Clean temporary folders")
++    subparser.add_argument("-bs", "--backup-sources", action='store_true', default=False,
++                           help="Clean backup sources")
+     subparser.add_argument('-p', '--package-query', action=OnceArgument,
+                            help="Remove only the packages matching a specific query, e.g., "
+                                 "os=Windows AND (arch=x86 OR compiler=gcc)")
+@@ -86,9 +88,10 @@ def cache_clean(conan_api: ConanAPI, parser, subparser, *args):
+ 
+     ref_pattern = ListPattern(args.pattern or "*", rrev="*", package_id="*", prev="*")
+     package_list = conan_api.list.select(ref_pattern, package_query=args.package_query)
+-    if args.build or args.source or args.download or args.temp:
++    if args.build or args.source or args.download or args.temp or args.backup_sources:
+         conan_api.cache.clean(package_list, source=args.source, build=args.build,
+-                              download=args.download, temp=args.temp)
++                              download=args.download, temp=args.temp,
++                              backup_sources=args.backup_sources)
+     else:
+         conan_api.cache.clean(package_list)
+ 
+@@ -159,5 +162,5 @@ def cache_backup_upload(conan_api: ConanAPI, parser, subparser, *args):
+     """
+     Upload all the source backups present in the cache
+     """
+-    files = conan_api.upload.get_backup_sources()
++    files = conan_api.cache.get_backup_sources()
+     conan_api.upload.upload_backup_sources(files)
+diff --git a/conans/client/downloaders/download_cache.py b/conans/client/downloaders/download_cache.py
+index 1da5bc92d11..51c587b9348 100644
+--- a/conans/client/downloaders/download_cache.py
++++ b/conans/client/downloaders/download_cache.py
+@@ -45,11 +45,15 @@ def lock(self, lock_id):
+             finally:
+                 thread_lock.release()
+ 
+-    def get_backup_sources_files_to_upload(self, excluded_urls, package_list=None):
+-        """ from a package_list of packages to upload, collect from the backup-sources cache
+-        the matching references to upload those backups too.
+-        If no package_list is passed, it gets all
+-        """
++    def get_backup_sources_files(self, excluded_urls, package_list=None, only_upload=True):
++        """Get list of backup source files currently present in the cache,
++        either all of them if no package_list is give, or filtered by those belonging to the references in the package_list
++
++        Will exclude the sources that come from URLs present in excluded_urls
++
++        @param excluded_urls: a list of URLs to exclude backup sources files if they come from any of these URLs
++        @param package_list: a PackagesList object to filter backup files from (The files should have been downloaded form any of the references in the package_list)
++        @param only_upload: if True, only return the files for packages that are set to be uploaded"""
+         path_backups = os.path.join(self._path, self._SOURCE_BACKUP)
+ 
+         if not os.path.exists(path_backups):
+@@ -64,13 +68,13 @@ def has_excluded_urls(backup_urls):
+                        for url in backup_urls)
+ 
+         def should_upload_sources(package):
+-            return any(prev["upload"] for prev in package["revisions"].values())
++            return any(prev.get("upload") for prev in package["revisions"].values())
+ 
+         all_refs = set()
+         if package_list is not None:
+             for k, ref in package_list.refs().items():
+                 packages = ref.get("packages", {}).values()
+-                if ref.get("upload") or any(should_upload_sources(p) for p in packages):
++                if not only_upload or ref.get("upload") or any(should_upload_sources(p) for p in packages):
+                     all_refs.add(str(k))
+ 
+         path_backups_contents = []

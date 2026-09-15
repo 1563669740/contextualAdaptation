@@ -1,0 +1,21 @@
+[
+  "tests/commands/new/test_build_context.py::test_question_sequence_toga",
+  "tests/commands/new/test_build_context.py::test_question_sequence_with_no_user_input",
+  "tests/platforms/linux/system/test_mixin__properties.py::test_distribution_path[rpm-suse-first-app-0.0.1-1.wonky.rpm]",
+  "tests/platforms/linux/system/test_package.py::test_adjust_packaging_format[rhel-system-rpm]",
+  "tests/platforms/linux/system/test_package.py::test_adjust_packaging_format[arch-system-pkg]",
+  "tests/platforms/linux/system/test_package.py::test_adjust_packaging_format[redhat-rpm-rpm]",
+  "tests/platforms/linux/system/test_package.py::test_adjust_packaging_format[arch-pkg-pkg]",
+  "tests/platforms/linux/system/test_package.py::test_adjust_packaging_format[debian-rpm-rpm]",
+  "tests/platforms/linux/system/test_package.py::test_adjust_packaging_format[None-rpm-rpm]",
+  "tests/platforms/linux/system/test_package.py::test_adjust_packaging_format[None-pkg-pkg]",
+  "tests/platforms/linux/system/test_package__deb.py::test_verify_no_docker",
+  "tests/platforms/linux/system/test_package__deb.py::test_verify_dpkg_deb_missing[debian-Can't",
+  "tests/platforms/linux/system/test_package__deb.py::test_verify_dpkg_deb_missing[None-Can't",
+  "tests/platforms/linux/system/test_package__pkg.py::test_verify_no_docker",
+  "tests/platforms/linux/system/test_package__pkg.py::test_verify_makepkg_missing[arch-Can't",
+  "tests/platforms/linux/system/test_package__pkg.py::test_verify_makepkg_missing[None-Can't",
+  "tests/platforms/linux/system/test_package__rpm.py::test_verify_no_docker",
+  "tests/platforms/linux/system/test_package__rpm.py::test_verify_rpmbuild_missing[rhel-Can't",
+  "tests/platforms/linux/system/test_package__rpm.py::test_verify_rpmbuild_missing[None-Can't"
+]

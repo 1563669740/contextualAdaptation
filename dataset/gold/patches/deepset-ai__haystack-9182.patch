@@ -1,0 +1,171 @@
+diff --git a/haystack/core/errors.py b/haystack/core/errors.py
+index bd76fbcce0..76c01e57cd 100644
+--- a/haystack/core/errors.py
++++ b/haystack/core/errors.py
+@@ -2,13 +2,57 @@
+ #
+ # SPDX-License-Identifier: Apache-2.0
+ 
++from typing import Any, Optional, Type
++
+ 
+ class PipelineError(Exception):
+     pass
+ 
+ 
+ class PipelineRuntimeError(Exception):
+-    pass
++    def __init__(self, component_name: Optional[str], component_type: Optional[Type], message: str) -> None:
++        self.component_name = component_name
++        self.component_type = component_type
++        super().__init__(message)
++
++    @classmethod
++    def from_exception(cls, component_name: str, component_type: Type, error: Exception):
++        """
++        Create a PipelineRuntimeError from an exception.
++        """
++        message = (
++            f"The following component failed to run:\n"
++            f"Component name: '{component_name}'\n"
++            f"Component type: '{component_type.__name__}'\n"
++            f"Error: {str(error)}"
++        )
++        return cls(component_name, component_type, message)
++
++    @classmethod
++    def from_invalid_output(cls, component_name: str, component_type: Type, output: Any):
++        """
++        Create a PipelineRuntimeError from an invalid output.
++        """
++        message = (
++            f"The following component returned an invalid output:\n"
++            f"Component name: '{component_name}'\n"
++            f"Component type: '{component_type.__name__}'\n"
++            f"Expected a dictionary, but got {type(output).__name__} instead.\n"
++            f"Check the component's output and ensure it is a valid dictionary."
++        )
++        return cls(component_name, component_type, message)
++
++
++class PipelineComponentsBlockedError(PipelineRuntimeError):
++    def __init__(self) -> None:
++        message = (
++            "Cannot run pipeline - all components are blocked. "
++            "This typically happens when:\n"
++            "1. There is no valid entry point for the pipeline\n"
++            "2. There is a circular dependency preventing the pipeline from running\n"
++            "Check the connections between these components and ensure all required inputs are provided."
++        )
++        super().__init__(None, None, message)
+ 
+ 
+ class PipelineConnectError(PipelineError):
+diff --git a/haystack/core/pipeline/async_pipeline.py b/haystack/core/pipeline/async_pipeline.py
+index 4b73694cdf..f5e8b427dc 100644
+--- a/haystack/core/pipeline/async_pipeline.py
++++ b/haystack/core/pipeline/async_pipeline.py
+@@ -211,11 +211,8 @@ async def _run_component_async(component_name: str, component_inputs: Dict[str,
+                         try:
+                             outputs = await instance.run_async(**component_inputs)  # type: ignore
+                         except Exception as error:
+-                            raise PipelineRuntimeError(
+-                                f"The following component failed to run:\n"
+-                                f"Component name: '{component_name}'\n"
+-                                f"Component type: '{instance.__class__.__name__}'\n"
+-                                f"Error: {str(error)}"
++                            raise PipelineRuntimeError.from_exception(
++                                component_name, instance.__class__, error
+                             ) from error
+                     else:
+                         loop = asyncio.get_running_loop()
+@@ -224,10 +221,7 @@ async def _run_component_async(component_name: str, component_inputs: Dict[str,
+                     component_visits[component_name] += 1
+ 
+                     if not isinstance(outputs, dict):
+-                        raise PipelineRuntimeError(
+-                            f"Component '{component_name}' returned an invalid output type. "
+-                            f"Expected a dict, but got {type(outputs).__name__} instead. "
+-                        )
++                        raise PipelineRuntimeError.from_invalid_output(component_name, instance.__class__, outputs)
+ 
+                     span.set_tag("haystack.component.visits", component_visits[component_name])
+                     span.set_content_tag("haystack.component.output", deepcopy(outputs))
+diff --git a/haystack/core/pipeline/base.py b/haystack/core/pipeline/base.py
+index 3a0801ebd7..fcd51f6f20 100644
+--- a/haystack/core/pipeline/base.py
++++ b/haystack/core/pipeline/base.py
+@@ -16,11 +16,11 @@
+ from haystack.core.component import Component, InputSocket, OutputSocket, component
+ from haystack.core.errors import (
+     DeserializationError,
++    PipelineComponentsBlockedError,
+     PipelineConnectError,
+     PipelineDrawingError,
+     PipelineError,
+     PipelineMaxComponentRuns,
+-    PipelineRuntimeError,
+     PipelineUnmarshalError,
+     PipelineValidationError,
+ )
+@@ -1196,19 +1196,15 @@ def validate_pipeline(priority_queue: FIFOPriorityQueue) -> None:
+         Validate the pipeline to check if it is blocked or has no valid entry point.
+ 
+         :param priority_queue: Priority queue of component names.
++        :raises PipelineRuntimeError:
++            If the pipeline is blocked or has no valid entry point.
+         """
+         if len(priority_queue) == 0:
+             return
+ 
+         candidate = priority_queue.peek()
+         if candidate is not None and candidate[0] == ComponentPriority.BLOCKED:
+-            raise PipelineRuntimeError(
+-                "Cannot run pipeline - all components are blocked. "
+-                "This typically happens when:\n"
+-                "1. There is no valid entry point for the pipeline\n"
+-                "2. There is a circular dependency preventing the pipeline from running\n"
+-                "Check the connections between these components and ensure all required inputs are provided."
+-            )
++            raise PipelineComponentsBlockedError()
+ 
+ 
+ def _connections_status(
+diff --git a/haystack/core/pipeline/pipeline.py b/haystack/core/pipeline/pipeline.py
+index b5a78a6a7f..a345dc599a 100644
+--- a/haystack/core/pipeline/pipeline.py
++++ b/haystack/core/pipeline/pipeline.py
+@@ -79,19 +79,11 @@ def _run_component(
+             try:
+                 component_output = instance.run(**component_inputs)
+             except Exception as error:
+-                raise PipelineRuntimeError(
+-                    f"The following component failed to run:\n"
+-                    f"Component name: '{component_name}'\n"
+-                    f"Component type: '{instance.__class__.__name__}'\n"
+-                    f"Error: {str(error)}"
+-                ) from error
++                raise PipelineRuntimeError.from_exception(component_name, instance.__class__, error) from error
+             component_visits[component_name] += 1
+ 
+             if not isinstance(component_output, Mapping):
+-                raise PipelineRuntimeError(
+-                    f"Component '{component_name}' didn't return a dictionary. "
+-                    "Components must always return dictionaries: check the documentation."
+-                )
++                raise PipelineRuntimeError.from_invalid_output(component_name, instance.__class__, component_output)
+ 
+             span.set_tag("haystack.component.visits", component_visits[component_name])
+             span.set_content_tag("haystack.component.output", component_output)
+diff --git a/releasenotes/notes/add-attributes-to-pipeline-runtime-error-03941943aaf89880.yaml b/releasenotes/notes/add-attributes-to-pipeline-runtime-error-03941943aaf89880.yaml
+new file mode 100644
+index 0000000000..3c068f2c9e
+--- /dev/null
++++ b/releasenotes/notes/add-attributes-to-pipeline-runtime-error-03941943aaf89880.yaml
+@@ -0,0 +1,6 @@
++---
++enhancements:
++  - |
++    Added component_name and component_type attributes to PipelineRuntimeError.
++    - Moved error message creation to within PipelineRuntimeError
++    - Created a new subclass of PipelineRuntimeError called PipelineComponentsBlockedError for the specific case where the pipeline cannot run since no components are unblocked.

@@ -1,0 +1,18 @@
+diff --git a/Lib/fontTools/misc/visitor.py b/Lib/fontTools/misc/visitor.py
+index d289895467..6de432ef93 100644
+--- a/Lib/fontTools/misc/visitor.py
++++ b/Lib/fontTools/misc/visitor.py
+@@ -61,9 +61,10 @@ def _visitorsFor(celf, thing, _default={}):
+             if _visitors is None:
+                 break
+ 
+-            m = celf._visitors.get(typ, None)
+-            if m is not None:
+-                return m
++            for base in typ.mro():
++                m = celf._visitors.get(base, None)
++                if m is not None:
++                    return m
+ 
+         return _default
+ 

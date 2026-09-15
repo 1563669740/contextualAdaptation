@@ -1,0 +1,4 @@
+[
+  "tests/test_hooks.py::TestTransformHook::test_hook_reorder_fields_before_order_check",
+  "tests/test_hooks.py::TestTransformHook::test_hook_conflicting_defaults_after_reorder"
+]

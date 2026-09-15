@@ -1,0 +1,293 @@
+diff --git a/scripts/boto/update_schemas_from_boto.py b/scripts/boto/update_schemas_from_boto.py
+index 829cd3f629..4cfea803bd 100755
+--- a/scripts/boto/update_schemas_from_boto.py
++++ b/scripts/boto/update_schemas_from_boto.py
+@@ -29,7 +29,8 @@
+ ]
+ 
+ exceptions = {
+-    "ses": ["/definitions/EventDestination/properties/MatchingEventTypes/items"]
++    "ses": ["/definitions/EventDestination/properties/MatchingEventTypes/items"],
++    "ecs": ["/definitions/LogConfiguration/properties/LogDriver"],
+ }
+ 
+ 
+diff --git a/src/cfnlint/data/schemas/extensions/aws_ecs_taskdefinition/fargate_properties.json b/src/cfnlint/data/schemas/extensions/aws_ecs_taskdefinition/fargate_properties.json
+index f0326beeb0..94885935c2 100644
+--- a/src/cfnlint/data/schemas/extensions/aws_ecs_taskdefinition/fargate_properties.json
++++ b/src/cfnlint/data/schemas/extensions/aws_ecs_taskdefinition/fargate_properties.json
+@@ -16,54 +16,119 @@
+   ]
+  },
+  "then": {
+-  "if": {
+-   "properties": {
+-    "Cpu": {
+-     "type": [
+-      "string",
+-      "integer"
++  "allOf": [
++   {
++    "if": {
++     "properties": {
++      "NetworkMode": {
++       "type": "string"
++      }
++     },
++     "required": [
++      "NetworkMode"
++     ]
++    },
++    "required": [
++     "NetworkMode"
++    ],
++    "then": {
++     "properties": {
++      "NetworkMode": {
++       "enum": [
++        "awsvpc"
++       ],
++       "type": "string"
++      }
++     },
++     "required": [
++      "NetworkMode"
+      ]
+     }
+    },
+-   "required": [
+-    "Cpu"
+-   ]
+-  },
+-  "not": {
+-   "required": [
+-    "PlacementConstraints"
+-   ]
+-  },
+-  "required": [
+-   "Cpu",
+-   "Memory"
+-  ],
+-  "then": {
+-   "properties": {
+-    "Cpu": {
+-     "else": {
+-      "pattern": "^(\\.25|\\.5|1|2|4|8|16)\\s*(?i)vCpu$"
+-     },
+-     "if": {
+-      "pattern": "^\\d+$",
+-      "type": [
+-       "integer",
+-       "string"
+-      ]
++   {
++    "properties": {
++     "ContainerDefinitions": {
++      "items": {
++       "properties": {
++        "LogConfiguration": {
++         "if": {
++          "properties": {
++           "LogDriver": {
++            "type": "string"
++           }
++          },
++          "required": [
++           "LogDriver"
++          ]
++         },
++         "then": {
++          "properties": {
++           "LogDriver": {
++            "enum": [
++             "awslogs",
++             "splunk",
++             "awsfirelens"
++            ]
++           }
++          }
++         }
++        }
++       }
++      }
++     }
++    }
++   },
++   {
++    "if": {
++     "properties": {
++      "Cpu": {
++       "type": [
++        "string",
++        "integer"
++       ]
++      }
+      },
+-     "then": {
+-      "enum": [
+-       "256",
+-       "512",
+-       "1024",
+-       "2048",
+-       "4096",
+-       "8192",
+-       "16384"
+-      ]
++     "required": [
++      "Cpu"
++     ]
++    },
++    "not": {
++     "required": [
++      "PlacementConstraints"
++     ]
++    },
++    "required": [
++     "Cpu",
++     "Memory"
++    ],
++    "then": {
++     "properties": {
++      "Cpu": {
++       "else": {
++        "pattern": "^(\\.25|\\.5|1|2|4|8|16)\\s*(?i)vCpu$"
++       },
++       "if": {
++        "pattern": "^\\d+$",
++        "type": [
++         "integer",
++         "string"
++        ]
++       },
++       "then": {
++        "enum": [
++         "256",
++         "512",
++         "1024",
++         "2048",
++         "4096",
++         "8192",
++         "16384"
++        ]
++       }
++      }
+      }
+     }
+    }
+-  }
++  ]
+  }
+ }
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_ecs_service/boto.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_ecs_service/boto.json
+index e6ad41c272..fd1d715eeb 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_ecs_service/boto.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_ecs_service/boto.json
+@@ -9,20 +9,6 @@
+   "path": "/definitions/Tag/properties/Value/pattern",
+   "value": "^([\\p{L}\\p{Z}\\p{N}_.:/=+\\-@]*)$"
+  },
+- {
+-  "op": "add",
+-  "path": "/definitions/LogConfiguration/properties/LogDriver/enum",
+-  "value": [
+-   "awsfirelens",
+-   "awslogs",
+-   "fluentd",
+-   "gelf",
+-   "journald",
+-   "json-file",
+-   "splunk",
+-   "syslog"
+-  ]
+- },
+  {
+   "op": "add",
+   "path": "/definitions/EBSTagSpecification/properties/ResourceType/enum",
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_ecs_taskdefinition/boto.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_ecs_taskdefinition/boto.json
+index fb8d335eb8..f0973d86f5 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_ecs_taskdefinition/boto.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_ecs_taskdefinition/boto.json
+@@ -71,20 +71,6 @@
+    "stack"
+   ]
+  },
+- {
+-  "op": "add",
+-  "path": "/definitions/LogConfiguration/properties/LogDriver/enum",
+-  "value": [
+-   "awsfirelens",
+-   "awslogs",
+-   "fluentd",
+-   "gelf",
+-   "journald",
+-   "json-file",
+-   "splunk",
+-   "syslog"
+-  ]
+- },
+  {
+   "op": "add",
+   "path": "/definitions/ResourceRequirement/properties/Type/enum",
+diff --git a/src/cfnlint/data/schemas/providers/eu_central_1/aws-ecs-service.json b/src/cfnlint/data/schemas/providers/eu_central_1/aws-ecs-service.json
+index 39c164ea67..7065156406 100644
+--- a/src/cfnlint/data/schemas/providers/eu_central_1/aws-ecs-service.json
++++ b/src/cfnlint/data/schemas/providers/eu_central_1/aws-ecs-service.json
+@@ -174,16 +174,6 @@
+    "additionalProperties": false,
+    "properties": {
+     "LogDriver": {
+-     "enum": [
+-      "awsfirelens",
+-      "awslogs",
+-      "fluentd",
+-      "gelf",
+-      "journald",
+-      "json-file",
+-      "splunk",
+-      "syslog"
+-     ],
+      "type": "string"
+     },
+     "Options": {
+diff --git a/src/cfnlint/data/schemas/providers/us_east_1/aws-ecs-taskdefinition.json b/src/cfnlint/data/schemas/providers/us_east_1/aws-ecs-taskdefinition.json
+index 8b9f473363..2db10e86bc 100644
+--- a/src/cfnlint/data/schemas/providers/us_east_1/aws-ecs-taskdefinition.json
++++ b/src/cfnlint/data/schemas/providers/us_east_1/aws-ecs-taskdefinition.json
+@@ -581,16 +581,6 @@
+    "additionalProperties": false,
+    "properties": {
+     "LogDriver": {
+-     "enum": [
+-      "awsfirelens",
+-      "awslogs",
+-      "fluentd",
+-      "gelf",
+-      "journald",
+-      "json-file",
+-      "splunk",
+-      "syslog"
+-     ],
+      "type": "string"
+     },
+     "Options": {
+diff --git a/src/cfnlint/data/schemas/providers/us_west_2/aws-ecs-service.json b/src/cfnlint/data/schemas/providers/us_west_2/aws-ecs-service.json
+index 39c164ea67..7065156406 100644
+--- a/src/cfnlint/data/schemas/providers/us_west_2/aws-ecs-service.json
++++ b/src/cfnlint/data/schemas/providers/us_west_2/aws-ecs-service.json
+@@ -174,16 +174,6 @@
+    "additionalProperties": false,
+    "properties": {
+     "LogDriver": {
+-     "enum": [
+-      "awsfirelens",
+-      "awslogs",
+-      "fluentd",
+-      "gelf",
+-      "journald",
+-      "json-file",
+-      "splunk",
+-      "syslog"
+-     ],
+      "type": "string"
+     },
+     "Options": {

@@ -1,0 +1,46 @@
+diff --git a/doc/users/next_whats_new/mpl_toolkit_colorbar_pad.rst b/doc/users/next_whats_new/mpl_toolkit_colorbar_pad.rst
+new file mode 100644
+index 000000000000..f22b7c79089c
+--- /dev/null
++++ b/doc/users/next_whats_new/mpl_toolkit_colorbar_pad.rst
+@@ -0,0 +1,6 @@
++Fix padding of single colorbar for ``ImageGrid``
++------------------------------------------------
++
++``ImageGrid`` with ``cbar_mode="single"`` no longer adds the ``axes_pad`` between the
++axes and the colorbar for ``cbar_location`` "left" and "bottom". If desired, add additional spacing
++using ``cbar_pad``.
+diff --git a/lib/mpl_toolkits/axes_grid1/axes_grid.py b/lib/mpl_toolkits/axes_grid1/axes_grid.py
+index 315a7bccd668..63888b1932ff 100644
+--- a/lib/mpl_toolkits/axes_grid1/axes_grid.py
++++ b/lib/mpl_toolkits/axes_grid1/axes_grid.py
+@@ -358,6 +358,11 @@ def __init__(self, fig,
+         cbar_location : {"left", "right", "bottom", "top"}, default: "right"
+         cbar_pad : float, default: None
+             Padding between the image axes and the colorbar axes.
++
++            .. versionchanged:: 3.10
++                ``cbar_mode="single"`` no longer adds *axes_pad* between the axes
++                and the colorbar if the *cbar_location* is "left" or "bottom".
++
+         cbar_size : size specification (see `.Size.from_any`), default: "5%"
+             Colorbar size.
+         cbar_set_cax : bool, default: True
+@@ -439,7 +444,7 @@ def _init_locators(self):
+             self.cbar_axes[0].set_visible(True)
+ 
+         for col, ax in enumerate(self.axes_row[0]):
+-            if h:
++            if col != 0:
+                 h.append(self._horiz_pad_size)
+ 
+             if ax:
+@@ -468,7 +473,7 @@ def _init_locators(self):
+         v_ax_pos = []
+         v_cb_pos = []
+         for row, ax in enumerate(self.axes_column[0][::-1]):
+-            if v:
++            if row != 0:
+                 v.append(self._vert_pad_size)
+ 
+             if ax:

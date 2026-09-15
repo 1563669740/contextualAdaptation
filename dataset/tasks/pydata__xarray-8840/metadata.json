@@ -1,0 +1,41 @@
+{
+  "task_id": "pydata__xarray-8840",
+  "repo": "pydata/xarray",
+  "pull_number": "8840",
+  "split": "held_out",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=2 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.79,
+  "base_commit": "c2aebd81f144d9c28dec06b447371f540935c1a5",
+  "repo_commit": "c2aebd81f144d9c28dec06b447371f540935c1a5",
+  "gold_commit": "78252b27d5eaa7c6ec1d31a9049a9409ec74b3c1",
+  "gold_commit_count": 32,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 12,
+  "gold_loc_added": 402,
+  "gold_loc_deleted": 152,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 7,
+  "pass_to_pass_count": 14900,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

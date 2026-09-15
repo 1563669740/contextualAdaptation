@@ -1,0 +1,13 @@
+diff --git a/lib/matplotlib/ticker.py b/lib/matplotlib/ticker.py
+index 10ac8cad6ebc..1e9f0892c322 100644
+--- a/lib/matplotlib/ticker.py
++++ b/lib/matplotlib/ticker.py
+@@ -2903,7 +2903,7 @@ def __call__(self):
+             _api.warn_external('AutoMinorLocator does not work on logarithmic scales')
+             return []
+ 
+-        majorlocs = self.axis.get_majorticklocs()
++        majorlocs = np.unique(self.axis.get_majorticklocs())
+         if len(majorlocs) < 2:
+             # Need at least two major ticks to find minor tick locations.
+             # TODO: Figure out a way to still be able to display minor ticks with less

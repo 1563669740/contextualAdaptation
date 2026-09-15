@@ -1,0 +1,6 @@
+[
+  "tests/plugins/test_tiktok.py::TestPluginCanHandleUrlTikTok::test_url_matches_positive_named[NAME=live",
+  "tests/plugins/test_tiktok.py::TestPluginCanHandleUrlTikTok::test_url_matches_positive_named[NAME=video",
+  "tests/plugins/test_tiktok.py::TestPluginCanHandleUrlTikTok::test_url_matches_groups_named[NAME=live",
+  "tests/plugins/test_tiktok.py::TestPluginCanHandleUrlTikTok::test_url_matches_groups_named[NAME=video"
+]

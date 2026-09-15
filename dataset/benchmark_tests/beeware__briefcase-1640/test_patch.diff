@@ -1,0 +1,631 @@
+diff --git a/tests/integrations/docker/conftest.py b/tests/integrations/docker/conftest.py
+index 0c5725f85..0af268d1c 100644
+--- a/tests/integrations/docker/conftest.py
++++ b/tests/integrations/docker/conftest.py
+@@ -69,6 +69,8 @@ def mock_docker(mock_tools, monkeypatch) -> Docker:
+ 
+     mock_tools.docker = Docker(mock_tools)
+ 
++    mock_tools.os.environ = {"PROCESS_ENV_VAR": "VALUE"}
++
+     # Reset the mock so that the user mapping calls don't appear in test results
+     mock_tools.subprocess._subprocess.check_output.reset_mock()
+ 
+@@ -111,7 +113,10 @@ def user_mapping_run_calls(tmp_path, monkeypatch) -> list[call]:
+         MagicMock(return_value=tmp_path / "build/mock_write_test"),
+     )
+     return [
+-        call(["docker", "images", "-q", "alpine"]),
++        call(
++            ["docker", "images", "-q", "alpine"],
++            env={"DOCKER_CLI_HINTS": "false"},
++        ),
+         call(
+             args=[
+                 "docker",
+@@ -123,6 +128,7 @@ def user_mapping_run_calls(tmp_path, monkeypatch) -> list[call]:
+                 "touch",
+                 "/host_write_test/mock_write_test",
+             ],
++            env={"DOCKER_CLI_HINTS": "false"},
+         ),
+         call(
+             args=[
+@@ -136,5 +142,6 @@ def user_mapping_run_calls(tmp_path, monkeypatch) -> list[call]:
+                 "-f",
+                 "/host_write_test/mock_write_test",
+             ],
++            env={"DOCKER_CLI_HINTS": "false"},
+         ),
+     ]
+diff --git a/tests/integrations/docker/test_DockerAppContext__Popen.py b/tests/integrations/docker/test_DockerAppContext__Popen.py
+index 4f7f06048..7cdc59c85 100644
+--- a/tests/integrations/docker/test_DockerAppContext__Popen.py
++++ b/tests/integrations/docker/test_DockerAppContext__Popen.py
+@@ -19,7 +19,11 @@ def test_simple_call(mock_tools, my_app, tmp_path, sub_kw, capsys):
+     mock_tools[my_app].app_context._dockerize_args.assert_called_once_with(
+         ["hello", "world"]
+     )
+-    mock_tools.subprocess._subprocess.Popen.assert_called_once_with(ANY, **sub_kw)
++    mock_tools.subprocess._subprocess.Popen.assert_called_once_with(
++        ANY,
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
++        **sub_kw,
++    )
+     assert capsys.readouterr().out == ""
+ 
+ 
+@@ -45,6 +49,7 @@ def test_call_with_extra_kwargs(mock_tools, my_app, tmp_path, capsys):
+         encoding="ISO-42",
+         text=True,
+         errors="backslashreplace",
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
+     )
+     assert capsys.readouterr().out == ""
+ 
+@@ -61,5 +66,9 @@ def test_simple_verbose_call(mock_tools, my_app, tmp_path, sub_kw, capsys):
+     mock_tools[my_app].app_context._dockerize_args.assert_called_once_with(
+         ["hello", "world"]
+     )
+-    mock_tools.subprocess._subprocess.Popen.assert_called_once_with(ANY, **sub_kw)
++    mock_tools.subprocess._subprocess.Popen.assert_called_once_with(
++        ANY,
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
++        **sub_kw,
++    )
+     assert ">>> Running Command:\n" in capsys.readouterr().out
+diff --git a/tests/integrations/docker/test_DockerAppContext__check_output.py b/tests/integrations/docker/test_DockerAppContext__check_output.py
+index 13bdde588..6897ee1f9 100644
+--- a/tests/integrations/docker/test_DockerAppContext__check_output.py
++++ b/tests/integrations/docker/test_DockerAppContext__check_output.py
+@@ -20,7 +20,9 @@ def test_simple_call(mock_tools, my_app, tmp_path, sub_check_output_kw, capsys):
+         ["hello", "world"]
+     )
+     mock_tools.subprocess._subprocess.check_output.assert_called_with(
+-        ANY, **sub_check_output_kw
++        ANY,
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
++        **sub_check_output_kw,
+     )
+     assert capsys.readouterr().out == ""
+ 
+@@ -48,6 +50,7 @@ def test_call_with_extra_kwargs(mock_tools, my_app, tmp_path, capsys):
+         stderr=subprocess.STDOUT,
+         text=True,
+         errors="backslashreplace",
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
+     )
+     assert capsys.readouterr().out == ""
+ 
+@@ -71,6 +74,8 @@ def test_simple_verbose_call(
+         ["hello", "world"]
+     )
+     mock_tools.subprocess._subprocess.check_output.assert_called_once_with(
+-        ANY, **sub_check_output_kw
++        ANY,
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
++        **sub_check_output_kw,
+     )
+     assert ">>> Running Command:\n" in capsys.readouterr().out
+diff --git a/tests/integrations/docker/test_DockerAppContext__dockerize_args.py b/tests/integrations/docker/test_DockerAppContext__dockerize_args.py
+index 5a33de6d6..93b1bf81a 100644
+--- a/tests/integrations/docker/test_DockerAppContext__dockerize_args.py
++++ b/tests/integrations/docker/test_DockerAppContext__dockerize_args.py
+@@ -23,6 +23,7 @@ def test_dockerize_args(mock_tools, my_app, tmp_path):
+             "hello",
+             "world",
+         ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -48,6 +49,7 @@ def test_dockerize_args_sys_executable(mock_tools, my_app, tmp_path):
+             "-m",
+             "pip",
+         ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -80,6 +82,7 @@ def test_dockerize_args_mounts(mock_tools, my_app, tmp_path):
+             "hello",
+             "world",
+         ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -114,6 +117,7 @@ def test_dockerize_args_mounts_path(mock_tools, my_app, tmp_path):
+             "world",
+             "/container/second/bin",
+         ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -144,6 +148,7 @@ def test_dockerize_args_cwd(mock_tools, my_app, tmp_path):
+             "hello",
+             "world",
+         ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -180,6 +185,7 @@ def test_dockerize_args_arg_and_env(mock_tools, my_app, tmp_path):
+         ],
+         check=True,
+         steam_output=True,
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -223,4 +229,5 @@ def test_dockerize_args_path_arg_and_env(mock_tools, my_app, tmp_path):
+             "hello",
+             os.fsdecode(tmp_path / "location"),
+         ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+diff --git a/tests/integrations/docker/test_DockerAppContext__run.py b/tests/integrations/docker/test_DockerAppContext__run.py
+index 51fe3b990..062d16ec9 100644
+--- a/tests/integrations/docker/test_DockerAppContext__run.py
++++ b/tests/integrations/docker/test_DockerAppContext__run.py
+@@ -21,7 +21,9 @@ def test_simple_call(mock_tools, my_app, tmp_path, sub_stream_kw, capsys):
+     )
+     # calls to run() default to using Popen() due to output streaming
+     mock_tools.subprocess._subprocess.Popen.assert_called_once_with(
+-        ANY, **sub_stream_kw
++        ANY,
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
++        **sub_stream_kw,
+     )
+     assert capsys.readouterr().out == (
+         "\n"
+@@ -46,7 +48,11 @@ def test_interactive(mock_tools, my_app, tmp_path, sub_kw, capsys):
+         stream_output=False,
+     )
+     # Interactive means the call to run is direct, rather than going through Popen
+-    mock_tools.subprocess._subprocess.run.assert_called_once_with(ANY, **sub_kw)
++    mock_tools.subprocess._subprocess.run.assert_called_once_with(
++        ANY,
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
++        **sub_kw,
++    )
+     assert capsys.readouterr().out == (
+         "\n"
+         "Entering Docker context...\n"
+@@ -89,6 +95,7 @@ def test_call_with_extra_kwargs(
+         bufsize=1,
+         text=True,
+         errors="backslashreplace",
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
+     )
+     assert capsys.readouterr().out == (
+         "\n"
+@@ -112,7 +119,9 @@ def test_simple_verbose_call(mock_tools, my_app, tmp_path, sub_stream_kw, capsys
+         ["hello", "world"],
+     )
+     mock_tools.subprocess._subprocess.Popen.assert_called_once_with(
+-        ANY, **sub_stream_kw
++        ANY,
++        env={"DOCKER_CLI_HINTS": "false", "PROCESS_ENV_VAR": "VALUE"},
++        **sub_stream_kw,
+     )
+     console_output = capsys.readouterr().out
+     assert "Entering Docker context...\n" in console_output
+diff --git a/tests/integrations/docker/test_Docker__cache_image.py b/tests/integrations/docker/test_Docker__cache_image.py
+index e1dd20a3f..9f4b11e40 100644
+--- a/tests/integrations/docker/test_Docker__cache_image.py
++++ b/tests/integrations/docker/test_Docker__cache_image.py
+@@ -17,12 +17,21 @@ def test_cache_image(mock_tools, sub_kw, sub_check_output_kw):
+ 
+     # Confirms that image is not available
+     mock_tools.subprocess._subprocess.check_output.assert_called_with(
+-        ["docker", "images", "-q", "ubuntu:jammy"], **sub_check_output_kw
++        ["docker", "images", "-q", "ubuntu:jammy"],
++        env={"PROCESS_ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "false"},
++        **sub_check_output_kw,
+     )
+ 
+     # Image is pulled and cached
+     mock_tools.subprocess._subprocess.run.assert_has_calls(
+-        [call(["docker", "pull", "ubuntu:jammy"], check=True, **sub_kw)]
++        [
++            call(
++                ["docker", "pull", "ubuntu:jammy"],
++                check=True,
++                env={"PROCESS_ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "false"},
++                **sub_kw,
++            ),
++        ]
+     )
+ 
+ 
+@@ -37,7 +46,9 @@ def test_cache_image_already_cached(mock_tools, sub_check_output_kw):
+ 
+     # Confirms that image is not available
+     mock_tools.subprocess._subprocess.check_output.assert_called_with(
+-        ["docker", "images", "-q", "ubuntu:jammy"], **sub_check_output_kw
++        ["docker", "images", "-q", "ubuntu:jammy"],
++        env={"PROCESS_ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "false"},
++        **sub_check_output_kw,
+     )
+ 
+     # Image is not pulled and cached
+diff --git a/tests/integrations/docker/test_Docker__check_output.py b/tests/integrations/docker/test_Docker__check_output.py
+index 5f5521169..49aaf50c2 100644
+--- a/tests/integrations/docker/test_Docker__check_output.py
++++ b/tests/integrations/docker/test_Docker__check_output.py
+@@ -19,10 +19,15 @@ def test_check_output(mock_tools, sub_check_output_kw):
+     mock_tools.subprocess._subprocess.check_output.assert_has_calls(
+         [
+             # Verify image is cached in Docker
+-            call(["docker", "images", "-q", "ubuntu:jammy"], **sub_check_output_kw),
++            call(
++                ["docker", "images", "-q", "ubuntu:jammy"],
++                env={"PROCESS_ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "false"},
++                **sub_check_output_kw,
++            ),
+             # Run command in Docker using image
+             call(
+                 ["docker", "run", "--rm", "ubuntu:jammy", "cmd", "arg1", "arg2"],
++                env={"PROCESS_ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "false"},
+                 **sub_check_output_kw,
+             ),
+         ]
+@@ -47,10 +52,15 @@ def test_check_output_fail(mock_tools, sub_check_output_kw):
+     mock_tools.subprocess._subprocess.check_output.assert_has_calls(
+         [
+             # Verify image is cached in Docker
+-            call(["docker", "images", "-q", "ubuntu:jammy"], **sub_check_output_kw),
++            call(
++                ["docker", "images", "-q", "ubuntu:jammy"],
++                env={"PROCESS_ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "false"},
++                **sub_check_output_kw,
++            ),
+             # Command errors in Docker using image
+             call(
+                 ["docker", "run", "--rm", "ubuntu:jammy", "cmd", "arg1", "arg2"],
++                env={"PROCESS_ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "false"},
+                 **sub_check_output_kw,
+             ),
+         ]
+diff --git a/tests/integrations/docker/test_Docker__dockerize_args.py b/tests/integrations/docker/test_Docker__dockerize_args.py
+index 468cb9471..711e768a0 100644
+--- a/tests/integrations/docker/test_Docker__dockerize_args.py
++++ b/tests/integrations/docker/test_Docker__dockerize_args.py
+@@ -12,7 +12,10 @@ def test_dockerize_simple_call(mock_tools):
+         image_tag="best-image",
+     )
+ 
+-    assert args == dict(args=["docker", "run", "--rm", "best-image", "hello", "world"])
++    assert args == dict(
++        args=["docker", "run", "--rm", "best-image", "hello", "world"],
++        env={"DOCKER_CLI_HINTS": "false"},
++    )
+ 
+ 
+ @pytest.mark.usefixtures("mock_docker")
+@@ -25,7 +28,8 @@ def test_dockerize_interactive(mock_tools):
+     )
+ 
+     assert args == dict(
+-        args=["docker", "run", "--rm", "-it", "best-image", "hello", "world"]
++        args=["docker", "run", "--rm", "-it", "best-image", "hello", "world"],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -53,7 +57,8 @@ def test_dockerize_mounts(mock_tools):
+             "best-image",
+             "hello",
+             "world",
+-        ]
++        ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -80,7 +85,8 @@ def test_dockerize_cwd(mock_tools, cwd):
+             "best-image",
+             "hello",
+             "world",
+-        ]
++        ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -120,7 +126,8 @@ def test_dockerize_env(mock_tools):
+             "best-image",
+             "hello",
+             "world",
+-        ]
++        ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -151,7 +158,8 @@ def test_dockerize_add_hosts(mock_tools):
+             "best-image",
+             "hello",
+             "world",
+-        ]
++        ],
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+@@ -208,7 +216,8 @@ def test_dockerize_add_hosts(mock_tools):
+                 "best-image",
+                 "hello",
+                 "world",
+-            ]
++            ],
++            env={"DOCKER_CLI_HINTS": "false"},
+         ),
+     )
+ ]
+diff --git a/tests/integrations/docker/test_Docker__subprocess_env.py b/tests/integrations/docker/test_Docker__subprocess_env.py
+new file mode 100644
+index 000000000..f9f47d1d4
+--- /dev/null
++++ b/tests/integrations/docker/test_Docker__subprocess_env.py
+@@ -0,0 +1,22 @@
++import pytest
++
++
++@pytest.mark.parametrize(
++    "env, subprocess_env",
++    [
++        (None, {"DOCKER_CLI_HINTS": "false"}),
++        ({}, {"DOCKER_CLI_HINTS": "false"}),
++        ({"ENV_VAR": "VALUE"}, {"ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "false"}),
++        (
++            {"ENV_VAR": "VALUE", "DOCKER_CLI_HINTS": "true"},
++            {
++                "ENV_VAR": "VALUE",
++                "DOCKER_CLI_HINTS": "true",
++            },
++        ),
++    ],
++)
++@pytest.mark.usefixtures("mock_docker")
++def test_subprocess_env(mock_tools, env, subprocess_env):
++    """The env for subprocess calls is set properly."""
++    assert mock_tools.docker.subprocess_env(env) == subprocess_env
+diff --git a/tests/integrations/docker/test_Docker__verify.py b/tests/integrations/docker/test_Docker__verify.py
+index f8b864c62..ad65382a3 100644
+--- a/tests/integrations/docker/test_Docker__verify.py
++++ b/tests/integrations/docker/test_Docker__verify.py
+@@ -16,9 +16,9 @@
+ VALID_BUILDX_VERSION = "github.com/docker/buildx v0.10.2 00ed17d\n"
+ VALID_USER_MAPPING_IMAGE_CACHE = "1ed313b0551f"
+ DOCKER_VERIFICATION_CALLS = [
+-    call(["docker", "--version"]),
+-    call(["docker", "info"]),
+-    call(["docker", "buildx", "version"]),
++    call(["docker", "--version"], env={"DOCKER_CLI_HINTS": "false"}),
++    call(["docker", "info"], env={"DOCKER_CLI_HINTS": "false"}),
++    call(["docker", "buildx", "version"], env={"DOCKER_CLI_HINTS": "false"}),
+ ]
+ 
+ 
+@@ -104,7 +104,9 @@ def test_docker_doesnt_exist(mock_tools):
+         Docker.verify(mock_tools)
+ 
+     # But docker was invoked
+-    mock_tools.subprocess.check_output.assert_called_with(["docker", "--version"])
++    mock_tools.subprocess.check_output.assert_called_with(
++        ["docker", "--version"], env={"DOCKER_CLI_HINTS": "false"}
++    )
+ 
+ 
+ def test_docker_failure(mock_tools, user_mapping_run_calls, capsys):
+@@ -295,7 +297,10 @@ def test_docker_image_hint(mock_tools):
+     mock_tools.subprocess.check_output.assert_has_calls(
+         DOCKER_VERIFICATION_CALLS
+         + [
+-            call(["docker", "images", "-q", "myimage:tagtorulethemall"]),
++            call(
++                ["docker", "images", "-q", "myimage:tagtorulethemall"],
++                env={"DOCKER_CLI_HINTS": "false"},
++            ),
+             call(
+                 args=[
+                     "docker",
+@@ -307,6 +312,7 @@ def test_docker_image_hint(mock_tools):
+                     "touch",
+                     "/host_write_test/container_write_test",
+                 ],
++                env={"DOCKER_CLI_HINTS": "false"},
+             ),
+             call(
+                 args=[
+@@ -320,6 +326,7 @@ def test_docker_image_hint(mock_tools):
+                     "-f",
+                     "/host_write_test/container_write_test",
+                 ],
++                env={"DOCKER_CLI_HINTS": "false"},
+             ),
+         ]
+     )
+diff --git a/tests/platforms/linux/appimage/test_build.py b/tests/platforms/linux/appimage/test_build.py
+index b2939d33a..3143b99e7 100644
+--- a/tests/platforms/linux/appimage/test_build.py
++++ b/tests/platforms/linux/appimage/test_build.py
+@@ -446,6 +446,10 @@ def test_build_appimage_in_docker(
+             "--deploy-deps-only",
+             "/app/First App.AppDir/usr/app_packages/secondlib",
+         ],
++        env={
++            "PATH": "/usr/local/bin:/usr/bin:/path/to/somewhere",
++            "DOCKER_CLI_HINTS": "false",
++        },
+         **sub_stream_kw,
+     )
+     # Binary is marked executable
+@@ -580,6 +584,10 @@ def test_build_appimage_with_plugins_in_docker(
+             "--plugin",
+             "something",
+         ],
++        env={
++            "PATH": "/usr/local/bin:/usr/bin:/path/to/somewhere",
++            "DOCKER_CLI_HINTS": "false",
++        },
+         **sub_stream_kw,
+     )
+     # Local plugin marked executable
+diff --git a/tests/platforms/linux/system/test_run.py b/tests/platforms/linux/system/test_run.py
+index 73d5c6466..843c206d7 100644
+--- a/tests/platforms/linux/system/test_run.py
++++ b/tests/platforms/linux/system/test_run.py
+@@ -178,6 +178,11 @@ def test_supported_host_os_docker(
+         return_value=log_popen
+     )
+ 
++    # Mock out the environment
++    monkeypatch.setattr(
++        run_command.tools.os, "environ", {"ENVVAR": "Value", "DISPLAY": ":99"}
++    )
++
+     # Parse the command line
+     run_command.parse_options([])
+ 
+@@ -210,6 +215,7 @@ def test_supported_host_os_docker(
+         stdout=subprocess.PIPE,
+         stderr=subprocess.STDOUT,
+         bufsize=1,
++        env={"ENVVAR": "Value", "DISPLAY": ":99", "DOCKER_CLI_HINTS": "false"},
+         **sub_kw,
+     )
+ 
+@@ -270,7 +276,7 @@ def test_run_app(run_command, first_app, sub_kw, tmp_path):
+ 
+ 
+ @pytest.mark.skipif(sys.platform == "win32", reason="Windows paths can't be dockerized")
+-def test_run_app_docker(run_command, first_app, sub_kw, tmp_path):
++def test_run_app_docker(run_command, first_app, sub_kw, tmp_path, monkeypatch):
+     """A bootstrap binary can be started in Docker."""
+     # Trigger to run in Docker
+     run_command.target_image = first_app.target_image = "best/distro"
+@@ -286,6 +292,11 @@ def test_run_app_docker(run_command, first_app, sub_kw, tmp_path):
+         return_value=log_popen
+     )
+ 
++    # Mock out the environment
++    monkeypatch.setattr(
++        run_command.tools.os, "environ", {"ENVVAR": "Value", "DISPLAY": ":99"}
++    )
++
+     # Run the app
+     run_command.run_app(first_app, test_mode=False, passthrough=[])
+ 
+@@ -315,6 +326,7 @@ def test_run_app_docker(run_command, first_app, sub_kw, tmp_path):
+         stdout=subprocess.PIPE,
+         stderr=subprocess.STDOUT,
+         bufsize=1,
++        env={"ENVVAR": "Value", "DISPLAY": ":99", "DOCKER_CLI_HINTS": "false"},
+         **sub_kw,
+     )
+ 
+@@ -358,7 +370,7 @@ def test_run_app_failed(run_command, first_app, sub_kw, tmp_path):
+ 
+ 
+ @pytest.mark.skipif(sys.platform == "win32", reason="Windows paths can't be dockerized")
+-def test_run_app_failed_docker(run_command, first_app, sub_kw, tmp_path):
++def test_run_app_failed_docker(run_command, first_app, sub_kw, tmp_path, monkeypatch):
+     """If there's a problem starting the app in Docker, an exception is raised."""
+ 
+     # Trigger to run in Docker
+@@ -369,6 +381,11 @@ def test_run_app_failed_docker(run_command, first_app, sub_kw, tmp_path):
+     # Provide Docker app context
+     run_command.verify_app_tools(app=first_app)
+ 
++    # Mock out the environment
++    monkeypatch.setattr(
++        run_command.tools.os, "environ", {"ENVVAR": "Value", "DISPLAY": ":99"}
++    )
++
+     run_command.tools.subprocess._subprocess.Popen.side_effect = OSError
+ 
+     with pytest.raises(OSError):
+@@ -400,6 +417,7 @@ def test_run_app_failed_docker(run_command, first_app, sub_kw, tmp_path):
+         stdout=subprocess.PIPE,
+         stderr=subprocess.STDOUT,
+         bufsize=1,
++        env={"ENVVAR": "Value", "DISPLAY": ":99", "DOCKER_CLI_HINTS": "false"},
+         **sub_kw,
+     )
+ 
+@@ -470,6 +488,11 @@ def test_run_app_test_mode_docker(
+     log_popen = mock.MagicMock()
+     run_command.tools.subprocess._subprocess.Popen.return_value = log_popen
+ 
++    # Mock out the environment
++    monkeypatch.setattr(
++        run_command.tools.os, "environ", {"ENVVAR": "Value", "DISPLAY": ":99"}
++    )
++
+     # Run the app
+     run_command.run_app(first_app, test_mode=True, passthrough=[])
+ 
+@@ -501,6 +524,7 @@ def test_run_app_test_mode_docker(
+         stdout=subprocess.PIPE,
+         stderr=subprocess.STDOUT,
+         bufsize=1,
++        env={"ENVVAR": "Value", "DISPLAY": ":99", "DOCKER_CLI_HINTS": "false"},
+         **sub_kw,
+     )
+ 
+@@ -588,6 +612,11 @@ def test_run_app_test_mode_with_args_docker(
+     log_popen = mock.MagicMock()
+     run_command.tools.subprocess._subprocess.Popen.return_value = log_popen
+ 
++    # Mock out the environment
++    monkeypatch.setattr(
++        run_command.tools.os, "environ", {"ENVVAR": "Value", "DISPLAY": ":99"}
++    )
++
+     # Run the app with args
+     run_command.run_app(
+         first_app,
+@@ -625,6 +654,7 @@ def test_run_app_test_mode_with_args_docker(
+         stdout=subprocess.PIPE,
+         stderr=subprocess.STDOUT,
+         bufsize=1,
++        env={"ENVVAR": "Value", "DISPLAY": ":99", "DOCKER_CLI_HINTS": "false"},
+         **sub_kw,
+     )
+ 
+diff --git a/tests/platforms/linux/test_DockerOpenCommand.py b/tests/platforms/linux/test_DockerOpenCommand.py
+index 4dbb413fd..56e411080 100644
+--- a/tests/platforms/linux/test_DockerOpenCommand.py
++++ b/tests/platforms/linux/test_DockerOpenCommand.py
+@@ -105,6 +105,7 @@ def test_open_docker(open_command, first_app_config, tmp_path, monkeypatch):
+             f"briefcase/com.example.first-app:py3.{sys.version_info.minor}",
+         ],
+         stream_output=False,
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+ 
+diff --git a/tests/platforms/linux/test_LocalRequirementsMixin.py b/tests/platforms/linux/test_LocalRequirementsMixin.py
+index 95bc089f6..2792867c0 100644
+--- a/tests/platforms/linux/test_LocalRequirementsMixin.py
++++ b/tests/platforms/linux/test_LocalRequirementsMixin.py
+@@ -194,6 +194,7 @@ def test_install_app_requirements_in_docker(create_command, first_app_config, tm
+         ],
+         check=True,
+         encoding="UTF-8",
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+     # The local requirements path exists, but is empty
+@@ -374,6 +375,7 @@ def build_sdist(*args, **kwargs):
+         ],
+         check=True,
+         encoding="UTF-8",
++        env={"DOCKER_CLI_HINTS": "false"},
+     )
+ 
+     # The local requirements path exists, and contains the compiled sdist, the

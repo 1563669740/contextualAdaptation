@@ -1,0 +1,104 @@
+diff --git a/test/components/retrievers/test_in_memory_bm25_retriever.py b/test/components/retrievers/test_in_memory_bm25_retriever.py
+index db5e82a3f3..4c1df2f22a 100644
+--- a/test/components/retrievers/test_in_memory_bm25_retriever.py
++++ b/test/components/retrievers/test_in_memory_bm25_retriever.py
+@@ -113,15 +113,14 @@ def test_from_dict_nonexisting_docstore(self):
+             InMemoryBM25Retriever.from_dict(data)
+ 
+     def test_retriever_valid_run(self, mock_docs):
+-        top_k = 5
+         ds = InMemoryDocumentStore()
+         ds.write_documents(mock_docs)
+ 
+-        retriever = InMemoryBM25Retriever(ds, top_k=top_k)
++        retriever = InMemoryBM25Retriever(ds, top_k=5)
+         result = retriever.run(query="PHP")
+ 
+         assert "documents" in result
+-        assert len(result["documents"]) == top_k
++        assert len(result["documents"]) == 1
+         assert result["documents"][0].content == "PHP is a popular programming language"
+ 
+     def test_invalid_run_wrong_store_type(self):
+@@ -174,5 +173,5 @@ def test_run_with_pipeline_and_top_k(self, mock_docs, query: str, query_result:
+         assert "retriever" in result
+         results_docs = result["retriever"]["documents"]
+         assert results_docs
+-        assert len(results_docs) == top_k
++        assert len(results_docs) == 1
+         assert results_docs[0].content == query_result
+diff --git a/test/document_stores/test_in_memory.py b/test/document_stores/test_in_memory.py
+index 1d3a361315..9ebcae4156 100644
+--- a/test/document_stores/test_in_memory.py
++++ b/test/document_stores/test_in_memory.py
+@@ -5,8 +5,8 @@
+ import pytest
+ 
+ from haystack import Document
+-from haystack.document_stores.in_memory import InMemoryDocumentStore
+ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
++from haystack.document_stores.in_memory import InMemoryDocumentStore
+ from haystack.testing.document_store import DocumentStoreBaseTests
+ 
+ 
+@@ -17,7 +17,7 @@ class TestMemoryDocumentStore(DocumentStoreBaseTests):  # pylint: disable=R0904
+ 
+     @pytest.fixture
+     def document_store(self) -> InMemoryDocumentStore:
+-        return InMemoryDocumentStore()
++        return InMemoryDocumentStore(bm25_algorithm="BM25L")
+ 
+     def test_to_dict(self):
+         store = InMemoryDocumentStore()
+@@ -73,7 +73,6 @@ def test_write_documents(self, document_store):
+             document_store.write_documents(docs)
+ 
+     def test_bm25_retrieval(self, document_store: InMemoryDocumentStore):
+-        document_store = InMemoryDocumentStore()
+         # Tests if the bm25_retrieval method returns the correct document based on the input query.
+         docs = [Document(content="Hello world"), Document(content="Haystack supports multiple languages")]
+         document_store.write_documents(docs)
+@@ -106,7 +105,7 @@ def test_bm25_retrieval_with_different_top_k(self, document_store: InMemoryDocum
+         document_store.write_documents(docs)
+ 
+         # top_k = 2
+-        results = document_store.bm25_retrieval(query="languages", top_k=2)
++        results = document_store.bm25_retrieval(query="language", top_k=2)
+         assert len(results) == 2
+ 
+         # top_k = 3
+@@ -141,7 +140,7 @@ def test_bm25_retrieval_with_updated_docs(self, document_store: InMemoryDocument
+         document_store.write_documents(docs)
+ 
+         results = document_store.bm25_retrieval(query="Python", top_k=1)
+-        assert len(results) == 1
++        assert len(results) == 0
+ 
+         document_store.write_documents([Document(content="Python is a popular programming language")])
+         results = document_store.bm25_retrieval(query="Python", top_k=1)
+@@ -199,10 +198,10 @@ def test_bm25_retrieval_default_filter_for_text_and_dataframes(self, document_st
+         docs = [Document(), Document(content="Gardening"), Document(content="Bird watching")]
+         document_store.write_documents(docs)
+         results = document_store.bm25_retrieval(query="doesn't matter, top_k is 10", top_k=10)
+-        assert len(results) == 2
++        assert len(results) == 0
+ 
+     def test_bm25_retrieval_with_filters(self, document_store: InMemoryDocumentStore):
+-        selected_document = Document(content="Gardening", meta={"selected": True})
++        selected_document = Document(content="Java is, well...", meta={"selected": True})
+         docs = [Document(), selected_document, Document(content="Bird watching")]
+         document_store.write_documents(docs)
+         results = document_store.bm25_retrieval(query="Java", top_k=10, filters={"selected": True})
+@@ -224,10 +223,10 @@ def test_bm25_retrieval_with_filters_on_text_or_dataframe(self, document_store:
+         assert results[0].id == document.id
+ 
+     def test_bm25_retrieval_with_documents_with_mixed_content(self, document_store: InMemoryDocumentStore):
+-        double_document = Document(content="Gardening", embedding=[1.0, 2.0, 3.0])
++        double_document = Document(content="Gardening is a hobby", embedding=[1.0, 2.0, 3.0])
+         docs = [Document(embedding=[1.0, 2.0, 3.0]), double_document, Document(content="Bird watching")]
+         document_store.write_documents(docs)
+-        results = document_store.bm25_retrieval(query="Java", top_k=10, filters={"embedding": {"$not": None}})
++        results = document_store.bm25_retrieval(query="Gardening", top_k=10, filters={"embedding": {"$not": None}})
+         assert len(results) == 1
+         assert results[0].id == double_document.id
+ 

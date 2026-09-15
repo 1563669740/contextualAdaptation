@@ -1,0 +1,41 @@
+{
+  "task_id": "instructlab__instructlab-615",
+  "repo": "instructlab/instructlab",
+  "pull_number": "615",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=6 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.9,
+  "base_commit": "faaf98858135cd8279caede18906d4b36a4b78a9",
+  "repo_commit": "faaf98858135cd8279caede18906d4b36a4b78a9",
+  "gold_commit": "1143c5967bba74f70d9d2ad01aa87b64a23da33a",
+  "gold_commit_count": 2,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 1,
+  "gold_loc_added": 13,
+  "gold_loc_deleted": 11,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 12,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

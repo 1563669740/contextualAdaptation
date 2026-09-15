@@ -1,0 +1,266 @@
+diff --git a/README.md b/README.md
+index aff7c2fceb..1995b835d5 100644
+--- a/README.md
++++ b/README.md
+@@ -79,7 +79,7 @@ Commands:
+   download  Download the model(s) to train
+   generate  Generates synthetic data to enhance your example data
+   init      Initializes environment for InstructLab
+-  list      Lists taxonomy files that have changed since last commit
++  list      Lists taxonomy files that have changed since a reference commit (default origin/main)
+   serve     Start a local server
+   test      Perform rudimentary tests of the model
+   train     Trains model
+diff --git a/cli/config.py b/cli/config.py
+index 1c0985f176..e983078d6a 100644
+--- a/cli/config.py
++++ b/cli/config.py
+@@ -15,6 +15,7 @@
+ DEFAULT_TAXONOMY_REPO = "git@github.com:instruct-lab/taxonomy.git"
+ DEFAULT_TAXONOMY_PATH = "taxonomy"
+ DEFAULT_TAXONOMY_BRANCH = "main"
++DEFAULT_TAXONOMY_BASE = "origin/main"
+ DEFAULT_PROMPT_FILE = "prompt.txt"
+ DEFAULT_SEED_FILE = "seed_tasks.json"
+ DEFAULT_GENERATED_FILES_OUTPUT_DIR = "generated"
+@@ -53,6 +54,7 @@ class _generate:
+     num_cpus: int
+     num_instructions: int
+     taxonomy_path: str
++    taxonomy_base: str
+     output_dir: str
+     prompt_file: str
+     seed_file: str
+@@ -155,6 +157,7 @@ def get_default_config():
+         num_cpus=10,
+         num_instructions=100,
+         taxonomy_path=DEFAULT_TAXONOMY_PATH,
++        taxonomy_base=DEFAULT_TAXONOMY_BASE,
+         output_dir=DEFAULT_GENERATED_FILES_OUTPUT_DIR,
+         prompt_file=DEFAULT_PROMPT_FILE,
+         seed_file=DEFAULT_SEED_FILE,
+diff --git a/cli/generator/generate_data.py b/cli/generator/generate_data.py
+index fe9a8ac103..bdf99e3f08 100755
+--- a/cli/generator/generate_data.py
++++ b/cli/generator/generate_data.py
+@@ -17,6 +17,7 @@
+     import git
+ except ImportError:
+     pass
++
+ # Third Party
+ from rouge_score import rouge_scorer
+ 
+@@ -217,6 +218,7 @@ def generate_data(
+     api_base,
+     output_dir: Optional[str] = None,
+     taxonomy: Optional[str] = None,
++    taxonomy_base: Optional[str] = None,
+     seed_tasks_path: Optional[str] = None,
+     prompt_file_path: Optional[str] = None,
+     model_name: Optional[str] = None,
+@@ -241,7 +243,7 @@ def generate_data(
+     # throw an error if both not found
+     # pylint: disable=broad-exception-caught,raise-missing-from
+     if taxonomy and os.path.exists(taxonomy):
+-        seed_instruction_data = read_taxonomy(logger, taxonomy)
++        seed_instruction_data = read_taxonomy(logger, taxonomy, taxonomy_base)
+     elif seed_tasks_path and os.path.exists(seed_tasks_path):
+         with open(seed_tasks_path, "r", encoding="utf-8") as seed_tasks_file:
+             seed_tasks = [json.loads(l) for l in seed_tasks_file]
+@@ -443,23 +445,44 @@ def generate_data(
+     logger.info(f"Generation took {generate_duration:.2f}s")
+ 
+ 
+-def get_taxonomy_diff(repo="taxonomy"):
++def get_taxonomy_diff(repo="taxonomy", base="origin/main"):
+     repo = git.Repo(repo)
+     untracked_files = [
+         u for u in repo.untracked_files if splitext(u)[1].lower() == ".yaml"
+     ]
++
++    head_commit = None
++    if base == "HEAD":
++        head_commit = repo.commit("HEAD")
++    elif "/" in base:
++        re_git_branch = re.compile(f"remotes/{base}$", re.MULTILINE)
++    else:
++        re_git_branch = re.compile(f"{base}$", re.MULTILINE)
++
++    # Move backwards from HEAD until we find the first commit that is part of base
++    # then we can take our diff from there
++    current_commit = repo.commit("HEAD")
++    while not head_commit:
++        branches = repo.git.branch("-a", "--contains", current_commit.hexsha)
++        if re_git_branch.findall(branches):
++            head_commit = current_commit
++            break
++        try:
++            current_commit = current_commit.parents[0]
++        except IndexError as exc:
++            raise SystemExit(
++                yaml.YAMLError(
++                    f'Couldn\'t find the taxonomy base branch "{base}" from the current HEAD'
++                )
++            ) from exc
++
+     modified_files = [
+         d.a_path
+-        for d in repo.index.diff(None)
+-        if splitext(d.a_path)[1].lower() == ".yaml"
+-    ]
+-    staged_files = [
+-        d.a_path
+-        for d in repo.index.diff(repo.head.commit)
++        for d in head_commit.diff(None)
+         if splitext(d.a_path)[1].lower() == ".yaml"
+     ]
+-    updated_taxonomy_files = list(set(untracked_files + modified_files + staged_files))
+ 
++    updated_taxonomy_files = list(set(untracked_files + modified_files))
+     return updated_taxonomy_files
+ 
+ 
+@@ -526,7 +549,7 @@ def read_taxonomy_file(logger, file_path):
+     return seed_instruction_data, warnings, errors
+ 
+ 
+-def read_taxonomy(logger, taxonomy):
++def read_taxonomy(logger, taxonomy, taxonomy_base):
+     seed_instruction_data = []
+     is_file = os.path.isfile(taxonomy)
+     if is_file:
+@@ -540,7 +563,7 @@ def read_taxonomy(logger, taxonomy):
+     else:  # taxonomy is_dir
+         # Gather the new or changed YAMLs using git diff
+         try:
+-            updated_taxonomy_files = get_taxonomy_diff(taxonomy)
++            updated_taxonomy_files = get_taxonomy_diff(taxonomy, taxonomy_base)
+         except NameError as exc:
+             raise utils.GenerateException("`git` binary not found") from exc
+         total_errors = 0
+diff --git a/cli/lab.py b/cli/lab.py
+index 7518e8df2e..d4ca76c036 100755
+--- a/cli/lab.py
++++ b/cli/lab.py
+@@ -88,6 +88,11 @@ def cli(ctx, config):
+     default=config.DEFAULT_MODEL_PATH,
+     help="Path to the model used during generation.",
+ )
++@click.option(
++    "--taxonomy-base",
++    default=config.DEFAULT_TAXONOMY_BASE,
++    help="Base git-ref to use when listing/generating new taxonomy.",
++)
+ @click.option(
+     "--taxonomy-path",
+     type=click.Path(),
+@@ -100,7 +105,14 @@ def cli(ctx, config):
+     help="Taxonomy repository location.",
+ )
+ # pylint: disable=unused-argument
+-def init(ctx, interactive, model_path, taxonomy_path, repository):
++def init(
++    ctx,
++    interactive,
++    model_path,
++    taxonomy_path,
++    taxonomy_base,
++    repository,
++):
+     """Initializes environment for InstructLab"""
+     if exists(config.DEFAULT_CONFIG):
+         overwrite = click.confirm(
+@@ -152,6 +164,7 @@ def init(ctx, interactive, model_path, taxonomy_path, repository):
+     cfg.generate.model = model
+     cfg.serve.model_path = model_path
+     cfg.generate.taxonomy_path = taxonomy_path
++    cfg.generate.taxonomy_base = taxonomy_base
+     config.write_config(cfg)
+ 
+     click.echo(
+@@ -165,16 +178,29 @@ def init(ctx, interactive, model_path, taxonomy_path, repository):
+     type=click.Path(),
+     help=f"Path to {config.DEFAULT_TAXONOMY_REPO} clone.",
+ )
++@click.option(
++    "--taxonomy-base",
++    help="Base git-ref to use when listing new taxonomy.",
++)
+ @click.pass_context
+ # pylint: disable=redefined-builtin,unused-argument
+-def list(ctx, taxonomy_path):
++def list(ctx, taxonomy_path, taxonomy_base):
+     """
+-    Lists taxonomy files that have changed since last commit.
+-    Similar to 'git diff'
++    Lists taxonomy files that have changed since <taxonomy-base>.
++    Similar to 'git diff <ref>'
+     """
++    if not taxonomy_base:
++        taxonomy_base = ctx.obj.config.generate.taxonomy_base
+     if not taxonomy_path:
+         taxonomy_path = ctx.obj.config.generate.taxonomy_path
+-    updated_taxonomy_files = get_taxonomy_diff(taxonomy_path)
++    try:
++        updated_taxonomy_files = get_taxonomy_diff(taxonomy_path, taxonomy_base)
++    except GenerateException as exc:
++        click.secho(
++            f"Generating dataset failed with the following error: {exc}",
++            fg="red",
++        )
++        return
+     for f in updated_taxonomy_files:
+         if splitext(f)[1] != ".yaml":
+             click.secho(
+@@ -190,13 +216,19 @@ def list(ctx, taxonomy_path):
+     type=click.Path(),
+     help=f"Path to {config.DEFAULT_TAXONOMY_REPO} clone.",
+ )
++@click.option(
++    "--taxonomy-base",
++    help="Base git-ref to use when checking taxonomy.",
++)
+ @click.pass_context
+-def check(ctx, taxonomy_path):
++def check(ctx, taxonomy_path, taxonomy_base):
+     """Check that taxonomy is valid"""
++    if not taxonomy_base:
++        taxonomy_base = ctx.obj.config.generate.taxonomy_base
+     if not taxonomy_path:
+         taxonomy_path = ctx.obj.config.generate.taxonomy_path
+-    ctx.obj.logger.debug(f"Checking taxonomy: '{taxonomy_path}'")
+-    read_taxonomy(ctx.obj.logger, taxonomy_path)
++    ctx.obj.logger.debug(f"Checking taxonomy: '{taxonomy_path}:{taxonomy_base}'")
++    read_taxonomy(ctx.obj.logger, taxonomy_path, taxonomy_base)
+ 
+ 
+ @cli.command()
+@@ -243,6 +275,11 @@ def serve(ctx, model_path, gpu_layers):
+     type=click.Path(),
+     help=f"Path to {config.DEFAULT_TAXONOMY_REPO} clone.",
+ )
++@click.option(
++    "--taxonomy-base",
++    default=config.DEFAULT_TAXONOMY_BASE,
++    help="Base git-ref to use when generating new taxonomy.",
++)
+ @click.option(
+     "--output-dir",
+     type=click.Path(),
+@@ -287,6 +324,7 @@ def generate(
+     num_cpus,
+     num_instructions,
+     taxonomy_path,
++    taxonomy_base,
+     output_dir,
+     seed_file,
+     rouge_threshold,
+@@ -314,6 +352,7 @@ def generate(
+             num_cpus=num_cpus,
+             num_instructions_to_generate=num_instructions,
+             taxonomy=taxonomy_path,
++            taxonomy_base=taxonomy_base,
+             output_dir=output_dir,
+             prompt_file_path=ctx.obj.config.generate.prompt_file,
+             seed_tasks_path=seed_file,

@@ -1,0 +1,26 @@
+diff --git a/conan/cli/args.py b/conan/cli/args.py
+index 2a1767c7346..39b99740e45 100644
+--- a/conan/cli/args.py
++++ b/conan/cli/args.py
+@@ -31,7 +31,7 @@ def add_lockfile_args(parser):
+     parser.add_argument("--lockfile-out", action=OnceArgument,
+                         help="Filename of the updated lockfile")
+     parser.add_argument("--lockfile-packages", action="store_true",
+-                        help="Lock package-id and package-revision information")
++                        help=argparse.SUPPRESS)
+     parser.add_argument("--lockfile-clean", action="store_true",
+                         help="Remove unused entries from the lockfile")
+     parser.add_argument("--lockfile-overrides",
+diff --git a/conan/cli/command.py b/conan/cli/command.py
+index a924dda9b74..474e94639c4 100644
+--- a/conan/cli/command.py
++++ b/conan/cli/command.py
+@@ -107,6 +107,8 @@ def __init__(self, conan_api, *args, **kwargs):
+     def parse_args(self, args=None, namespace=None):
+         args = super().parse_args(args)
+         ConanOutput.define_log_level(os.getenv("CONAN_LOG_LEVEL", args.v))
++        if getattr(args, "lockfile_packages", None):
++            ConanOutput().error("The --lockfile-packages arg is private and shouldn't be used")
+         if args.core_conf:
+             from conans.model.conf import ConfDefinition
+             confs = ConfDefinition()

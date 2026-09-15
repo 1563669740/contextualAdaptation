@@ -1,0 +1,21 @@
+diff --git a/news/2849.bugfix.md b/news/2849.bugfix.md
+new file mode 100644
+index 0000000000..3bef612891
+--- /dev/null
++++ b/news/2849.bugfix.md
+@@ -0,0 +1,1 @@
++Fix env and other options being inherited in nested composite scripts.
+\ No newline at end of file
+diff --git a/src/pdm/cli/commands/run.py b/src/pdm/cli/commands/run.py
+index 69f64f2452..06d0891e90 100644
+--- a/src/pdm/cli/commands/run.py
++++ b/src/pdm/cli/commands/run.py
+@@ -277,6 +277,8 @@ def run_task(
+             should_interpolate = should_interpolate or any(RE_PDM_PLACEHOLDER.search(script) for script in value)
+             composite_code = 0
+             keep_going = options.pop("keep_going", False) if options else False
++            if opts:
++                cast(dict, options).update(**exec_opts(options, opts))
+             for script in value:
+                 if should_interpolate:
+                     script, _ = interpolate(script, args)

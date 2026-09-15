@@ -1,0 +1,65 @@
+diff --git a/doc/api/next_api_changes/behavior/27833-JA.rst b/doc/api/next_api_changes/behavior/27833-JA.rst
+new file mode 100644
+index 000000000000..59323f56108f
+--- /dev/null
++++ b/doc/api/next_api_changes/behavior/27833-JA.rst
+@@ -0,0 +1,8 @@
++SVG output: improved reproducibility
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++Some SVG-format plots `produced different output on each render <https://github.com/matplotlib/matplotlib/issues/27831>`__, even with a static ``svg.hashsalt`` value configured.
++
++The problem was a non-deterministic ID-generation scheme for clip paths; the fix introduces a repeatable, monotonically increasing integer ID scheme as a replacement.
++
++Provided that plots add clip paths themselves in deterministic order, this enables repeatable (a.k.a. reproducible, deterministic) SVG output.
+diff --git a/lib/matplotlib/backends/backend_svg.py b/lib/matplotlib/backends/backend_svg.py
+index 72354b81862b..51eee57a6a84 100644
+--- a/lib/matplotlib/backends/backend_svg.py
++++ b/lib/matplotlib/backends/backend_svg.py
+@@ -302,6 +302,7 @@ def __init__(self, width, height, svgwriter, basename=None, image_dpi=72,
+ 
+         self._groupd = {}
+         self._image_counter = itertools.count()
++        self._clip_path_ids = {}
+         self._clipd = {}
+         self._markers = {}
+         self._path_collection_id = 0
+@@ -325,6 +326,20 @@ def __init__(self, width, height, svgwriter, basename=None, image_dpi=72,
+         self._write_metadata(metadata)
+         self._write_default_style()
+ 
++    def _get_clippath_id(self, clippath):
++        """
++        Returns a stable and unique identifier for the *clippath* argument
++        object within the current rendering context.
++
++        This allows plots that include custom clip paths to produce identical
++        SVG output on each render, provided that the :rc:`svg.hashsalt` config
++        setting and the ``SOURCE_DATE_EPOCH`` build-time environment variable
++        are set to fixed values.
++        """
++        if clippath not in self._clip_path_ids:
++            self._clip_path_ids[clippath] = len(self._clip_path_ids)
++        return self._clip_path_ids[clippath]
++
+     def finalize(self):
+         self._write_clips()
+         self._write_hatches()
+@@ -590,7 +605,7 @@ def _get_clip_attrs(self, gc):
+         clippath, clippath_trans = gc.get_clip_path()
+         if clippath is not None:
+             clippath_trans = self._make_flip_transform(clippath_trans)
+-            dictkey = (id(clippath), str(clippath_trans))
++            dictkey = (self._get_clippath_id(clippath), str(clippath_trans))
+         elif cliprect is not None:
+             x, y, w, h = cliprect.bounds
+             y = self.height-(y+h)
+@@ -605,7 +620,7 @@ def _get_clip_attrs(self, gc):
+             else:
+                 self._clipd[dictkey] = (dictkey, oid)
+         else:
+-            clip, oid = clip
++            _, oid = clip
+         return {'clip-path': f'url(#{oid})'}
+ 
+     def _write_clips(self):

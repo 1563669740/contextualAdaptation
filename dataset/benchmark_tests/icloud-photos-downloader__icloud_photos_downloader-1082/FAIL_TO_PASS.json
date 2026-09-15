@@ -1,0 +1,4 @@
+[
+  "tests/test_download_photos.py::DownloadPhotoTestCase::test_download_from_shared_library",
+  "tests/test_listing_libraries.py::ListingLibraryTestCase::test_listing_library"
+]

@@ -1,0 +1,13 @@
+diff --git a/Tests/feaLib/builder_test.py b/Tests/feaLib/builder_test.py
+index 875223af74..4cb9b4a1d2 100644
+--- a/Tests/feaLib/builder_test.py
++++ b/Tests/feaLib/builder_test.py
+@@ -81,7 +81,7 @@ class BuilderTest(unittest.TestCase):
+         MultipleLookupsPerGlyph MultipleLookupsPerGlyph2 GSUB_6_formats
+         GSUB_5_formats delete_glyph STAT_test STAT_test_elidedFallbackNameID
+         variable_scalar_valuerecord variable_scalar_anchor variable_conditionset
+-        variable_mark_anchor
++        variable_mark_anchor duplicate_lookup_reference
+     """.split()
+ 
+     VARFONT_AXES = [

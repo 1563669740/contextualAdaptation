@@ -1,0 +1,4 @@
+[
+  "tests/providers/test_misc.py::TestMiscProvider::test_dsv_data_columns",
+  "tests/providers/test_python.py::TestPystrFormat::test_formatter_invocation"
+]

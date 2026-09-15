@@ -1,0 +1,6 @@
+[
+  "tests/test_utils/test_formatting.py::TestNode::test_as_caption_kwargs",
+  "tests/test_utils/test_formatting.py::TestNode::test_as_poll_question_kwargs",
+  "tests/test_utils/test_formatting.py::TestNode::test_as_poll_explanation_kwargs",
+  "tests/test_utils/test_formatting.py::TestNode::test_as_as_gift_text_kwargs_kwargs"
+]

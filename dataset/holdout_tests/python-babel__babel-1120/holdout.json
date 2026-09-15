@@ -1,0 +1,29 @@
+{
+ "task_id": "python-babel__babel-1120",
+ "repo_id": "python-babel/babel",
+ "author_pseudonym": "roleA1",
+ "authored_utc": "2026-09-14T15:40:00Z",
+ "n_tests": 5,
+ "n_discriminating_tests": 4,
+ "test_file_in_patch": "tests/messages/test_holdout_task.py",
+ "behaviour_covered": [
+  "two spaced filenames on one message each keep their own comment line and line number at width=1",
+  "three locations, mixed enclosed and plain filenames, all rendered intact at width=1",
+  "byte-exact comment text for an enclosed filename and line number the benchmark does not use",
+  "locations stay intact and per-location at a comfortable width (regression guard)",
+  "the wrapping primitive never splits an enclosed filename, so isolate markers stay balanced per line"
+ ],
+ "why_not_duplicate": "The benchmark test patch asserts exactly one enclosed location at width=1 with an integer line number, i.e. a single point. These tests add: the multi-location path (2 and 3 locations, mixed enclosed/plain), a different filename and line number for an exact-text assertion, the roomy-width regression guard, and a direct assertion on babel.util.TextWrapper -- the primitive the fix actually changed. None of these assertions is present in the benchmark test.",
+ "authoring_notes": [
+  "Assertions were validated against the real behaviour of BOTH revisions before admission.",
+  "This filter removed an assertion I first expected to discriminate: at width=24 the PO layer behaves identically before and after the fix, so a test written at that width would have passed while measuring nothing.",
+  "It also surfaced a genuine limit of the fix: at narrow widths a long enclosed filename is still split by _handle_long_word, so no assertion here claims otherwise. Recording that limit is more useful than excluding the task.",
+  "One assertion initially failed on the gold patch because I omitted the '#: ' comment prefix; only executing the test revealed it."
+ ],
+ "author_attestation": {
+  "ran_no_experimental_session": true,
+  "saw_candidate_patch": false,
+  "saw_delegation_or_context_label": false,
+  "saw_issue_base_commit_and_gold_patch": true
+ }
+}

@@ -1,0 +1,217 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 9cfcc2f3fe..4e07289b00 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,9 @@
+ # [Unreleased](https://github.com/pybamm-team/PyBaMM/)
+ 
++## Bug Fixes
++
++- Updated `plot_voltage_components.py` to support both `Simulation` and `Solution` objects. Added new methods in both `Simulation` and `Solution` classes for allow the syntax `simulation.plot_voltage_components` and `solution.plot_voltage_components`. Updated `test_plot_voltage_components.py` to reflect these changes ([#3723](https://github.com/pybamm-team/PyBaMM/pull/3723)).
++
+ # [v24.1rc1](https://github.com/pybamm-team/PyBaMM/tree/v24.1rc1) - 2024-01-17
+ 
+ ## Features
+diff --git a/docs/source/examples/notebooks/getting_started/tutorial-3-basic-plotting.ipynb b/docs/source/examples/notebooks/getting_started/tutorial-3-basic-plotting.ipynb
+index 022a11e48a..7fee5435c9 100644
+--- a/docs/source/examples/notebooks/getting_started/tutorial-3-basic-plotting.ipynb
++++ b/docs/source/examples/notebooks/getting_started/tutorial-3-basic-plotting.ipynb
+@@ -828,7 +828,7 @@
+     }
+    ],
+    "source": [
+-    "pybamm.plot_voltage_components(sim_dfn.solution)"
++    "sim_dfn.plot_voltage_components()"
+    ]
+   },
+   {
+@@ -864,8 +864,8 @@
+     "# comparing voltage components for Doyle-Fuller-Newman model and Single Particle Model\n",
+     "fig, axes = plt.subplots(1, 2, figsize=(15, 6), sharey=True)\n",
+     "\n",
+-    "pybamm.plot_voltage_components(sim_dfn.solution, ax=axes.flat[0])\n",
+-    "pybamm.plot_voltage_components(sim_spm.solution, ax=axes.flat[1])\n",
++    "sim_dfn.plot_voltage_components(ax=axes.flat[0])\n",
++    "sim_spm.plot_voltage_components(ax=axes.flat[1])\n",
+     "\n",
+     "axes.flat[0].set_title(\"Doyle-Fuller-Newman Model\")\n",
+     "axes.flat[1].set_title(\"Single Particle Model\")\n",
+@@ -908,8 +908,7 @@
+       "[4] Marc Doyle, Thomas F. Fuller, and John Newman. Modeling of galvanostatic charge and discharge of the lithium/polymer/insertion cell. Journal of the Electrochemical society, 140(6):1526–1533, 1993. doi:10.1149/1.2221597.\n",
+       "[5] Charles R. Harris, K. Jarrod Millman, Stéfan J. van der Walt, Ralf Gommers, Pauli Virtanen, David Cournapeau, Eric Wieser, Julian Taylor, Sebastian Berg, Nathaniel J. Smith, and others. Array programming with NumPy. Nature, 585(7825):357–362, 2020. doi:10.1038/s41586-020-2649-2.\n",
+       "[6] Scott G. Marquis, Valentin Sulzer, Robert Timms, Colin P. Please, and S. Jon Chapman. An asymptotic derivation of a single particle model with electrolyte. Journal of The Electrochemical Society, 166(15):A3693–A3706, 2019. doi:10.1149/2.0341915jes.\n",
+-      "[7] Valentin Sulzer, Scott G. Marquis, Robert Timms, Martin Robinson, and S. Jon Chapman. Python Battery Mathematical Modelling (PyBaMM). Journal of Open Research Software, 9(1):14, 2021. doi:10.5334/jors.309.\n",
+-      "\n"
++      "[7] Valentin Sulzer, Scott G. Marquis, Robert Timms, Martin Robinson, and S. Jon Chapman. Python Battery Mathematical Modelling (PyBaMM). Journal of Open Research Software, 9(1):14, 2021. doi:10.5334/jors.309.\n"
+      ]
+     }
+    ],
+diff --git a/docs/source/examples/notebooks/plotting/plot-voltage-components.ipynb b/docs/source/examples/notebooks/plotting/plot-voltage-components.ipynb
+index bab1b8093e..be0706bbfe 100644
+--- a/docs/source/examples/notebooks/plotting/plot-voltage-components.ipynb
++++ b/docs/source/examples/notebooks/plotting/plot-voltage-components.ipynb
+@@ -179,7 +179,7 @@
+     }
+    ],
+    "source": [
+-    "pybamm.plot_voltage_components(sol, split_by_electrode=True)"
++    "sol.plot_voltage_components(split_by_electrode=True)"
+    ]
+   },
+   {
+@@ -217,7 +217,7 @@
+     }
+    ],
+    "source": [
+-    "pybamm.plot_voltage_components(sol)"
++    "sol.plot_voltage_components()"
+    ]
+   },
+   {
+@@ -254,8 +254,7 @@
+       "[6] Charles R. Harris, K. Jarrod Millman, Stéfan J. van der Walt, Ralf Gommers, Pauli Virtanen, David Cournapeau, Eric Wieser, Julian Taylor, Sebastian Berg, Nathaniel J. Smith, and others. Array programming with NumPy. Nature, 585(7825):357–362, 2020. doi:10.1038/s41586-020-2649-2.\n",
+       "[7] Peyman Mohtat, Suhak Lee, Jason B Siegel, and Anna G Stefanopoulou. Towards better estimability of electrode-specific state of health: decoding the cell expansion. Journal of Power Sources, 427:101–111, 2019.\n",
+       "[8] Valentin Sulzer, Scott G. Marquis, Robert Timms, Martin Robinson, and S. Jon Chapman. Python Battery Mathematical Modelling (PyBaMM). Journal of Open Research Software, 9(1):14, 2021. doi:10.5334/jors.309.\n",
+-      "[9] Pauli Virtanen, Ralf Gommers, Travis E. Oliphant, Matt Haberland, Tyler Reddy, David Cournapeau, Evgeni Burovski, Pearu Peterson, Warren Weckesser, Jonathan Bright, and others. SciPy 1.0: fundamental algorithms for scientific computing in Python. Nature Methods, 17(3):261–272, 2020. doi:10.1038/s41592-019-0686-2.\n",
+-      "\n"
++      "[9] Pauli Virtanen, Ralf Gommers, Travis E. Oliphant, Matt Haberland, Tyler Reddy, David Cournapeau, Evgeni Burovski, Pearu Peterson, Warren Weckesser, Jonathan Bright, and others. SciPy 1.0: fundamental algorithms for scientific computing in Python. Nature Methods, 17(3):261–272, 2020. doi:10.1038/s41592-019-0686-2.\n"
+      ]
+     }
+    ],
+diff --git a/pybamm/plotting/plot_voltage_components.py b/pybamm/plotting/plot_voltage_components.py
+index ef95f7016f..a24da57932 100644
+--- a/pybamm/plotting/plot_voltage_components.py
++++ b/pybamm/plotting/plot_voltage_components.py
+@@ -4,10 +4,12 @@
+ import numpy as np
+ 
+ from pybamm.util import have_optional_dependency
++from pybamm.simulation import Simulation
++from pybamm.solvers.solution import Solution
+ 
+ 
+ def plot_voltage_components(
+-    solution,
++    input_data,
+     ax=None,
+     show_legend=True,
+     split_by_electrode=False,
+@@ -19,8 +21,8 @@ def plot_voltage_components(
+ 
+     Parameters
+     ----------
+-    solution : :class:`pybamm.Solution`
+-        Solution object from which to extract voltage components
++    input_data : :class:`pybamm.Solution` or :class:`pybamm.Simulation`
++        Solution or Simulation object from which to extract voltage components.
+     ax : matplotlib Axis, optional
+         The axis on which to put the plot. If None, a new figure and axis is created.
+     show_legend : bool, optional
+@@ -34,6 +36,11 @@ def plot_voltage_components(
+         Keyword arguments, passed to ax.fill_between
+ 
+     """
++    # Check if the input is a Simulation and extract Solution
++    if isinstance(input_data, Simulation):
++        solution = input_data.solution
++    elif isinstance(input_data, Solution):
++        solution = input_data
+     plt = have_optional_dependency("matplotlib.pyplot")
+ 
+     # Set a default value for alpha, the opacity
+diff --git a/pybamm/simulation.py b/pybamm/simulation.py
+index 8a6150cc4e..73c8188be7 100644
+--- a/pybamm/simulation.py
++++ b/pybamm/simulation.py
+@@ -1207,6 +1207,44 @@ def save_model(
+                 """
+             )
+ 
++    def plot_voltage_components(
++        self,
++        ax=None,
++        show_legend=True,
++        split_by_electrode=False,
++        testing=False,
++        **kwargs_fill,
++    ):
++        """
++        Generate a plot showing the component overpotentials that make up the voltage
++
++        Parameters
++        ----------
++        ax : matplotlib Axis, optional
++            The axis on which to put the plot. If None, a new figure and axis is created.
++        show_legend : bool, optional
++            Whether to display the legend. Default is True.
++        split_by_electrode : bool, optional
++            Whether to show the overpotentials for the negative and positive electrodes
++            separately. Default is False.
++        testing : bool, optional
++            Whether to actually make the plot (turned off for unit tests).
++        kwargs_fill
++            Keyword arguments, passed to ax.fill_between.
++
++        """
++        if self.solution is None:
++            raise ValueError("The simulation has not been solved yet.")
++
++        return pybamm.plot_voltage_components(
++            self.solution,
++            ax=ax,
++            show_legend=show_legend,
++            split_by_electrode=split_by_electrode,
++            testing=testing,
++            **kwargs_fill,
++        )
++
+ 
+ def load_sim(filename):
+     """Load a saved simulation"""
+diff --git a/pybamm/solvers/solution.py b/pybamm/solvers/solution.py
+index 90712960cc..d481768713 100644
+--- a/pybamm/solvers/solution.py
++++ b/pybamm/solvers/solution.py
+@@ -801,6 +801,42 @@ def copy(self):
+ 
+         return new_sol
+ 
++    def plot_voltage_components(
++        self,
++        ax=None,
++        show_legend=True,
++        split_by_electrode=False,
++        testing=False,
++        **kwargs_fill,
++    ):
++        """
++        Generate a plot showing the component overpotentials that make up the voltage
++
++        Parameters
++        ----------
++        ax : matplotlib Axis, optional
++            The axis on which to put the plot. If None, a new figure and axis is created.
++        show_legend : bool, optional
++            Whether to display the legend. Default is True.
++        split_by_electrode : bool, optional
++            Whether to show the overpotentials for the negative and positive electrodes
++            separately. Default is False.
++        testing : bool, optional
++            Whether to actually make the plot (turned off for unit tests).
++        kwargs_fill
++            Keyword arguments, passed to ax.fill_between.
++
++        """
++        # Use 'self' here as the solution object
++        return pybamm.plot_voltage_components(
++            self,
++            ax=ax,
++            show_legend=show_legend,
++            split_by_electrode=split_by_electrode,
++            testing=testing,
++            **kwargs_fill,
++        )
++
+ 
+ class EmptySolution:
+     def __init__(self, termination=None, t=None):

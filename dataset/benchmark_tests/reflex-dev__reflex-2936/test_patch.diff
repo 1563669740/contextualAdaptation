@@ -1,0 +1,15 @@
+diff --git a/tests/components/typography/test_markdown.py b/tests/components/typography/test_markdown.py
+index 2d7a07537de..6aff1811067 100644
+--- a/tests/components/typography/test_markdown.py
++++ b/tests/components/typography/test_markdown.py
+@@ -14,8 +14,8 @@
+         ("h5", "Heading"),
+         ("h6", "Heading"),
+         ("p", "Text"),
+-        ("ul", "Flex"),
+-        ("ol", "Flex"),
++        ("ul", "ul"),
++        ("ol", "ol"),
+         ("li", "li"),
+         ("a", "Link"),
+         ("code", "Code"),

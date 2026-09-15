@@ -1,0 +1,32 @@
+diff --git a/conan/tools/cmake/toolchain/blocks.py b/conan/tools/cmake/toolchain/blocks.py
+index 5d1f340518d..1f4509cb0f0 100644
+--- a/conan/tools/cmake/toolchain/blocks.py
++++ b/conan/tools/cmake/toolchain/blocks.py
+@@ -1326,6 +1326,15 @@ def __getitem__(self, name):
+         return self._blocks[name]
+ 
+     def process_blocks(self):
++        blocks = self._conanfile.conf.get("tools.cmake.cmaketoolchain:enabled_blocks",
++                                          check_type=list)
++        if blocks is not None:
++            try:
++                new_blocks = OrderedDict((b, self._blocks[b]) for b in blocks)
++            except KeyError as e:
++                raise ConanException(f"Block {e} defined in tools.cmake.cmaketoolchain"
++                                     f":enabled_blocks doesn't exist in {list(self._blocks.keys())}")
++            self._blocks = new_blocks
+         result = []
+         for b in self._blocks.values():
+             content = b.get_rendered_content()
+diff --git a/conans/model/conf.py b/conans/model/conf.py
+index 49a27c3ff17..1a36d24a5f9 100644
+--- a/conans/model/conf.py
++++ b/conans/model/conf.py
+@@ -74,6 +74,7 @@
+     "tools.cmake.cmaketoolchain:toolset_cuda": "(Experimental) Path to a CUDA toolset to use, or version if installed at the system level",
+     "tools.cmake.cmaketoolchain:presets_environment": "String to define wether to add or not the environment section to the CMake presets. Empty by default, will generate the environment section in CMakePresets. Can take values: 'disabled'.",
+     "tools.cmake.cmaketoolchain:extra_variables": "Dictionary with variables to be injected in CMakeToolchain (potential override of CMakeToolchain defined variables)",
++    "tools.cmake.cmaketoolchain:enabled_blocks": "Select the specific blocks to use in the conan_toolchain.cmake",
+     "tools.cmake.cmake_layout:build_folder_vars": "Settings and Options that will produce a different build folder and different CMake presets names",
+     "tools.cmake.cmake_layout:build_folder": "(Experimental) Allow configuring the base folder of the build for local builds",
+     "tools.cmake.cmake_layout:test_folder": "(Experimental) Allow configuring the base folder of the build for test_package",

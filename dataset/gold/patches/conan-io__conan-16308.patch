@@ -1,0 +1,22 @@
+diff --git a/conans/client/graph/install_graph.py b/conans/client/graph/install_graph.py
+index 14775ab01cd..65befe30de1 100644
+--- a/conans/client/graph/install_graph.py
++++ b/conans/client/graph/install_graph.py
+@@ -66,7 +66,7 @@ def add(self, node):
+     def _build_args(self):
+         if self.binary != BINARY_BUILD:
+             return None
+-        cmd = f"--require={self.ref}" if self.context == "host" else f"--tool-require={self.ref}"
++        cmd = f"--requires={self.ref}" if self.context == "host" else f"--tool-requires={self.ref}"
+         cmd += f" --build={self.ref}"
+         if self.options:
+             cmd += " " + " ".join(f"-o {o}" for o in self.options)
+@@ -272,7 +272,7 @@ def add(self, node):
+     def _build_args(self):
+         if self.binary != BINARY_BUILD:
+             return None
+-        cmd = f"--require={self.ref}" if self.context == "host" else f"--tool-require={self.ref}"
++        cmd = f"--requires={self.ref}" if self.context == "host" else f"--tool-requires={self.ref}"
+         cmd += f" --build={self.ref}"
+         if self.options:
+             cmd += " " + " ".join(f"-o {o}" for o in self.options)

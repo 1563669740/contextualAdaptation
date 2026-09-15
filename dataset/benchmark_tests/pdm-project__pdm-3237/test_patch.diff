@@ -1,0 +1,12 @@
+diff --git a/tests/cli/test_build.py b/tests/cli/test_build.py
+index cef49baa93..6c47c00295 100644
+--- a/tests/cli/test_build.py
++++ b/tests/cli/test_build.py
+@@ -30,6 +30,7 @@ def test_build_command(project, pdm, mocker):
+         wheel=True,
+         dest=mock.ANY,
+         clean=True,
++        verbose=0,
+         hooks=mock.ANY,
+     )
+     assert project.core.state.config_settings == {"a": "1", "b": "2"}

@@ -1,0 +1,944 @@
+diff --git a/.circleci/config.yml b/.circleci/config.yml
+index 4c1d01c497d..823ebb6309f 100644
+--- a/.circleci/config.yml
++++ b/.circleci/config.yml
+@@ -272,7 +272,7 @@ jobs:
+   # Misc
+   coverage:
+     docker:
+-      - image: circleci/python:3.7
++      - image: circleci/python:3.8
+     steps:
+       - checkout
+       - run: sudo pip install nox --progress-bar off
+@@ -287,19 +287,19 @@ workflows:
+       - test_macos:
+           matrix:
+             parameters:
+-              py_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
++              py_version: ["3.8", "3.9", "3.10", "3.11"]
+       - test_linux:
+           matrix:
+             parameters:
+-              py_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
++              py_version: ["3.8", "3.9", "3.10", "3.11"]
+       - test_win:
+           matrix:
+             parameters:
+-              py_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
++              py_version: ["3.8", "3.9", "3.10", "3.11"]
+       - test_linux_omc_dev:
+           matrix:
+             parameters:
+-              py_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
++              py_version: ["3.8", "3.9", "3.10", "3.11"]
+ 
+ 
+   plugin_tests:
+@@ -308,17 +308,17 @@ workflows:
+       - test_plugin_linux:
+           matrix:
+             parameters:
+-              py_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
++              py_version: ["3.8", "3.9", "3.10", "3.11"]
+               test_plugin: [<< pipeline.parameters.test_plugins >>]
+       - test_plugin_macos:
+           matrix:
+             parameters:
+-              py_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
++              py_version: ["3.8", "3.9", "3.10", "3.11"]
+               test_plugin: [<< pipeline.parameters.test_plugins >>]
+       - test_plugin_win:
+           matrix:
+             parameters:
+-              py_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
++              py_version: ["3.8", "3.9", "3.10", "3.11"]
+               test_plugin: [<< pipeline.parameters.test_plugins >>]
+ 
+ 
+diff --git a/.flake8 b/.flake8
+index 76ad5322981..c1ea2be8e02 100644
+--- a/.flake8
++++ b/.flake8
+@@ -19,4 +19,4 @@ max-line-length = 119
+ copyright-check = True
+ select = E,F,W,C
+ copyright-regexp=Copyright \(c\) Facebook, Inc. and its affiliates. All Rights Reserved
+-ignore=W503,E203
++ignore=W503,E203,E701,E704
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index a0a3d624af2..82fa2715179 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -1,6 +1,6 @@
+ repos:
+   - repo: https://github.com/pycqa/isort
+-    rev: 5.12.0
++    rev: 5.13.2
+     hooks:
+       - id: isort
+         files: 'hydra/.*'
+@@ -10,7 +10,7 @@ repos:
+         files: 'tools/.*'
+ 
+   - repo: https://github.com/psf/black
+-    rev: 23.1.0
++    rev: 24.2.0
+     hooks:
+       - id: black
+ 
+@@ -20,7 +20,7 @@ repos:
+       - id: flake8
+ 
+   - repo: https://github.com/adrienverge/yamllint.git
+-    rev: v1.30.0
++    rev: v1.35.1
+     hooks:
+       - id: yamllint
+         args: [-c=.yamllint, --strict]
+diff --git a/examples/instantiate/object/my_app.py b/examples/instantiate/object/my_app.py
+index 593be34bed1..4917d7f5eac 100644
+--- a/examples/instantiate/object/my_app.py
++++ b/examples/instantiate/object/my_app.py
+@@ -6,8 +6,7 @@
+ 
+ 
+ class DBConnection:
+-    def connect(self) -> None:
+-        ...
++    def connect(self) -> None: ...
+ 
+ 
+ class MySQLConnection(DBConnection):
+diff --git a/examples/plugins/example_configsource_plugin/setup.py b/examples/plugins/example_configsource_plugin/setup.py
+index 2cf5620221f..5e59ac71d59 100644
+--- a/examples/plugins/example_configsource_plugin/setup.py
++++ b/examples/plugins/example_configsource_plugin/setup.py
+@@ -19,7 +19,6 @@
+             "License :: OSI Approved :: MIT License",
+             # Hydra uses Python version and Operating system to determine
+             # In which environments to test this plugin
+-            "Programming Language :: Python :: 3.7",
+             "Programming Language :: Python :: 3.8",
+             "Programming Language :: Python :: 3.9",
+             "Programming Language :: Python :: 3.10",
+diff --git a/examples/plugins/example_generic_plugin/setup.py b/examples/plugins/example_generic_plugin/setup.py
+index 2cb9ca71d83..7ba49b5f4c4 100644
+--- a/examples/plugins/example_generic_plugin/setup.py
++++ b/examples/plugins/example_generic_plugin/setup.py
+@@ -19,7 +19,6 @@
+             "License :: OSI Approved :: MIT License",
+             # Hydra uses Python version and Operating system to determine
+             # In which environments to test this plugin
+-            "Programming Language :: Python :: 3.7",
+             "Programming Language :: Python :: 3.8",
+             "Programming Language :: Python :: 3.9",
+             "Programming Language :: Python :: 3.10",
+diff --git a/examples/plugins/example_launcher_plugin/setup.py b/examples/plugins/example_launcher_plugin/setup.py
+index b5febbdd2aa..aa8c0edb0c3 100644
+--- a/examples/plugins/example_launcher_plugin/setup.py
++++ b/examples/plugins/example_launcher_plugin/setup.py
+@@ -19,7 +19,6 @@
+             "License :: OSI Approved :: MIT License",
+             # Hydra uses Python version and Operating system to determine
+             # In which environments to test this plugin
+-            "Programming Language :: Python :: 3.7",
+             "Programming Language :: Python :: 3.8",
+             "Programming Language :: Python :: 3.9",
+             "Programming Language :: Python :: 3.10",
+diff --git a/examples/plugins/example_registered_plugin/setup.py b/examples/plugins/example_registered_plugin/setup.py
+index 0a3f18b1524..3b10d501790 100644
+--- a/examples/plugins/example_registered_plugin/setup.py
++++ b/examples/plugins/example_registered_plugin/setup.py
+@@ -19,7 +19,6 @@
+         "License :: OSI Approved :: MIT License",
+         # Hydra uses Python version and Operating system to determine
+         # In which environments to test this plugin
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/examples/plugins/example_searchpath_plugin/setup.py b/examples/plugins/example_searchpath_plugin/setup.py
+index 432d3aaf49a..76314772a63 100644
+--- a/examples/plugins/example_searchpath_plugin/setup.py
++++ b/examples/plugins/example_searchpath_plugin/setup.py
+@@ -21,7 +21,6 @@
+             "License :: OSI Approved :: MIT License",
+             # Hydra uses Python version and Operating system to determine
+             # In which environments to test this plugin
+-            "Programming Language :: Python :: 3.7",
+             "Programming Language :: Python :: 3.8",
+             "Programming Language :: Python :: 3.9",
+             "Programming Language :: Python :: 3.10",
+diff --git a/examples/plugins/example_sweeper_plugin/setup.py b/examples/plugins/example_sweeper_plugin/setup.py
+index 691b449a88b..b77e99af7b4 100644
+--- a/examples/plugins/example_sweeper_plugin/setup.py
++++ b/examples/plugins/example_sweeper_plugin/setup.py
+@@ -19,7 +19,6 @@
+             "License :: OSI Approved :: MIT License",
+             # Hydra uses Python version and Operating system to determine
+             # In which environments to test this plugin
+-            "Programming Language :: Python :: 3.7",
+             "Programming Language :: Python :: 3.8",
+             "Programming Language :: Python :: 3.9",
+             "Programming Language :: Python :: 3.10",
+diff --git a/hydra/__init__.py b/hydra/__init__.py
+index eb8714a405d..dc809776b48 100644
+--- a/hydra/__init__.py
++++ b/hydra/__init__.py
+@@ -1,7 +1,7 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+ # Source of truth for Hydra's version
+-__version__ = "1.4.0.dev0"
++__version__ = "1.4.0.dev1"
+ from hydra import utils
+ from hydra.errors import MissingConfigException
+ from hydra.main import main
+diff --git a/hydra/_internal/config_repository.py b/hydra/_internal/config_repository.py
+index 3beb5e43238..fdfcdba9717 100644
+--- a/hydra/_internal/config_repository.py
++++ b/hydra/_internal/config_repository.py
+@@ -27,34 +27,27 @@
+ 
+ class IConfigRepository(ABC):
+     @abstractmethod
+-    def get_schema_source(self) -> ConfigSource:
+-        ...
++    def get_schema_source(self) -> ConfigSource: ...
+ 
+     @abstractmethod
+-    def load_config(self, config_path: str) -> Optional[ConfigResult]:
+-        ...
++    def load_config(self, config_path: str) -> Optional[ConfigResult]: ...
+ 
+     @abstractmethod
+-    def group_exists(self, config_path: str) -> bool:
+-        ...
++    def group_exists(self, config_path: str) -> bool: ...
+ 
+     @abstractmethod
+-    def config_exists(self, config_path: str) -> bool:
+-        ...
++    def config_exists(self, config_path: str) -> bool: ...
+ 
+     @abstractmethod
+     def get_group_options(
+         self, group_name: str, results_filter: Optional[ObjectType] = ObjectType.CONFIG
+-    ) -> List[str]:
+-        ...
++    ) -> List[str]: ...
+ 
+     @abstractmethod
+-    def get_sources(self) -> List[ConfigSource]:
+-        ...
++    def get_sources(self) -> List[ConfigSource]: ...
+ 
+     @abstractmethod
+-    def initialize_sources(self, config_search_path: ConfigSearchPath) -> None:
+-        ...
++    def initialize_sources(self, config_search_path: ConfigSearchPath) -> None: ...
+ 
+ 
+ class ConfigRepository(IConfigRepository):
+diff --git a/hydra/_internal/core_plugins/importlib_resources_config_source.py b/hydra/_internal/core_plugins/importlib_resources_config_source.py
+index efd894bfc3b..9fcecfcd3a7 100644
+--- a/hydra/_internal/core_plugins/importlib_resources_config_source.py
++++ b/hydra/_internal/core_plugins/importlib_resources_config_source.py
+@@ -30,7 +30,7 @@ def scheme() -> str:
+ 
+     def _read_config(self, res: Any) -> ConfigResult:
+         try:
+-            if sys.version_info[0:2] >= (3, 8) and isinstance(res, zipfile.Path):
++            if isinstance(res, zipfile.Path):
+                 # zipfile does not support encoding, read() calls returns bytes.
+                 f = res.open()
+             else:
+@@ -38,8 +38,10 @@ def _read_config(self, res: Any) -> ConfigResult:
+             header_text = f.read(512)
+             if isinstance(header_text, bytes):
+                 # if header is bytes, utf-8 decode (zipfile path)
+-                header_text = header_text.decode("utf-8")
+-            header = ConfigSource._get_header_dict(header_text)
++                header_text_str = header_text.decode("utf-8")
++            else:
++                header_text_str = header_text
++            header = ConfigSource._get_header_dict(header_text_str)
+             f.seek(0)
+             cfg = OmegaConf.load(f)
+             return ConfigResult(
+diff --git a/hydra/core/config_loader.py b/hydra/core/config_loader.py
+index 38ccf174794..3ee6914062f 100644
+--- a/hydra/core/config_loader.py
++++ b/hydra/core/config_loader.py
+@@ -23,26 +23,21 @@ def load_configuration(
+         run_mode: RunMode,
+         from_shell: bool = True,
+         validate_sweep_overrides: bool = True,
+-    ) -> DictConfig:
+-        ...
++    ) -> DictConfig: ...
+ 
+     @abstractmethod
+     def load_sweep_config(
+         self, master_config: DictConfig, sweep_overrides: List[str]
+-    ) -> DictConfig:
+-        ...
++    ) -> DictConfig: ...
+ 
+     @abstractmethod
+-    def get_search_path(self) -> ConfigSearchPath:
+-        ...
++    def get_search_path(self) -> ConfigSearchPath: ...
+ 
+     @abstractmethod
+-    def get_sources(self) -> List[ConfigSource]:
+-        ...
++    def get_sources(self) -> List[ConfigSource]: ...
+ 
+     @abstractmethod
+-    def list_groups(self, parent_name: str) -> List[str]:
+-        ...
++    def list_groups(self, parent_name: str) -> List[str]: ...
+ 
+     @abstractmethod
+     def get_group_options(
+@@ -51,8 +46,7 @@ def get_group_options(
+         results_filter: Optional[ObjectType] = ObjectType.CONFIG,
+         config_name: Optional[str] = None,
+         overrides: Optional[List[str]] = None,
+-    ) -> List[str]:
+-        ...
++    ) -> List[str]: ...
+ 
+     @abstractmethod
+     def compute_defaults_list(
+@@ -60,5 +54,4 @@ def compute_defaults_list(
+         config_name: Optional[str],
+         overrides: List[str],
+         run_mode: RunMode,
+-    ) -> Any:
+-        ...
++    ) -> Any: ...
+diff --git a/hydra/core/config_search_path.py b/hydra/core/config_search_path.py
+index dd43a08499a..9fdac86127f 100644
+--- a/hydra/core/config_search_path.py
++++ b/hydra/core/config_search_path.py
+@@ -28,8 +28,7 @@ class SearchPathQuery:
+ 
+ class ConfigSearchPath(ABC):
+     @abstractmethod
+-    def get_path(self) -> MutableSequence[SearchPathElement]:
+-        ...
++    def get_path(self) -> MutableSequence[SearchPathElement]: ...
+ 
+     @abstractmethod
+     def append(
+diff --git a/hydra/core/config_store.py b/hydra/core/config_store.py
+index 3e73f469101..15e634a608e 100644
+--- a/hydra/core/config_store.py
++++ b/hydra/core/config_store.py
+@@ -28,8 +28,7 @@ def store(
+             group=group, name=name, node=node, package=package, provider=self.provider
+         )
+ 
+-    def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Any:
+-        ...
++    def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Any: ...
+ 
+ 
+ @dataclass
+diff --git a/hydra/errors.py b/hydra/errors.py
+index 15cef9c72e7..81341887707 100644
+--- a/hydra/errors.py
++++ b/hydra/errors.py
+@@ -2,12 +2,10 @@
+ from typing import Optional, Sequence
+ 
+ 
+-class HydraException(Exception):
+-    ...
++class HydraException(Exception): ...
+ 
+ 
+-class CompactHydraException(HydraException):
+-    ...
++class CompactHydraException(HydraException): ...
+ 
+ 
+ class OverrideParseException(CompactHydraException):
+@@ -17,16 +15,13 @@ def __init__(self, override: str, message: str) -> None:
+         self.message = message
+ 
+ 
+-class InstantiationException(CompactHydraException):
+-    ...
++class InstantiationException(CompactHydraException): ...
+ 
+ 
+-class ConfigCompositionException(CompactHydraException):
+-    ...
++class ConfigCompositionException(CompactHydraException): ...
+ 
+ 
+-class SearchPathException(CompactHydraException):
+-    ...
++class SearchPathException(CompactHydraException): ...
+ 
+ 
+ class MissingConfigException(IOError, ConfigCompositionException):
+@@ -41,5 +36,4 @@ def __init__(
+         self.options = options
+ 
+ 
+-class HydraDeprecationError(HydraException):
+-    ...
++class HydraDeprecationError(HydraException): ...
+diff --git a/hydra/experimental/initialize.py b/hydra/experimental/initialize.py
+index 444187191b6..a53f3272408 100644
+--- a/hydra/experimental/initialize.py
++++ b/hydra/experimental/initialize.py
+@@ -46,6 +46,7 @@ def __init__(
+             config_path=config_path,
+             job_name=job_name,
+             caller_stack_depth=caller_stack_depth + 1,
++            version_base=str(version.getbase()),
+         )
+ 
+     def __enter__(self, *args: Any, **kwargs: Any) -> None:
+@@ -80,7 +81,9 @@ def __init__(self, config_module: str, job_name: str = "app") -> None:
+         deprecation_warning(message=message)
+ 
+         self.delegate = real_initialize_config_module(
+-            config_module=config_module, job_name=job_name
++            config_module=config_module,
++            job_name=job_name,
++            version_base=str(version.getbase()),
+         )
+ 
+     def __enter__(self, *args: Any, **kwargs: Any) -> None:
+@@ -116,7 +119,9 @@ def __init__(self, config_dir: str, job_name: str = "app") -> None:
+         deprecation_warning(message=message)
+ 
+         self.delegate = real_initialize_config_dir(
+-            config_dir=config_dir, job_name=job_name
++            config_dir=config_dir,
++            job_name=job_name,
++            version_base=str(version.getbase()),
+         )
+ 
+     def __enter__(self, *args: Any, **kwargs: Any) -> None:
+diff --git a/hydra/initialize.py b/hydra/initialize.py
+index 7f8110db189..26a0cf8ae5a 100644
+--- a/hydra/initialize.py
++++ b/hydra/initialize.py
+@@ -95,8 +95,7 @@ def __init__(
+             job_name=job_name,
+         )
+ 
+-    def __enter__(self, *args: Any, **kwargs: Any) -> None:
+-        ...
++    def __enter__(self, *args: Any, **kwargs: Any) -> None: ...
+ 
+     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+         restore_gh_from_backup(self._gh_backup)
+@@ -130,8 +129,7 @@ def __init__(
+             job_name=job_name,
+         )
+ 
+-    def __enter__(self, *args: Any, **kwargs: Any) -> None:
+-        ...
++    def __enter__(self, *args: Any, **kwargs: Any) -> None: ...
+ 
+     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+         restore_gh_from_backup(self._gh_backup)
+@@ -169,8 +167,7 @@ def __init__(
+         csp = create_config_search_path(search_path_dir=config_dir)
+         Hydra.create_main_hydra2(task_name=job_name, config_search_path=csp)
+ 
+-    def __enter__(self, *args: Any, **kwargs: Any) -> None:
+-        ...
++    def __enter__(self, *args: Any, **kwargs: Any) -> None: ...
+ 
+     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+         restore_gh_from_backup(self._gh_backup)
+diff --git a/hydra/plugins/completion_plugin.py b/hydra/plugins/completion_plugin.py
+index 65b26b96b7a..8bc6138ef04 100644
+--- a/hydra/plugins/completion_plugin.py
++++ b/hydra/plugins/completion_plugin.py
+@@ -31,12 +31,10 @@ def __init__(self, config_loader: ConfigLoader) -> None:
+         self.config_loader = config_loader
+ 
+     @abstractmethod
+-    def install(self) -> None:
+-        ...
++    def install(self) -> None: ...
+ 
+     @abstractmethod
+-    def uninstall(self) -> None:
+-        ...
++    def uninstall(self) -> None: ...
+ 
+     @staticmethod
+     @abstractmethod
+@@ -47,8 +45,7 @@ def provides() -> str:
+         ...
+ 
+     @abstractmethod
+-    def query(self, config_name: Optional[str]) -> None:
+-        ...
++    def query(self, config_name: Optional[str]) -> None: ...
+ 
+     @staticmethod
+     @abstractmethod
+diff --git a/hydra/plugins/config_source.py b/hydra/plugins/config_source.py
+index 0cef6c13007..182a3ec48a1 100644
+--- a/hydra/plugins/config_source.py
++++ b/hydra/plugins/config_source.py
+@@ -47,20 +47,17 @@ def scheme() -> str:
+         ...
+ 
+     @abstractmethod
+-    def load_config(self, config_path: str) -> ConfigResult:
+-        ...
++    def load_config(self, config_path: str) -> ConfigResult: ...
+ 
+     # subclasses may override to improve performance
+     def exists(self, config_path: str) -> bool:
+         return self.is_group(config_path) or self.is_config(config_path)
+ 
+     @abstractmethod
+-    def is_group(self, config_path: str) -> bool:
+-        ...
++    def is_group(self, config_path: str) -> bool: ...
+ 
+     @abstractmethod
+-    def is_config(self, config_path: str) -> bool:
+-        ...
++    def is_config(self, config_path: str) -> bool: ...
+ 
+     @abstractmethod
+     def available(self) -> bool:
+diff --git a/hydra/plugins/plugin.py b/hydra/plugins/plugin.py
+index 66f390a70f7..2f6d778ee68 100644
+--- a/hydra/plugins/plugin.py
++++ b/hydra/plugins/plugin.py
+@@ -2,5 +2,4 @@
+ from abc import ABC
+ 
+ 
+-class Plugin(ABC):
+-    ...
++class Plugin(ABC): ...
+diff --git a/hydra/plugins/search_path_plugin.py b/hydra/plugins/search_path_plugin.py
+index 28d2cfc8978..4e5effd36d4 100644
+--- a/hydra/plugins/search_path_plugin.py
++++ b/hydra/plugins/search_path_plugin.py
+@@ -8,5 +8,4 @@
+ 
+ class SearchPathPlugin(Plugin):
+     @abstractmethod
+-    def manipulate_search_path(self, search_path: ConfigSearchPath) -> None:
+-        ...
++    def manipulate_search_path(self, search_path: ConfigSearchPath) -> None: ...
+diff --git a/hydra/version.py b/hydra/version.py
+index 2b1922acc98..6b03bbe036b 100644
+--- a/hydra/version.py
++++ b/hydra/version.py
+@@ -60,6 +60,10 @@ def getbase() -> Optional[Version]:
+ 
+ 
+ def setbase(ver: Any) -> None:
++    """
++    Set the `version_base` parameter, which is used to support backward compatibility
++    with older versions of Hydra.
++    """
+     if type(ver) is type(_UNSPECIFIED_):
+         deprecation_warning(
+             message=dedent(
+diff --git a/news/2852.api_change b/news/2852.api_change
+new file mode 100644
+index 00000000000..83c15e815f0
+--- /dev/null
++++ b/news/2852.api_change
+@@ -0,0 +1,1 @@
++Python 3.7 is not supported anymore: Hydra now requires Python 3.8+
+diff --git a/noxfile.py b/noxfile.py
+index 693717dfe59..30a27a1f1cd 100644
+--- a/noxfile.py
++++ b/noxfile.py
+@@ -15,7 +15,7 @@
+ 
+ BASE = os.path.abspath(os.path.dirname(__file__))
+ 
+-DEFAULT_PYTHON_VERSIONS = ["3.7", "3.8", "3.9", "3.10", "3.11"]
++DEFAULT_PYTHON_VERSIONS = ["3.8", "3.9", "3.10", "3.11"]
+ DEFAULT_OS_NAMES = ["Linux", "MacOS", "Windows"]
+ 
+ PYTHON_VERSIONS = os.environ.get(
+@@ -308,7 +308,7 @@ def _isort_cmd() -> List[str]:
+     return isort
+ 
+ 
+-def _mypy_cmd(strict: bool, python_version: Optional[str] = "3.7") -> List[str]:
++def _mypy_cmd(strict: bool, python_version: Optional[str] = "3.8") -> List[str]:
+     mypy = [
+         "mypy",
+         "--install-types",
+@@ -325,8 +325,6 @@ def _mypy_cmd(strict: bool, python_version: Optional[str] = "3.7") -> List[str]:
+ 
+ @nox.session(python=PYTHON_VERSIONS)  # type: ignore
+ def lint(session: Session) -> None:
+-    if session_python_as_tuple(session) <= (3, 6):
+-        session.skip(f"Skipping session {session.name} as python >= 3.7 is required")
+     _upgrade_basic(session)
+     install_dev_deps(session)
+     install_hydra(session, ["pip", "install", "-e"])
+@@ -416,8 +414,6 @@ def lint_plugins_in_dir(session: Session, directory: str) -> None:
+ @nox.session(python=PYTHON_VERSIONS)  # type: ignore
+ @nox.parametrize("plugin", list_plugins("plugins"), ids=[p.name for p in list_plugins("plugins")])  # type: ignore
+ def lint_plugins(session: Session, plugin: Plugin) -> None:
+-    if session_python_as_tuple(session) <= (3, 6):
+-        session.skip(f"Skipping session {session.name} as python >= 3.7 is required")
+     if not is_plugin_compatible(session, plugin):
+         session.skip(f"Skipping session {session.name}")
+     _upgrade_basic(session)
+diff --git a/plugins/hydra_ax_sweeper/hydra_plugins/hydra_ax_sweeper/__init__.py b/plugins/hydra_ax_sweeper/hydra_plugins/hydra_ax_sweeper/__init__.py
+index e42a13578a7..fd82c62bf8c 100644
+--- a/plugins/hydra_ax_sweeper/hydra_plugins/hydra_ax_sweeper/__init__.py
++++ b/plugins/hydra_ax_sweeper/hydra_plugins/hydra_ax_sweeper/__init__.py
+@@ -1,3 +1,3 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+-__version__ = "1.3.0.dev0"
++__version__ = "1.4.0.dev0"
+diff --git a/plugins/hydra_ax_sweeper/setup.py b/plugins/hydra_ax_sweeper/setup.py
+index 3f668c5c3f9..9258b5898aa 100644
+--- a/plugins/hydra_ax_sweeper/setup.py
++++ b/plugins/hydra_ax_sweeper/setup.py
+@@ -17,7 +17,6 @@
+     packages=find_namespace_packages(include=["hydra_plugins.*"]),
+     classifiers=[
+         "License :: OSI Approved :: MIT License",
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/plugins/hydra_colorlog/hydra_plugins/hydra_colorlog/__init__.py b/plugins/hydra_colorlog/hydra_plugins/hydra_colorlog/__init__.py
+index e42a13578a7..fd82c62bf8c 100644
+--- a/plugins/hydra_colorlog/hydra_plugins/hydra_colorlog/__init__.py
++++ b/plugins/hydra_colorlog/hydra_plugins/hydra_colorlog/__init__.py
+@@ -1,3 +1,3 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+-__version__ = "1.3.0.dev0"
++__version__ = "1.4.0.dev0"
+diff --git a/plugins/hydra_colorlog/setup.py b/plugins/hydra_colorlog/setup.py
+index f47f6e0283a..ecc7ef1723e 100644
+--- a/plugins/hydra_colorlog/setup.py
++++ b/plugins/hydra_colorlog/setup.py
+@@ -17,7 +17,6 @@
+     packages=find_namespace_packages(include=["hydra_plugins.*"]),
+     classifiers=[
+         "License :: OSI Approved :: MIT License",
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/plugins/hydra_joblib_launcher/hydra_plugins/hydra_joblib_launcher/__init__.py b/plugins/hydra_joblib_launcher/hydra_plugins/hydra_joblib_launcher/__init__.py
+index e42a13578a7..fd82c62bf8c 100644
+--- a/plugins/hydra_joblib_launcher/hydra_plugins/hydra_joblib_launcher/__init__.py
++++ b/plugins/hydra_joblib_launcher/hydra_plugins/hydra_joblib_launcher/__init__.py
+@@ -1,3 +1,3 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+-__version__ = "1.3.0.dev0"
++__version__ = "1.4.0.dev0"
+diff --git a/plugins/hydra_joblib_launcher/setup.py b/plugins/hydra_joblib_launcher/setup.py
+index 4590900afeb..6e28c61d851 100644
+--- a/plugins/hydra_joblib_launcher/setup.py
++++ b/plugins/hydra_joblib_launcher/setup.py
+@@ -17,7 +17,6 @@
+     packages=find_namespace_packages(include=["hydra_plugins.*"]),
+     classifiers=[
+         "License :: OSI Approved :: MIT License",
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/plugins/hydra_nevergrad_sweeper/hydra_plugins/hydra_nevergrad_sweeper/__init__.py b/plugins/hydra_nevergrad_sweeper/hydra_plugins/hydra_nevergrad_sweeper/__init__.py
+index e42a13578a7..fd82c62bf8c 100644
+--- a/plugins/hydra_nevergrad_sweeper/hydra_plugins/hydra_nevergrad_sweeper/__init__.py
++++ b/plugins/hydra_nevergrad_sweeper/hydra_plugins/hydra_nevergrad_sweeper/__init__.py
+@@ -1,3 +1,3 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+-__version__ = "1.3.0.dev0"
++__version__ = "1.4.0.dev0"
+diff --git a/plugins/hydra_nevergrad_sweeper/hydra_plugins/hydra_nevergrad_sweeper/_impl.py b/plugins/hydra_nevergrad_sweeper/hydra_plugins/hydra_nevergrad_sweeper/_impl.py
+index 37329424a1f..f3c14b1e8c4 100644
+--- a/plugins/hydra_nevergrad_sweeper/hydra_plugins/hydra_nevergrad_sweeper/_impl.py
++++ b/plugins/hydra_nevergrad_sweeper/hydra_plugins/hydra_nevergrad_sweeper/_impl.py
+@@ -129,9 +129,9 @@ def sweep(self, arguments: List[str]) -> None:
+         parsed = parser.parse_overrides(arguments)
+ 
+         for override in parsed:
+-            params[
+-                override.get_key_element()
+-            ] = create_nevergrad_parameter_from_override(override)
++            params[override.get_key_element()] = (
++                create_nevergrad_parameter_from_override(override)
++            )
+ 
+         parametrization = ng.p.Dict(**params)
+         parametrization.function.deterministic = not self.opt_config.noisy
+diff --git a/plugins/hydra_nevergrad_sweeper/setup.py b/plugins/hydra_nevergrad_sweeper/setup.py
+index c2da76bd51c..534d1836d55 100644
+--- a/plugins/hydra_nevergrad_sweeper/setup.py
++++ b/plugins/hydra_nevergrad_sweeper/setup.py
+@@ -17,7 +17,6 @@
+     packages=find_namespace_packages(include=["hydra_plugins.*"]),
+     classifiers=[
+         "License :: OSI Approved :: MIT License",
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/plugins/hydra_optuna_sweeper/hydra_plugins/hydra_optuna_sweeper/__init__.py b/plugins/hydra_optuna_sweeper/hydra_plugins/hydra_optuna_sweeper/__init__.py
+index e42a13578a7..fd82c62bf8c 100644
+--- a/plugins/hydra_optuna_sweeper/hydra_plugins/hydra_optuna_sweeper/__init__.py
++++ b/plugins/hydra_optuna_sweeper/hydra_plugins/hydra_optuna_sweeper/__init__.py
+@@ -1,3 +1,3 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+-__version__ = "1.3.0.dev0"
++__version__ = "1.4.0.dev0"
+diff --git a/plugins/hydra_optuna_sweeper/setup.py b/plugins/hydra_optuna_sweeper/setup.py
+index 4d735c99446..2e776719bea 100644
+--- a/plugins/hydra_optuna_sweeper/setup.py
++++ b/plugins/hydra_optuna_sweeper/setup.py
+@@ -17,7 +17,6 @@
+     packages=find_namespace_packages(include=["hydra_plugins.*"]),
+     classifiers=[
+         "License :: OSI Approved :: MIT License",
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/plugins/hydra_ray_launcher/hydra_plugins/hydra_ray_launcher/__init__.py b/plugins/hydra_ray_launcher/hydra_plugins/hydra_ray_launcher/__init__.py
+index 02852fe4346..fd82c62bf8c 100644
+--- a/plugins/hydra_ray_launcher/hydra_plugins/hydra_ray_launcher/__init__.py
++++ b/plugins/hydra_ray_launcher/hydra_plugins/hydra_ray_launcher/__init__.py
+@@ -1,3 +1,3 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+-__version__ = "1.2.1"
++__version__ = "1.4.0.dev0"
+diff --git a/plugins/hydra_ray_launcher/setup.py b/plugins/hydra_ray_launcher/setup.py
+index 54e493e6d44..899bd7746a2 100644
+--- a/plugins/hydra_ray_launcher/setup.py
++++ b/plugins/hydra_ray_launcher/setup.py
+@@ -17,7 +17,6 @@
+     packages=find_namespace_packages(include=["hydra_plugins.*"]),
+     classifiers=[
+         "License :: OSI Approved :: MIT License",
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/plugins/hydra_rq_launcher/hydra_plugins/hydra_rq_launcher/__init__.py b/plugins/hydra_rq_launcher/hydra_plugins/hydra_rq_launcher/__init__.py
+index e42a13578a7..fd82c62bf8c 100644
+--- a/plugins/hydra_rq_launcher/hydra_plugins/hydra_rq_launcher/__init__.py
++++ b/plugins/hydra_rq_launcher/hydra_plugins/hydra_rq_launcher/__init__.py
+@@ -1,3 +1,3 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+-__version__ = "1.3.0.dev0"
++__version__ = "1.4.0.dev0"
+diff --git a/plugins/hydra_rq_launcher/setup.py b/plugins/hydra_rq_launcher/setup.py
+index b3881755914..9889420c4da 100644
+--- a/plugins/hydra_rq_launcher/setup.py
++++ b/plugins/hydra_rq_launcher/setup.py
+@@ -17,7 +17,6 @@
+     packages=find_namespace_packages(include=["hydra_plugins.*"]),
+     classifiers=[
+         "License :: OSI Approved :: MIT License",
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/plugins/hydra_submitit_launcher/hydra_plugins/hydra_submitit_launcher/__init__.py b/plugins/hydra_submitit_launcher/hydra_plugins/hydra_submitit_launcher/__init__.py
+index e42a13578a7..fd82c62bf8c 100644
+--- a/plugins/hydra_submitit_launcher/hydra_plugins/hydra_submitit_launcher/__init__.py
++++ b/plugins/hydra_submitit_launcher/hydra_plugins/hydra_submitit_launcher/__init__.py
+@@ -1,3 +1,3 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+ 
+-__version__ = "1.3.0.dev0"
++__version__ = "1.4.0.dev0"
+diff --git a/plugins/hydra_submitit_launcher/setup.py b/plugins/hydra_submitit_launcher/setup.py
+index 1752855f937..e9daae5c741 100644
+--- a/plugins/hydra_submitit_launcher/setup.py
++++ b/plugins/hydra_submitit_launcher/setup.py
+@@ -17,7 +17,6 @@
+     packages=find_namespace_packages(include=["hydra_plugins.*"]),
+     classifiers=[
+         "License :: OSI Approved :: MIT License",
+-        "Programming Language :: Python :: 3.7",
+         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.9",
+         "Programming Language :: Python :: 3.10",
+diff --git a/requirements/dev.txt b/requirements/dev.txt
+index d93d0295e9a..a99a52bd990 100644
+--- a/requirements/dev.txt
++++ b/requirements/dev.txt
+@@ -1,13 +1,12 @@
+ -r requirements.txt
+ bandit
+-black>=22.1.0
++black==24.2.0
+ build
+ coverage
+-flake8<6  # pinned due to https://github.com/savoirfairelinux/flake8-copyright/issues/19
++flake8==6.0.0
+ flake8-copyright
+-importlib-metadata<5.0; python_version <= '3.7'
+-isort==5.5.2
+-mypy
++isort==5.13.2
++mypy==1.8.0
+ nox
+ packaging
+ pre-commit
+diff --git a/setup.py b/setup.py
+index 2987a743b3c..bfd480e60c2 100644
+--- a/setup.py
++++ b/setup.py
+@@ -46,7 +46,6 @@
+         classifiers=[
+             "License :: OSI Approved :: MIT License",
+             "Development Status :: 4 - Beta",
+-            "Programming Language :: Python :: 3.7",
+             "Programming Language :: Python :: 3.8",
+             "Programming Language :: Python :: 3.9",
+             "Programming Language :: Python :: 3.10",
+diff --git a/tools/configen/configen/configen.py b/tools/configen/configen/configen.py
+index c553dad357b..eb4d924b07c 100644
+--- a/tools/configen/configen/configen.py
++++ b/tools/configen/configen/configen.py
+@@ -22,6 +22,7 @@
+     is_list_annotation,
+     is_structured_config,
+     is_union_annotation,
++    type_str,
+ )
+ 
+ from configen.config import Config, ConfigenConf, ModuleConf
+@@ -29,7 +30,6 @@
+     collect_imports,
+     convert_imports,
+     is_tuple_annotation,
+-    type_str,
+ )
+ 
+ # Adding the current working directory to the PYTHONPATH to allow generation of code
+diff --git a/tools/configen/configen/utils.py b/tools/configen/configen/utils.py
+index 546ebec7977..f9a83b14d82 100644
+--- a/tools/configen/configen/utils.py
++++ b/tools/configen/configen/utils.py
+@@ -1,5 +1,4 @@
+ # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+-import sys
+ from enum import Enum
+ from typing import Any, Dict, Iterable, List, Optional, Set
+ 
+@@ -13,50 +12,6 @@
+ )
+ 
+ 
+-# borrowed from OmegaConf
+-def type_str(t: Any) -> str:
+-    is_optional, t = _resolve_optional(t)
+-    if t is None:
+-        return type(t).__name__
+-    if t is Any:
+-        return "Any"
+-    if t is ...:
+-        return "..."
+-
+-    if sys.version_info < (3, 7, 0):  # pragma: no cover
+-        # Python 3.6
+-        if hasattr(t, "__name__"):
+-            name = str(t.__name__)
+-        else:
+-            if t.__origin__ is not None:
+-                name = type_str(t.__origin__)
+-            else:
+-                name = str(t)
+-                if name.startswith("typing."):
+-                    name = name[len("typing.") :]
+-    else:  # pragma: no cover
+-        # Python >= 3.7
+-        if hasattr(t, "__name__"):
+-            name = str(t.__name__)
+-        else:
+-            if t._name is None:
+-                if t.__origin__ is not None:
+-                    name = type_str(t.__origin__)
+-            else:
+-                name = str(t._name)
+-
+-    args = getattr(t, "__args__", None)
+-    if args is not None:
+-        args = ", ".join(type_str(t) for t in t.__args__)
+-        ret = f"{name}[{args}]"
+-    else:
+-        ret = name
+-    if is_optional:
+-        return f"Optional[{ret}]"
+-    else:
+-        return ret
+-
+-
+ def is_tuple_annotation(type_: Any) -> bool:
+     origin = getattr(type_, "__origin__", None)
+     return origin is tuple
+diff --git a/tools/configen/setup.py b/tools/configen/setup.py
+index 4daede298bf..89b8f766b15 100644
+--- a/tools/configen/setup.py
++++ b/tools/configen/setup.py
+@@ -5,7 +5,7 @@
+ 
+ setup(
+     name="hydra-configen",
+-    version="0.9.0.dev8",
++    version="0.9.0.dev9",
+     packages=find_packages(include=["configen"]),
+     entry_points={"console_scripts": ["configen = configen.configen:main"]},
+     author="Omry Yadan, Rosario Scalise",
+diff --git a/website/docs/development/overview.md b/website/docs/development/overview.md
+index 4fd85393182..24b665c60d1 100644
+--- a/website/docs/development/overview.md
++++ b/website/docs/development/overview.md
+@@ -13,7 +13,7 @@ conda create -n hydra38 python=3.8 -qy
+ ```
+ 
+ :::info NOTE
+-The core Hydra framework supports Python 3.7 or newer. You may need to create additional environments for different Python versions if CI detect issues on a supported version of Python.
++The core Hydra framework supports Python 3.8 or newer. You may need to create additional environments for different Python versions if CI detect issues on a supported version of Python.
+ :::
+ 
+ Activate the environment:
+diff --git a/website/docs/tutorials/structured_config/0_intro.md b/website/docs/tutorials/structured_config/0_intro.md
+index 533c8226cb1..5b64fa1393c 100644
+--- a/website/docs/tutorials/structured_config/0_intro.md
++++ b/website/docs/tutorials/structured_config/0_intro.md
+@@ -9,7 +9,7 @@ import GithubLink from "@site/src/components/GithubLink"
+ This is an advanced tutorial that assumes that you are comfortable with the concepts introduced in the [Basic Tutorial](/tutorials/basic/your_first_app/1_simple_cli.md).
+ The examples in this tutorial are available <GithubLink to="examples/tutorials/structured_configs">here</GithubLink>.
+ 
+-Structured Configs use Python [dataclasses](https://docs.python.org/3.7/library/dataclasses.html) to 
++Structured Configs use Python [dataclasses](https://docs.python.org/3.8/library/dataclasses.html) to 
+ describe your configuration structure and types. They enable:
+ 
+ * **Runtime type checking** as you compose or mutate your config 

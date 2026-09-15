@@ -1,0 +1,13 @@
+diff --git a/src/streamlink/session/plugins.py b/src/streamlink/session/plugins.py
+index 4526081a769..5ef32d6a97d 100644
+--- a/src/streamlink/session/plugins.py
++++ b/src/streamlink/session/plugins.py
+@@ -179,7 +179,7 @@ def _load_plugins_from_path(self, path: Union[Path, str]) -> Dict[str, Type[Plug
+             if lookup is None:
+                 continue
+             mod, plugin = lookup
+-            if name in self._plugins:
++            if name in self._plugins or name in self._matchers:
+                 log.info(f"Plugin {name} is being overridden by {mod.__file__}")
+             plugins[name] = plugin
+ 

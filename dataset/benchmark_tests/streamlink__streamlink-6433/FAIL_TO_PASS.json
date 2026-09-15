@@ -1,0 +1,5 @@
+[
+  "tests/plugins/test_pandalive.py::TestPluginCanHandleUrlPandalive::test_url_matches_positive_unnamed[https://w2.pandalive.co.kr/en/play/CHANNEL]",
+  "tests/plugins/test_pandalive.py::TestPluginCanHandleUrlPandalive::test_url_matches_groups_unnamed[URL=https://www.pandalive.co.kr/live/play/CHANNEL",
+  "tests/plugins/test_pandalive.py::TestPluginCanHandleUrlPandalive::test_url_matches_groups_unnamed[URL=https://w2.pandalive.co.kr/en/play/CHANNEL"
+]

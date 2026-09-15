@@ -1,0 +1,16 @@
+diff --git a/siteroot/urls.py b/siteroot/urls.py
+index 5431f02d..4b14f4fb 100644
+--- a/siteroot/urls.py
++++ b/siteroot/urls.py
+@@ -34,6 +34,11 @@ def get_context_data(self, **kwargs):
+         context["enable_oidc"] = settings.LD_ENABLE_OIDC
+         return context
+ 
++    def form_invalid(self, form):
++        response = super().form_invalid(form)
++        response.status_code = 401
++        return response
++
+ 
+ urlpatterns = [
+     path("admin/", linkding_admin_site.urls),

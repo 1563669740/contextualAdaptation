@@ -1,0 +1,3 @@
+[
+  "pvlib/tests/test_clearsky.py::test_detect_clearsky_window_too_short"
+]

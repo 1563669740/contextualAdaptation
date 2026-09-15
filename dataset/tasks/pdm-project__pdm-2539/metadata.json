@@ -1,0 +1,41 @@
+{
+  "task_id": "pdm-project__pdm-2539",
+  "repo": "pdm-project/pdm",
+  "pull_number": "2539",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "issue-template sections present (n=4)",
+  "task_type_confidence": 0.8,
+  "base_commit": "ca74c76dca41a456280df8d05903c36736bc762f",
+  "repo_commit": "ca74c76dca41a456280df8d05903c36736bc762f",
+  "gold_commit": "c8714b6eaee59669b17fd50bc8cecd1152e0a594",
+  "gold_commit_count": 6,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 2,
+  "gold_loc_added": 10,
+  "gold_loc_deleted": 1,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 4,
+  "pass_to_pass_count": 797,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

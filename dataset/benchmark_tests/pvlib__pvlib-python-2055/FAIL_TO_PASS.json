@@ -1,0 +1,8 @@
+[
+  "pvlib/tests/test_irradiance.py::test_disc_value[93193-expected0]",
+  "pvlib/tests/test_irradiance.py::test_disc_value[None-expected1]",
+  "pvlib/tests/test_irradiance.py::test_disc_value[101325-expected2]",
+  "pvlib/tests/test_irradiance.py::test_dirindex",
+  "pvlib/tests/test_solarposition.py::test_hour_angle",
+  "pvlib/tests/test_solarposition.py::test_sun_rise_set_transit_geometric"
+]

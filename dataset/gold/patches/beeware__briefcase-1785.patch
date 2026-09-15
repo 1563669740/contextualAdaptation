@@ -1,0 +1,19 @@
+diff --git a/changes/1773.bugfix.rst b/changes/1773.bugfix.rst
+new file mode 100644
+index 000000000..0a2741aba
+--- /dev/null
++++ b/changes/1773.bugfix.rst
+@@ -0,0 +1,1 @@
++The Docker version on OpenSUSE Tumbleweed is now accepted and no longer triggers a warning message.
+diff --git a/src/briefcase/integrations/docker.py b/src/briefcase/integrations/docker.py
+index e7660aaf1..50127c8ae 100644
+--- a/src/briefcase/integrations/docker.py
++++ b/src/briefcase/integrations/docker.py
+@@ -173,6 +173,7 @@ def _version_compat(cls, tools: ToolCache):
+                 )
+                 .split("Docker version ")[1]
+                 .split(",")[0]
++                .split("-")[0]
+             )
+ 
+             # Ensure Docker version is compatible

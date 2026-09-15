@@ -1,0 +1,3 @@
+[
+  "tests/stream/dash/test_manifest.py::TestMPDParser::test_baseurl_urljoin"
+]

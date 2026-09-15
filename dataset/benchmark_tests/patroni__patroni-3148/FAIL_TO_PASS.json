@@ -1,0 +1,5 @@
+[
+  "tests/test_slots.py::TestSlotsHandler::test_advance_physical_slots",
+  "tests/test_slots.py::TestSlotsHandler::test_nostream_slot_processing",
+  "tests/test_slots.py::TestSlotsHandler::test_process_permanent_slots"
+]

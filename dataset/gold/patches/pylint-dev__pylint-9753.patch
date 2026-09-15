@@ -1,0 +1,25 @@
+diff --git a/doc/whatsnew/fragments/9751.bugfix b/doc/whatsnew/fragments/9751.bugfix
+new file mode 100644
+index 0000000000..ddd37ac2b0
+--- /dev/null
++++ b/doc/whatsnew/fragments/9751.bugfix
+@@ -0,0 +1,4 @@
++Fixed a false positive ``unreachable-code`` when using ``typing.Any`` as return type in python
++3.8, the ``typing.NoReturn`` are not taken into account anymore for python 3.8 however.
++
++Closes #9751
+diff --git a/pylint/checkers/utils.py b/pylint/checkers/utils.py
+index c49487981d..d2e9cd6b96 100644
+--- a/pylint/checkers/utils.py
++++ b/pylint/checkers/utils.py
+@@ -2184,7 +2184,9 @@ def is_terminating_func(node: nodes.Call) -> bool:
+                     *TYPING_NEVER,
+                     *TYPING_NORETURN,
+                     # In Python 3.7 - 3.8, NoReturn is alias of '_SpecialForm'
+-                    "typing._SpecialForm",
++                    # "typing._SpecialForm",
++                    # But 'typing.Any' also inherits _SpecialForm
++                    # See #9751
+                 )
+             ):
+                 return True

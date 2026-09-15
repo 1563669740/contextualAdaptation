@@ -1,0 +1,64 @@
+diff --git a/tests/generic.py b/tests/generic.py
+index a9466c32f..b3fa46fc7 100644
+--- a/tests/generic.py
++++ b/tests/generic.py
+@@ -351,7 +351,7 @@ def check(item):
+                 loaded = trimesh.load(os.path.join(dir_models, file_name))
+             except BaseException as E:
+                 if raise_error:
+-                    log.error(f'failed to load {file_name}')
++                    log.error(f"failed to load {file_name}")
+                     raise E
+                 continue
+ 
+diff --git a/tests/test_arc.py b/tests/test_arc.py
+index ac7d973b4..64905c1bc 100644
+--- a/tests/test_arc.py
++++ b/tests/test_arc.py
+@@ -21,7 +21,7 @@ def test_center(self):
+         )
+ 
+         assert abs(R - res_radius) < g.tol_path.zero
+-        assert g.trimesh.util.euclidean(C, res_center) < g.tol_path.zero
++        assert g.np.linalg.norm(C - res_center) < g.tol_path.zero
+         # large magnitude arc failed some coplanar tests
+         c = g.trimesh.path.arc.arc_center(
+             [
+diff --git a/tests/test_export.py b/tests/test_export.py
+index a8707834d..a18565a2b 100644
+--- a/tests/test_export.py
++++ b/tests/test_export.py
+@@ -16,7 +16,7 @@ def test_export(self):
+             if not isinstance(v, ExceptionWrapper)
+         }
+ 
+-        meshes = list(g.get_meshes(8))
++        meshes = list(g.get_meshes(10))
+         # make sure we've got something with texture
+         meshes.append(g.get_mesh("fuze.obj"))
+ 
+@@ -36,6 +36,11 @@ def test_export(self):
+                         "No data exported %s to %s", mesh.metadata["file_name"], file_type
+                     )
+ 
++                if mesh.visual.kind == "texture":
++                    c = mesh.copy()
++                    c.visual.uv = None
++                    c.export(file_type=file_type)
++
+                 if file_type in [
+                     "dae",  # collada, no native importers
+                     "collada",  # collada, no native importers
+diff --git a/tests/test_paths.py b/tests/test_paths.py
+index bbbe84d10..1230e4cc1 100644
+--- a/tests/test_paths.py
++++ b/tests/test_paths.py
+@@ -54,7 +54,7 @@ def test_discrete(self):
+                         "{} had zero distance in discrete!", d.metadata["file_name"]
+                     )
+ 
+-                circuit_dist = g.trimesh.util.euclidean(verts[0], verts[-1])
++                circuit_dist = g.np.linalg.norm(verts[0] - verts[-1])
+                 circuit_test = circuit_dist < g.tol_path.merge
+                 if not circuit_test:
+                     g.log.error(

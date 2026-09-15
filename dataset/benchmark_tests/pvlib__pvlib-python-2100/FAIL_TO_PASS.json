@@ -1,0 +1,5 @@
+[
+  "pvlib/tests/test_spectrum.py::test_spectral_factor_firstsolar_large_airmass_supplied_max",
+  "pvlib/tests/test_spectrum.py::test_spectral_factor_firstsolar_low_airmass",
+  "pvlib/tests/test_spectrum.py::test_spectral_factor_firstsolar_range"
+]

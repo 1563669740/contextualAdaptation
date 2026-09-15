@@ -1,0 +1,11 @@
+{
+  "task_id": "pytorch__torchtune-293",
+  "log_parser": "pytest",
+  "test_cmds": [
+    "pytest tests --cov=. --cov-report=xml --durations=20 -vv -rA"
+  ],
+  "fail_to_pass_count": 2,
+  "pass_to_pass_count": 115,
+  "resolution_rule": "resolved iff every FAIL_TO_PASS test passes AND every PASS_TO_PASS test still passes after applying the candidate patch",
+  "visibility": "evaluation_only"
+}

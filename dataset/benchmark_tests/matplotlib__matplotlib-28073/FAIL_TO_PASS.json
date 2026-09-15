@@ -1,0 +1,7 @@
+[
+  "lib/matplotlib/tests/test_axes.py::test_hist_vectorized_params[png-kwargs0]",
+  "lib/matplotlib/tests/test_axes.py::test_hist_vectorized_params[png-kwargs1]",
+  "lib/matplotlib/tests/test_axes.py::test_hist_vectorized_params[png-kwargs2]",
+  "lib/matplotlib/tests/test_axes.py::test_hist_vectorized_params[png-kwargs3]",
+  "lib/matplotlib/tests/test_axes.py::test_hist_vectorized_params[png-kwargs4]"
+]

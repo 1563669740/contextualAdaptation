@@ -1,0 +1,42 @@
+diff --git a/news/2853.bugfix.md b/news/2853.bugfix.md
+new file mode 100644
+index 0000000000..c354179093
+--- /dev/null
++++ b/news/2853.bugfix.md
+@@ -0,0 +1,1 @@
++Make `direct_minimal_versions` work on newly added dependencies.
+diff --git a/src/pdm/cli/commands/add.py b/src/pdm/cli/commands/add.py
+index 5f56bc52bb..df4d2ce1e2 100644
+--- a/src/pdm/cli/commands/add.py
++++ b/src/pdm/cli/commands/add.py
+@@ -155,6 +155,8 @@ def do_add(
+         reqs = [
+             r for g, deps in all_dependencies.items() if lock_groups is None or g in lock_groups for r in deps.values()
+         ]
++        # pre-write the dependencies to the pyproject.toml to make them recognized by the resolver
++        project.add_dependencies(requirements, group, selection.dev or False, write=False)
+         with hooks.skipping("post_lock"):
+             resolved = do_lock(
+                 project,
+diff --git a/src/pdm/project/core.py b/src/pdm/project/core.py
+index fa3a3ea1ba..89014ebb1e 100644
+--- a/src/pdm/project/core.py
++++ b/src/pdm/project/core.py
+@@ -570,6 +570,7 @@ def add_dependencies(
+         to_group: str = "default",
+         dev: bool = False,
+         show_message: bool = True,
++        write: bool = True,
+     ) -> None:
+         deps, setter = self.use_pyproject_dependencies(to_group, dev)
+         for _, dep in requirements.items():
+@@ -583,7 +584,8 @@ def add_dependencies(
+             else:
+                 deps[matched_index] = req
+         setter(cast(Array, deps).multiline(True))
+-        self.pyproject.write(show_message)
++        if write:
++            self.pyproject.write(show_message)
+ 
+     def init_global_project(self) -> None:
+         if not self.is_global or not self.pyproject.empty():

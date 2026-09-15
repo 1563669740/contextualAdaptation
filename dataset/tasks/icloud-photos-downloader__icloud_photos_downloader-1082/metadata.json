@@ -1,0 +1,41 @@
+{
+  "task_id": "icloud-photos-downloader__icloud_photos_downloader-1082",
+  "repo": "icloud-photos-downloader/icloud_photos_downloader",
+  "pull_number": "1082",
+  "split": "pilot",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "issue-template sections present (n=4)",
+  "task_type_confidence": 0.8,
+  "base_commit": "b69c9a125d9202828ef7aa679d51a4b5365f10ba",
+  "repo_commit": "b69c9a125d9202828ef7aa679d51a4b5365f10ba",
+  "gold_commit": "47eef38d832285980a5eefec7f2dcf9be02437c2",
+  "gold_commit_count": 3,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 4,
+  "gold_loc_added": 63,
+  "gold_loc_deleted": 40,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 2,
+  "pass_to_pass_count": 174,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

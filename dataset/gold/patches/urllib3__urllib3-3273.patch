@@ -1,0 +1,54 @@
+diff --git a/changelog/3261.misc.rst b/changelog/3261.misc.rst
+new file mode 100644
+index 0000000000..5e44888bc9
+--- /dev/null
++++ b/changelog/3261.misc.rst
+@@ -0,0 +1,1 @@
++Made raised ``urllib3.exceptions.ProtocolError`` more verbose when a response contains content unexpectedly.
+diff --git a/src/urllib3/exceptions.py b/src/urllib3/exceptions.py
+index 5bb9236961..b0792f00fd 100644
+--- a/src/urllib3/exceptions.py
++++ b/src/urllib3/exceptions.py
+@@ -252,13 +252,16 @@ class IncompleteRead(HTTPError, httplib_IncompleteRead):
+     for ``partial`` to avoid creating large objects on streamed reads.
+     """
+ 
++    partial: int  # type: ignore[assignment]
++    expected: int
++
+     def __init__(self, partial: int, expected: int) -> None:
+-        self.partial = partial  # type: ignore[assignment]
++        self.partial = partial
+         self.expected = expected
+ 
+     def __repr__(self) -> str:
+         return "IncompleteRead(%i bytes read, %i more expected)" % (
+-            self.partial,  # type: ignore[str-format]
++            self.partial,
+             self.expected,
+         )
+ 
+diff --git a/src/urllib3/response.py b/src/urllib3/response.py
+index 41dc9575b8..d31fac9ba0 100644
+--- a/src/urllib3/response.py
++++ b/src/urllib3/response.py
+@@ -749,8 +749,18 @@ def _error_catcher(self) -> typing.Generator[None, None, None]:
+ 
+                 raise ReadTimeoutError(self._pool, None, "Read timed out.") from e  # type: ignore[arg-type]
+ 
++            except IncompleteRead as e:
++                if (
++                    e.expected is not None
++                    and e.partial is not None
++                    and e.expected == -e.partial
++                ):
++                    arg = "Response may not contain content."
++                else:
++                    arg = f"Connection broken: {e!r}"
++                raise ProtocolError(arg, e) from e
++
+             except (HTTPException, OSError) as e:
+-                # This includes IncompleteRead.
+                 raise ProtocolError(f"Connection broken: {e!r}", e) from e
+ 
+             # If no exception is thrown, we should avoid cleaning up

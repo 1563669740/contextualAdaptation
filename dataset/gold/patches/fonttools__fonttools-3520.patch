@@ -1,0 +1,112 @@
+diff --git a/Lib/fontTools/feaLib/builder.py b/Lib/fontTools/feaLib/builder.py
+index 7921a3f179..a91381ddc1 100644
+--- a/Lib/fontTools/feaLib/builder.py
++++ b/Lib/fontTools/feaLib/builder.py
+@@ -880,8 +880,13 @@ def makeTable(self, tag):
+             # l.lookup_index will be None when a lookup is not needed
+             # for the table under construction. For example, substitution
+             # rules will have no lookup_index while building GPOS tables.
++            # We also deduplicate lookup indices, as they only get applied once
++            # within a given feature:
++            # https://github.com/fonttools/fonttools/issues/2946
+             lookup_indices = tuple(
+-                [l.lookup_index for l in lookups if l.lookup_index is not None]
++                dict.fromkeys(
++                    l.lookup_index for l in lookups if l.lookup_index is not None
++                )
+             )
+ 
+             size_feature = tag == "GPOS" and feature_tag == "size"
+diff --git a/Tests/feaLib/data/duplicate_lookup_reference.fea b/Tests/feaLib/data/duplicate_lookup_reference.fea
+new file mode 100644
+index 0000000000..f2746520e0
+--- /dev/null
++++ b/Tests/feaLib/data/duplicate_lookup_reference.fea
+@@ -0,0 +1,18 @@
++# https://github.com/fonttools/fonttools/issues/2946
++
++languagesystem DFLT dflt;
++languagesystem latn dflt;
++
++feature test {
++    lookup alt1 {
++	sub a by A;
++    } alt1;
++    lookup alt2 {
++        sub b by B;
++    } alt2;
++
++
++    script latn;
++    lookup alt1;
++
++} test;
+diff --git a/Tests/feaLib/data/duplicate_lookup_reference.ttx b/Tests/feaLib/data/duplicate_lookup_reference.ttx
+new file mode 100644
+index 0000000000..e8be775c53
+--- /dev/null
++++ b/Tests/feaLib/data/duplicate_lookup_reference.ttx
+@@ -0,0 +1,63 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<ttFont>
++
++  <GSUB>
++    <Version value="0x00010000"/>
++    <ScriptList>
++      <!-- ScriptCount=2 -->
++      <ScriptRecord index="0">
++        <ScriptTag value="DFLT"/>
++        <Script>
++          <DefaultLangSys>
++            <ReqFeatureIndex value="65535"/>
++            <!-- FeatureCount=1 -->
++            <FeatureIndex index="0" value="0"/>
++          </DefaultLangSys>
++          <!-- LangSysCount=0 -->
++        </Script>
++      </ScriptRecord>
++      <ScriptRecord index="1">
++        <ScriptTag value="latn"/>
++        <Script>
++          <DefaultLangSys>
++            <ReqFeatureIndex value="65535"/>
++            <!-- FeatureCount=1 -->
++            <FeatureIndex index="0" value="0"/>
++          </DefaultLangSys>
++          <!-- LangSysCount=0 -->
++        </Script>
++      </ScriptRecord>
++    </ScriptList>
++    <FeatureList>
++      <!-- FeatureCount=1 -->
++      <FeatureRecord index="0">
++        <FeatureTag value="test"/>
++        <Feature>
++          <!-- LookupCount=2 -->
++          <LookupListIndex index="0" value="0"/>
++          <LookupListIndex index="1" value="1"/>
++        </Feature>
++      </FeatureRecord>
++    </FeatureList>
++    <LookupList>
++      <!-- LookupCount=2 -->
++      <Lookup index="0">
++        <LookupType value="1"/>
++        <LookupFlag value="0"/>
++        <!-- SubTableCount=1 -->
++        <SingleSubst index="0">
++          <Substitution in="a" out="A"/>
++        </SingleSubst>
++      </Lookup>
++      <Lookup index="1">
++        <LookupType value="1"/>
++        <LookupFlag value="0"/>
++        <!-- SubTableCount=1 -->
++        <SingleSubst index="0">
++          <Substitution in="b" out="B"/>
++        </SingleSubst>
++      </Lookup>
++    </LookupList>
++  </GSUB>
++
++</ttFont>

@@ -1,0 +1,888 @@
+diff --git a/news/2636.feature.md b/news/2636.feature.md
+new file mode 100644
+index 0000000000..9897aa76e4
+--- /dev/null
++++ b/news/2636.feature.md
+@@ -0,0 +1,1 @@
++Add `--config-setting` option to `add/install/sync/update/remove/export` commands, the config settings dictionary will be shared by all packages.
+diff --git a/src/pdm/builders/__init__.py b/src/pdm/builders/__init__.py
+index bb03783407..cbf0d2c690 100644
+--- a/src/pdm/builders/__init__.py
++++ b/src/pdm/builders/__init__.py
+@@ -2,8 +2,4 @@
+ from pdm.builders.sdist import SdistBuilder
+ from pdm.builders.wheel import WheelBuilder
+ 
+-__all__ = (
+-    EditableBuilder.__name__,
+-    SdistBuilder.__name__,
+-    WheelBuilder.__name__,
+-)
++__all__ = ["EditableBuilder", "SdistBuilder", "WheelBuilder"]
+diff --git a/src/pdm/builders/base.py b/src/pdm/builders/base.py
+index 901bf5348c..05ab1f9b16 100644
+--- a/src/pdm/builders/base.py
++++ b/src/pdm/builders/base.py
+@@ -8,7 +8,7 @@
+ import threading
+ from logging import Logger
+ from pathlib import Path
+-from typing import TYPE_CHECKING, Any, ClassVar, Iterable, Mapping, cast
++from typing import TYPE_CHECKING, Any, ClassVar, Iterable, cast
+ 
+ from pyproject_hooks import BuildBackendHookCaller
+ 
+@@ -182,6 +182,7 @@ def __init__(self, src_dir: str | Path, environment: BaseEnvironment) -> None:
+         self.executable = self._env.interpreter.executable.as_posix()
+         self.src_dir = src_dir
+         self.isolated = environment.project.config["build_isolation"]
++        self.config_settings = environment.project.core.config_settings
+         mode = "Isolated" if self.isolated else "Non-isolated"
+         logger.info("Preparing environment(%s mode) for PEP 517 build...", mode)
+         try:
+@@ -301,19 +302,14 @@ def install(self, requirements: Iterable[str], shared: bool = False) -> None:
+             if key not in self._shared_envs:
+                 self._shared_envs[key] = path
+ 
+-    def prepare_metadata(self, out_dir: str, config_settings: Mapping[str, Any] | None = None) -> str:
++    def prepare_metadata(self, out_dir: str) -> str:
+         """Prepare metadata and store in the out_dir.
+         Some backends doesn't provide that API, in that case the metadata will be
+         retrieved from the built result.
+         """
+         raise NotImplementedError("Should be implemented in subclass")
+ 
+-    def build(
+-        self,
+-        out_dir: str,
+-        config_settings: Mapping[str, Any] | None = None,
+-        metadata_directory: str | None = None,
+-    ) -> str:
++    def build(self, out_dir: str, metadata_directory: str | None = None) -> str:
+         """Build and store the artifact in out_dir,
+         return the absolute path of the built result.
+         """
+diff --git a/src/pdm/builders/editable.py b/src/pdm/builders/editable.py
+index 1403ea7d2a..b07e11dc51 100644
+--- a/src/pdm/builders/editable.py
++++ b/src/pdm/builders/editable.py
+@@ -1,7 +1,7 @@
+ from __future__ import annotations
+ 
+ import os
+-from typing import Any, ClassVar, Mapping
++from typing import Any, ClassVar
+ 
+ from pyproject_hooks import HookMissing
+ 
+@@ -17,30 +17,25 @@ class EditableBuilder(EnvBuilder):
+         "requires": ["setuptools_pep660"],
+     }
+ 
+-    def prepare_metadata(self, out_dir: str, config_settings: Mapping[str, Any] | None = None) -> str:
++    def prepare_metadata(self, out_dir: str) -> str:
+         self.install(self._requires, shared=True)
+         try:
+-            requires = self._hook.get_requires_for_build_editable(config_settings)
++            requires = self._hook.get_requires_for_build_editable(self.config_settings)
+             self.install(requires)
+-            filename = self._hook.prepare_metadata_for_build_editable(out_dir, config_settings)
++            filename = self._hook.prepare_metadata_for_build_editable(out_dir, self.config_settings)
+         except HookMissing:
+             self.init_build_system(self.FALLBACK_BACKEND)
+-            return self.prepare_metadata(out_dir, config_settings)
++            return self.prepare_metadata(out_dir)
+         return os.path.join(out_dir, filename)
+ 
+-    def build(
+-        self,
+-        out_dir: str,
+-        config_settings: Mapping[str, Any] | None = None,
+-        metadata_directory: str | None = None,
+-    ) -> str:
++    def build(self, out_dir: str, metadata_directory: str | None = None) -> str:
+         self.install(self._requires, shared=True)
+         try:
+-            requires = self._hook.get_requires_for_build_editable(config_settings)
++            requires = self._hook.get_requires_for_build_editable(self.config_settings)
+             self.install(requires)
+-            filename = self._hook.build_editable(out_dir, config_settings, metadata_directory)
++            filename = self._hook.build_editable(out_dir, self.config_settings, metadata_directory)
+         except HookMissing:
+             logger.warning("The build backend doesn't support PEP 660, falling back to setuptools-pep660")
+             self.init_build_system(self.FALLBACK_BACKEND)
+-            return self.build(out_dir, config_settings, metadata_directory)
++            return self.build(out_dir, metadata_directory=metadata_directory)
+         return os.path.join(out_dir, filename)
+diff --git a/src/pdm/builders/sdist.py b/src/pdm/builders/sdist.py
+index c3a64b6c6e..a583702a3b 100644
+--- a/src/pdm/builders/sdist.py
++++ b/src/pdm/builders/sdist.py
+@@ -1,7 +1,6 @@
+ from __future__ import annotations
+ 
+ import os
+-from typing import Any, Mapping
+ 
+ from pdm.builders.base import EnvBuilder
+ 
+@@ -9,14 +8,9 @@
+ class SdistBuilder(EnvBuilder):
+     """Build sdist in isolated env with managed Python."""
+ 
+-    def build(
+-        self,
+-        out_dir: str,
+-        config_settings: Mapping[str, Any] | None = None,
+-        metadata_directory: str | None = None,
+-    ) -> str:
++    def build(self, out_dir: str, metadata_directory: str | None = None) -> str:
+         self.install(self._requires, shared=True)
+-        requires = self._hook.get_requires_for_build_sdist(config_settings)
++        requires = self._hook.get_requires_for_build_sdist(self.config_settings)
+         self.install(requires)
+-        filename = self._hook.build_sdist(out_dir, config_settings)
++        filename = self._hook.build_sdist(out_dir, self.config_settings)
+         return os.path.join(out_dir, filename)
+diff --git a/src/pdm/builders/wheel.py b/src/pdm/builders/wheel.py
+index 6e4209dfbd..bd7ca89b11 100644
+--- a/src/pdm/builders/wheel.py
++++ b/src/pdm/builders/wheel.py
+@@ -1,7 +1,6 @@
+ from __future__ import annotations
+ 
+ import os
+-from typing import Any, Mapping
+ 
+ from pdm.builders.base import EnvBuilder
+ 
+@@ -9,21 +8,16 @@
+ class WheelBuilder(EnvBuilder):
+     """Build wheel in isolated env with managed Python."""
+ 
+-    def prepare_metadata(self, out_dir: str, config_settings: Mapping[str, Any] | None = None) -> str:
++    def prepare_metadata(self, out_dir: str) -> str:
+         self.install(self._requires, shared=True)
+-        requires = self._hook.get_requires_for_build_wheel(config_settings)
++        requires = self._hook.get_requires_for_build_wheel(self.config_settings)
+         self.install(requires)
+-        filename = self._hook.prepare_metadata_for_build_wheel(out_dir, config_settings)
++        filename = self._hook.prepare_metadata_for_build_wheel(out_dir, self.config_settings)
+         return os.path.join(out_dir, filename)
+ 
+-    def build(
+-        self,
+-        out_dir: str,
+-        config_settings: Mapping[str, Any] | None = None,
+-        metadata_directory: str | None = None,
+-    ) -> str:
++    def build(self, out_dir: str, metadata_directory: str | None = None) -> str:
+         self.install(self._requires, shared=True)
+-        requires = self._hook.get_requires_for_build_wheel(config_settings)
++        requires = self._hook.get_requires_for_build_wheel(self.config_settings)
+         self.install(requires)
+-        filename = self._hook.build_wheel(out_dir, config_settings, metadata_directory)
++        filename = self._hook.build_wheel(out_dir, self.config_settings, metadata_directory)
+         return os.path.join(out_dir, filename)
+diff --git a/src/pdm/cli/commands/build.py b/src/pdm/cli/commands/build.py
+index d23bf82570..87f9a02c08 100644
+--- a/src/pdm/cli/commands/build.py
++++ b/src/pdm/cli/commands/build.py
+@@ -8,6 +8,7 @@
+ from pdm.cli.commands.base import BaseCommand
+ from pdm.cli.hooks import HookManager
+ from pdm.cli.options import (
++    config_setting_option,
+     no_isolation_option,
+     project_option,
+     skip_option,
+@@ -20,7 +21,7 @@
+ class Command(BaseCommand):
+     """Build artifacts for distribution"""
+ 
+-    arguments = (verbose_option, project_option, no_isolation_option, skip_option)
++    arguments = (verbose_option, project_option, no_isolation_option, skip_option, config_setting_option)
+ 
+     @staticmethod
+     def do_build(
+@@ -36,6 +37,7 @@ def do_build(
+         from pdm.builders import SdistBuilder, WheelBuilder
+ 
+         hooks = hooks or HookManager(project)
++        config_settings = project.core.config_settings
+ 
+         if project.is_global:
+             raise ProjectError("Not allowed to build based on the global project.")
+@@ -55,12 +57,12 @@ def do_build(
+         with project.core.ui.logging("build"):
+             if sdist:
+                 project.core.ui.echo("Building sdist...")
+-                loc = SdistBuilder(project.root, project.environment).build(dest, config_settings)
++                loc = SdistBuilder(project.root, project.environment).build(dest)
+                 project.core.ui.echo(f"Built sdist at {loc}")
+                 artifacts.append(loc)
+             if wheel:
+                 project.core.ui.echo("Building wheel...")
+-                loc = WheelBuilder(project.root, project.environment).build(dest, config_settings)
++                loc = WheelBuilder(project.root, project.environment).build(dest)
+                 project.core.ui.echo(f"Built wheel at {loc}")
+                 artifacts.append(loc)
+         hooks.try_emit("post_build", artifacts=artifacts, config_settings=config_settings)
+@@ -88,33 +90,13 @@ def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+             action="store_false",
+             help="Do not clean the target directory",
+         )
+-        parser.add_argument(
+-            "--config-setting",
+-            "-C",
+-            action="append",
+-            help="Pass options to the backend. options with a value must be "
+-            'specified after "=": `--config-setting=--opt(=value)` '
+-            "or `-C--opt(=value)`",
+-        )
+ 
+     def handle(self, project: Project, options: argparse.Namespace) -> None:
+-        config_settings = None
+-        if options.config_setting:
+-            config_settings = {}
+-            for item in options.config_setting:
+-                name, _, value = item.partition("=")
+-                if name not in config_settings:
+-                    config_settings[name] = value
+-                else:
+-                    if not isinstance(config_settings[name], list):
+-                        config_settings[name] = [config_settings[name]]
+-                    config_settings[name].append(value)
+         self.do_build(
+             project,
+             sdist=options.sdist,
+             wheel=options.wheel,
+             dest=options.dest,
+             clean=options.clean,
+-            config_settings=config_settings,
+             hooks=HookManager(project, options.skip),
+         )
+diff --git a/src/pdm/cli/commands/lock.py b/src/pdm/cli/commands/lock.py
+index dbb10e3ce9..9dd4d31fd6 100644
+--- a/src/pdm/cli/commands/lock.py
++++ b/src/pdm/cli/commands/lock.py
+@@ -6,7 +6,14 @@
+ from pdm.cli.commands.base import BaseCommand
+ from pdm.cli.filters import GroupSelection
+ from pdm.cli.hooks import HookManager
+-from pdm.cli.options import groups_group, lock_strategy_group, lockfile_option, no_isolation_option, skip_option
++from pdm.cli.options import (
++    config_setting_option,
++    groups_group,
++    lock_strategy_group,
++    lockfile_option,
++    no_isolation_option,
++    skip_option,
++)
+ from pdm.project import Project
+ 
+ 
+@@ -17,6 +24,7 @@ class Command(BaseCommand):
+         *BaseCommand.arguments,
+         lockfile_option,
+         no_isolation_option,
++        config_setting_option,
+         skip_option,
+         groups_group,
+         lock_strategy_group,
+diff --git a/src/pdm/cli/completions/pdm.bash b/src/pdm/cli/completions/pdm.bash
+index dd0bd33b2b..dc44e6993b 100644
+--- a/src/pdm/cli/completions/pdm.bash
++++ b/src/pdm/cli/completions/pdm.bash
+@@ -1,7 +1,7 @@
+ # BASH completion script for pdm
+ # Generated by pycomplete 0.4.0
+ 
+-_pdm_41ba8a56174f8367_complete()
++_pdm_a919b69078acdf0a_complete()
+ {
+     local cur script coms opts com
+     COMPREPLY=()
+@@ -29,7 +29,7 @@ _pdm_41ba8a56174f8367_complete()
+         case "$com" in
+ 
+             (add)
+-            opts="--dev --dry-run --editable --fail-fast --frozen-lockfile --global --group --help --lockfile --no-editable --no-isolation --no-self --no-sync --prerelease --project --quiet --save-compatible --save-exact --save-minimum --save-wildcard --skip --stable --unconstrained --update-all --update-eager --update-reuse --update-reuse-installed --venv --verbose"
++            opts="--config-setting --dev --dry-run --editable --fail-fast --frozen-lockfile --global --group --help --lockfile --no-editable --no-isolation --no-self --no-sync --prerelease --project --quiet --save-compatible --save-exact --save-minimum --save-wildcard --skip --stable --unconstrained --update-all --update-eager --update-reuse --update-reuse-installed --venv --verbose"
+             ;;
+ 
+             (build)
+@@ -49,7 +49,7 @@ _pdm_41ba8a56174f8367_complete()
+             ;;
+ 
+             (export)
+-            opts="--dev --editable-self --expandvars --format --global --group --help --lockfile --no-default --no-markers --output --production --project --pyproject --quiet --self --verbose --without-hashes"
++            opts="--dev --editable-self --expandvars --format --global --group --help --lockfile --no-default --no-markers --output --production --project --pyproject --quiet --self --verbose --without --without-hashes"
+             ;;
+ 
+             (fix)
+@@ -69,7 +69,7 @@ _pdm_41ba8a56174f8367_complete()
+             ;;
+ 
+             (install)
+-            opts="--check --dev --dry-run --fail-fast --frozen-lockfile --global --group --help --lockfile --no-default --no-editable --no-isolation --no-self --plugins --production --project --quiet --skip --venv --verbose"
++            opts="--check --config-setting --dev --dry-run --fail-fast --frozen-lockfile --global --group --help --lockfile --no-default --no-editable --no-isolation --no-self --plugins --production --project --quiet --skip --venv --verbose --without"
+             ;;
+ 
+             (list)
+@@ -77,7 +77,7 @@ _pdm_41ba8a56174f8367_complete()
+             ;;
+ 
+             (lock)
+-            opts="--check --dev --global --group --help --lockfile --no-cross-platform --no-default --no-isolation --no-static-urls --production --project --quiet --refresh --skip --static-urls --strategy --update-reuse --update-reuse-installed --verbose"
++            opts="--check --config-setting --dev --global --group --help --lockfile --no-cross-platform --no-default --no-isolation --no-static-urls --production --project --quiet --refresh --skip --static-urls --strategy --update-reuse --update-reuse-installed --verbose --without"
+             ;;
+ 
+             (plugin)
+@@ -89,7 +89,7 @@ _pdm_41ba8a56174f8367_complete()
+             ;;
+ 
+             (remove)
+-            opts="--dev --dry-run --fail-fast --frozen-lockfile --global --group --help --lockfile --no-editable --no-isolation --no-self --no-sync --project --quiet --skip --venv --verbose"
++            opts="--config-setting --dev --dry-run --fail-fast --frozen-lockfile --global --group --help --lockfile --no-editable --no-isolation --no-self --no-sync --project --quiet --skip --venv --verbose"
+             ;;
+ 
+             (run)
+@@ -109,11 +109,11 @@ _pdm_41ba8a56174f8367_complete()
+             ;;
+ 
+             (sync)
+-            opts="--clean --dev --dry-run --fail-fast --global --group --help --lockfile --no-default --no-editable --no-isolation --no-self --only-keep --production --project --quiet --reinstall --skip --venv --verbose"
++            opts="--clean --config-setting --dev --dry-run --fail-fast --global --group --help --lockfile --no-default --no-editable --no-isolation --no-self --only-keep --production --project --quiet --reinstall --skip --venv --verbose --without"
+             ;;
+ 
+             (update)
+-            opts="--dev --fail-fast --frozen-lockfile --global --group --help --lockfile --no-default --no-editable --no-isolation --no-self --no-sync --outdated --prerelease --production --project --quiet --save-compatible --save-exact --save-minimum --save-wildcard --skip --stable --top --unconstrained --update-all --update-eager --update-reuse --update-reuse-installed --venv --verbose"
++            opts="--config-setting --dev --fail-fast --frozen-lockfile --global --group --help --lockfile --no-default --no-editable --no-isolation --no-self --no-sync --outdated --prerelease --production --project --quiet --save-compatible --save-exact --save-minimum --save-wildcard --skip --stable --top --unconstrained --update-all --update-eager --update-reuse --update-reuse-installed --venv --verbose --without"
+             ;;
+ 
+             (use)
+@@ -143,4 +143,4 @@ _pdm_41ba8a56174f8367_complete()
+     fi
+ }
+ 
+-complete -o default -F _pdm_41ba8a56174f8367_complete pdm
++complete -o default -F _pdm_a919b69078acdf0a_complete pdm
+diff --git a/src/pdm/cli/completions/pdm.fish b/src/pdm/cli/completions/pdm.fish
+index 24a75002be..c4bbcbf979 100644
+--- a/src/pdm/cli/completions/pdm.fish
++++ b/src/pdm/cli/completions/pdm.fish
+@@ -1,7 +1,7 @@
+ # FISH completion script for pdm
+ # Generated by pycomplete 0.4.0
+ 
+-function __fish_pdm_41ba8a56174f8367_complete_no_subcommand
++function __fish_pdm_a919b69078acdf0a_complete_no_subcommand
+     for i in (commandline -opc)
+         if contains -- $i add build cache completion config export fix import info init install list lock plugin publish remove run search self show sync update use venv
+             return 1
+@@ -11,17 +11,18 @@ function __fish_pdm_41ba8a56174f8367_complete_no_subcommand
+ end
+ 
+ # global options
+-complete -c pdm -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -l config -d 'Specify another config file path [env var: PDM_CONFIG_FILE] '
+-complete -c pdm -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -l help -d 'Show this help message and exit.'
+-complete -c pdm -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -l ignore-python -d 'Ignore the Python path saved in .pdm-python. [env var: PDM_IGNORE_SAVED_PYTHON]'
+-complete -c pdm -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -l pep582 -d 'Print the command line to be eval\'d by the shell'
+-complete -c pdm -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -l quiet -d 'Suppress output'
+-complete -c pdm -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+-complete -c pdm -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -l version -d 'Show the version and exit'
++complete -c pdm -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -l config -d 'Specify another config file path [env var: PDM_CONFIG_FILE] '
++complete -c pdm -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -l help -d 'Show this help message and exit.'
++complete -c pdm -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -l ignore-python -d 'Ignore the Python path saved in .pdm-python. [env var: PDM_IGNORE_SAVED_PYTHON]'
++complete -c pdm -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -l pep582 -d 'Print the command line to be eval\'d by the shell'
++complete -c pdm -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -l quiet -d 'Suppress output'
++complete -c pdm -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
++complete -c pdm -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -l version -d 'Show the version and exit'
+ 
+ # commands
+ # add
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a add -d 'Add package(s) to pyproject.toml and install them'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a add -d 'Add package(s) to pyproject.toml and install them'
++complete -c pdm -A -n '__fish_seen_subcommand_from add' -l config-setting -d 'Pass options to the builder. options with a value must be specified after "=": `--config-setting=key(=value)` or `-Ckey(=value)`'
+ complete -c pdm -A -n '__fish_seen_subcommand_from add' -l dev -d 'Add packages into dev dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from add' -l dry-run -d 'Show the difference only and don\'t perform any action'
+ complete -c pdm -A -n '__fish_seen_subcommand_from add' -l editable -d 'Specify editable packages'
+@@ -53,8 +54,8 @@ complete -c pdm -A -n '__fish_seen_subcommand_from add' -l venv -d 'Run the comm
+ complete -c pdm -A -n '__fish_seen_subcommand_from add' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # build
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a build -d 'Build artifacts for distribution'
+-complete -c pdm -A -n '__fish_seen_subcommand_from build' -l config-setting -d 'Pass options to the backend. options with a value must be specified after "=": `--config-setting=--opt(=value)` or `-C--opt(=value)`'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a build -d 'Build artifacts for distribution'
++complete -c pdm -A -n '__fish_seen_subcommand_from build' -l config-setting -d 'Pass options to the builder. options with a value must be specified after "=": `--config-setting=key(=value)` or `-Ckey(=value)`'
+ complete -c pdm -A -n '__fish_seen_subcommand_from build' -l dest -d 'Target directory to put artifacts'
+ complete -c pdm -A -n '__fish_seen_subcommand_from build' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from build' -l no-clean -d 'Do not clean the target directory'
+@@ -67,7 +68,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from build' -l skip -d 'Skip some
+ complete -c pdm -A -n '__fish_seen_subcommand_from build' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # cache
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a cache -d 'Control the caches of PDM'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a cache -d 'Control the caches of PDM'
+ complete -c pdm -A -n '__fish_seen_subcommand_from cache' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from cache' -l quiet -d 'Suppress output'
+ complete -c pdm -A -n '__fish_seen_subcommand_from cache' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+@@ -98,11 +99,11 @@ complete -c pdm -A -n '__fish_seen_subcommand_from cache; and __fish_seen_subcom
+ complete -c pdm -A -n '__fish_seen_subcommand_from cache; and __fish_seen_subcommand_from remove' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # completion
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a completion -d 'Generate completion scripts for the given shell'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a completion -d 'Generate completion scripts for the given shell'
+ complete -c pdm -A -n '__fish_seen_subcommand_from completion' -l help -d 'Show this help message and exit.'
+ 
+ # config
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a config -d 'Display the current configuration'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a config -d 'Display the current configuration'
+ complete -c pdm -A -n '__fish_seen_subcommand_from config' -l delete -d 'Unset a configuration key'
+ complete -c pdm -A -n '__fish_seen_subcommand_from config' -l edit -d 'Edit the configuration file in the default editor(defined by EDITOR env var)'
+ complete -c pdm -A -n '__fish_seen_subcommand_from config' -l global -d 'Use the global project, supply the project root with `-p` option'
+@@ -113,7 +114,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from config' -l quiet -d 'Suppress
+ complete -c pdm -A -n '__fish_seen_subcommand_from config' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # export
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a export -d 'Export the locked packages set to other formats'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a export -d 'Export the locked packages set to other formats'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l dev -d 'Select dev dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l editable-self -d 'Include the project itself as an editable dependency'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l expandvars -d 'Expand environment variables in requirements'
+@@ -131,10 +132,11 @@ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l pyproject -d 'Read
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l quiet -d 'Suppress output'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l self -d 'Include the project itself'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
++complete -c pdm -A -n '__fish_seen_subcommand_from export' -l without -d 'Exclude groups of optional-dependencies or dev-dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l without-hashes -d 'Don\'t include artifact hashes'
+ 
+ # fix
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a fix -d 'Fix the project problems according to the latest version of PDM'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a fix -d 'Fix the project problems according to the latest version of PDM'
+ complete -c pdm -A -n '__fish_seen_subcommand_from fix' -l dry-run -d 'Only show the problems'
+ complete -c pdm -A -n '__fish_seen_subcommand_from fix' -l global -d 'Use the global project, supply the project root with `-p` option'
+ complete -c pdm -A -n '__fish_seen_subcommand_from fix' -l help -d 'Show this help message and exit.'
+@@ -143,7 +145,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from fix' -l quiet -d 'Suppress ou
+ complete -c pdm -A -n '__fish_seen_subcommand_from fix' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # import
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a import -d 'Import project metadata from other formats'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a import -d 'Import project metadata from other formats'
+ complete -c pdm -A -n '__fish_seen_subcommand_from import' -l dev -d 'import packages into dev dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from import' -l format -d 'Specify the file format explicitly'
+ complete -c pdm -A -n '__fish_seen_subcommand_from import' -l global -d 'Use the global project, supply the project root with `-p` option'
+@@ -154,7 +156,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from import' -l quiet -d 'Suppress
+ complete -c pdm -A -n '__fish_seen_subcommand_from import' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # info
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a info -d 'Show the project information'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a info -d 'Show the project information'
+ complete -c pdm -A -n '__fish_seen_subcommand_from info' -l env -d 'Show PEP 508 environment markers'
+ complete -c pdm -A -n '__fish_seen_subcommand_from info' -l global -d 'Use the global project, supply the project root with `-p` option'
+ complete -c pdm -A -n '__fish_seen_subcommand_from info' -l help -d 'Show this help message and exit.'
+@@ -168,7 +170,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from info' -l verbose -d 'Use `-v`
+ complete -c pdm -A -n '__fish_seen_subcommand_from info' -l where -d 'Show the project root path'
+ 
+ # init
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a init -d 'Initialize a pyproject.toml for PDM'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a init -d 'Initialize a pyproject.toml for PDM'
+ complete -c pdm -A -n '__fish_seen_subcommand_from init' -l backend -d 'Specify the build backend, which implies --dist'
+ complete -c pdm -A -n '__fish_seen_subcommand_from init' -l cookiecutter -d 'Use Cookiecutter to generate project [32m[installed][0m'
+ complete -c pdm -A -n '__fish_seen_subcommand_from init' -l copier -d 'Use Copier to generate project [32m[installed][0m'
+@@ -184,8 +186,9 @@ complete -c pdm -A -n '__fish_seen_subcommand_from init' -l skip -d 'Skip some t
+ complete -c pdm -A -n '__fish_seen_subcommand_from init' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # install
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a install -d 'Install dependencies from lock file'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a install -d 'Install dependencies from lock file'
+ complete -c pdm -A -n '__fish_seen_subcommand_from install' -l check -d 'Check if the lock file is up to date and fail otherwise'
++complete -c pdm -A -n '__fish_seen_subcommand_from install' -l config-setting -d 'Pass options to the builder. options with a value must be specified after "=": `--config-setting=key(=value)` or `-Ckey(=value)`'
+ complete -c pdm -A -n '__fish_seen_subcommand_from install' -l dev -d 'Select dev dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from install' -l dry-run -d 'Show the difference only and don\'t perform any action'
+ complete -c pdm -A -n '__fish_seen_subcommand_from install' -l fail-fast -d 'Abort on first installation error'
+@@ -205,9 +208,10 @@ complete -c pdm -A -n '__fish_seen_subcommand_from install' -l quiet -d 'Suppres
+ complete -c pdm -A -n '__fish_seen_subcommand_from install' -l skip -d 'Skip some tasks and/or hooks by their comma-separated names. Can be supplied multiple times. Use ":all" to skip all hooks. Use ":pre" and ":post" to skip all pre or post hooks.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from install' -l venv -d 'Run the command in the virtual environment with the given key. [env var: PDM_IN_VENV]'
+ complete -c pdm -A -n '__fish_seen_subcommand_from install' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
++complete -c pdm -A -n '__fish_seen_subcommand_from install' -l without -d 'Exclude groups of optional-dependencies or dev-dependencies'
+ 
+ # list
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a list -d 'List packages installed in the current working set'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a list -d 'List packages installed in the current working set'
+ complete -c pdm -A -n '__fish_seen_subcommand_from list' -l csv -d 'Output dependencies in CSV document format'
+ complete -c pdm -A -n '__fish_seen_subcommand_from list' -l exclude -d 'Exclude dependency groups from the output'
+ complete -c pdm -A -n '__fish_seen_subcommand_from list' -l fields -d 'Select information to output as a comma separated string. All fields: groups,homepage,licenses,location,name,version.'
+@@ -227,8 +231,9 @@ complete -c pdm -A -n '__fish_seen_subcommand_from list' -l venv -d 'Run the com
+ complete -c pdm -A -n '__fish_seen_subcommand_from list' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # lock
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a lock -d 'Resolve and lock dependencies'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a lock -d 'Resolve and lock dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l check -d 'Check if the lock file is up to date and quit'
++complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l config-setting -d 'Pass options to the builder. options with a value must be specified after "=": `--config-setting=key(=value)` or `-Ckey(=value)`'
+ complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l dev -d 'Select dev dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l global -d 'Use the global project, supply the project root with `-p` option'
+ complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l group -d 'Select group of optional-dependencies separated by comma or dev-dependencies (with `-d`). Can be supplied multiple times, use ":all" to include all groups under the same species.'
+@@ -248,9 +253,10 @@ complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l strategy -d 'Specify
+ complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l update-reuse -d 'Reuse pinned versions already present in lock file if possible'
+ complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l update-reuse-installed -d 'Reuse installed packages if possible'
+ complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
++complete -c pdm -A -n '__fish_seen_subcommand_from lock' -l without -d 'Exclude groups of optional-dependencies or dev-dependencies'
+ 
+ # plugin
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a plugin -d 'Manage the PDM program itself (previously known as plugin)'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a plugin -d 'Manage the PDM program itself (previously known as plugin)'
+ complete -c pdm -A -n '__fish_seen_subcommand_from plugin' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from plugin' -l quiet -d 'Suppress output'
+ complete -c pdm -A -n '__fish_seen_subcommand_from plugin' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+@@ -288,7 +294,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from plugin; and __fish_seen_subco
+ complete -c pdm -A -n '__fish_seen_subcommand_from plugin; and __fish_seen_subcommand_from update' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # publish
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a publish -d 'Build and publish the project to PyPI'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a publish -d 'Build and publish the project to PyPI'
+ complete -c pdm -A -n '__fish_seen_subcommand_from publish' -l ca-certs -d 'The path to a PEM-encoded Certificate Authority bundle to use for publish server validation [env var: PDM_PUBLISH_CA_CERTS]'
+ complete -c pdm -A -n '__fish_seen_subcommand_from publish' -l comment -d 'The comment to include with the distribution file.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from publish' -l help -d 'Show this help message and exit.'
+@@ -306,7 +312,8 @@ complete -c pdm -A -n '__fish_seen_subcommand_from publish' -l username -d 'The
+ complete -c pdm -A -n '__fish_seen_subcommand_from publish' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # remove
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a remove -d 'Remove packages from pyproject.toml'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a remove -d 'Remove packages from pyproject.toml'
++complete -c pdm -A -n '__fish_seen_subcommand_from remove' -l config-setting -d 'Pass options to the builder. options with a value must be specified after "=": `--config-setting=key(=value)` or `-Ckey(=value)`'
+ complete -c pdm -A -n '__fish_seen_subcommand_from remove' -l dev -d 'Remove packages from dev dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from remove' -l dry-run -d 'Show the difference only and don\'t perform any action'
+ complete -c pdm -A -n '__fish_seen_subcommand_from remove' -l fail-fast -d 'Abort on first installation error'
+@@ -326,7 +333,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from remove' -l venv -d 'Run the c
+ complete -c pdm -A -n '__fish_seen_subcommand_from remove' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # run
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a run -d 'Run commands or scripts with local packages loaded'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a run -d 'Run commands or scripts with local packages loaded'
+ complete -c pdm -A -n '__fish_seen_subcommand_from run' -l global -d 'Use the global project, supply the project root with `-p` option'
+ complete -c pdm -A -n '__fish_seen_subcommand_from run' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from run' -l json -d 'Output all scripts infos in JSON'
+@@ -339,13 +346,13 @@ complete -c pdm -A -n '__fish_seen_subcommand_from run' -l venv -d 'Run the comm
+ complete -c pdm -A -n '__fish_seen_subcommand_from run' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # search
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a search -d 'Search for PyPI packages'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a search -d 'Search for PyPI packages'
+ complete -c pdm -A -n '__fish_seen_subcommand_from search' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from search' -l quiet -d 'Suppress output'
+ complete -c pdm -A -n '__fish_seen_subcommand_from search' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # self
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a self -d 'Manage the PDM program itself (previously known as plugin)'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a self -d 'Manage the PDM program itself (previously known as plugin)'
+ complete -c pdm -A -n '__fish_seen_subcommand_from self' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from self' -l quiet -d 'Suppress output'
+ complete -c pdm -A -n '__fish_seen_subcommand_from self' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+@@ -383,7 +390,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from self; and __fish_seen_subcomm
+ complete -c pdm -A -n '__fish_seen_subcommand_from self; and __fish_seen_subcommand_from update' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # show
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a show -d 'Show the package information'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a show -d 'Show the package information'
+ complete -c pdm -A -n '__fish_seen_subcommand_from show' -l global -d 'Use the global project, supply the project root with `-p` option'
+ complete -c pdm -A -n '__fish_seen_subcommand_from show' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from show' -l keywords -d 'Show keywords'
+@@ -398,8 +405,9 @@ complete -c pdm -A -n '__fish_seen_subcommand_from show' -l verbose -d 'Use `-v`
+ complete -c pdm -A -n '__fish_seen_subcommand_from show' -l version -d 'Show version'
+ 
+ # sync
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a sync -d 'Synchronize the current working set with lock file'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a sync -d 'Synchronize the current working set with lock file'
+ complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l clean -d 'Clean packages not in the lockfile'
++complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l config-setting -d 'Pass options to the builder. options with a value must be specified after "=": `--config-setting=key(=value)` or `-Ckey(=value)`'
+ complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l dev -d 'Select dev dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l dry-run -d 'Show the difference only and don\'t perform any action'
+ complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l fail-fast -d 'Abort on first installation error'
+@@ -419,9 +427,11 @@ complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l reinstall -d 'Force
+ complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l skip -d 'Skip some tasks and/or hooks by their comma-separated names. Can be supplied multiple times. Use ":all" to skip all hooks. Use ":pre" and ":post" to skip all pre or post hooks.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l venv -d 'Run the command in the virtual environment with the given key. [env var: PDM_IN_VENV]'
+ complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
++complete -c pdm -A -n '__fish_seen_subcommand_from sync' -l without -d 'Exclude groups of optional-dependencies or dev-dependencies'
+ 
+ # update
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a update -d 'Update package(s) in pyproject.toml'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a update -d 'Update package(s) in pyproject.toml'
++complete -c pdm -A -n '__fish_seen_subcommand_from update' -l config-setting -d 'Pass options to the builder. options with a value must be specified after "=": `--config-setting=key(=value)` or `-Ckey(=value)`'
+ complete -c pdm -A -n '__fish_seen_subcommand_from update' -l dev -d 'Select dev dependencies'
+ complete -c pdm -A -n '__fish_seen_subcommand_from update' -l fail-fast -d 'Abort on first installation error'
+ complete -c pdm -A -n '__fish_seen_subcommand_from update' -l frozen-lockfile -d 'Don\'t try to create or update the lockfile. [env var: PDM_FROZEN_LOCKFILE]'
+@@ -453,9 +463,10 @@ complete -c pdm -A -n '__fish_seen_subcommand_from update' -l update-reuse -d 'R
+ complete -c pdm -A -n '__fish_seen_subcommand_from update' -l update-reuse-installed -d 'Reuse installed packages if possible'
+ complete -c pdm -A -n '__fish_seen_subcommand_from update' -l venv -d 'Run the command in the virtual environment with the given key. [env var: PDM_IN_VENV]'
+ complete -c pdm -A -n '__fish_seen_subcommand_from update' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
++complete -c pdm -A -n '__fish_seen_subcommand_from update' -l without -d 'Exclude groups of optional-dependencies or dev-dependencies'
+ 
+ # use
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a use -d 'Use the given python version or path as base interpreter'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a use -d 'Use the given python version or path as base interpreter'
+ complete -c pdm -A -n '__fish_seen_subcommand_from use' -l first -d 'Select the first matched interpreter'
+ complete -c pdm -A -n '__fish_seen_subcommand_from use' -l global -d 'Use the global project, supply the project root with `-p` option'
+ complete -c pdm -A -n '__fish_seen_subcommand_from use' -l help -d 'Show this help message and exit.'
+@@ -467,7 +478,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from use' -l venv -d 'Use the inte
+ complete -c pdm -A -n '__fish_seen_subcommand_from use' -l verbose -d 'Use `-v` for detailed output and `-vv` for more detailed'
+ 
+ # venv
+-complete -c pdm -f -n '__fish_pdm_41ba8a56174f8367_complete_no_subcommand' -a venv -d 'Virtualenv management'
++complete -c pdm -f -n '__fish_pdm_a919b69078acdf0a_complete_no_subcommand' -a venv -d 'Virtualenv management'
+ complete -c pdm -A -n '__fish_seen_subcommand_from venv' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from venv' -l path -d 'Show the path to the given virtualenv'
+ complete -c pdm -A -n '__fish_seen_subcommand_from venv' -l project -d 'Specify another path as the project root, which changes the base of pyproject.toml and __pypackages__ [env var: PDM_PROJECT]'
+diff --git a/src/pdm/cli/completions/pdm.ps1 b/src/pdm/cli/completions/pdm.ps1
+index b5f7ea09d5..befa6843b4 100644
+--- a/src/pdm/cli/completions/pdm.ps1
++++ b/src/pdm/cli/completions/pdm.ps1
+@@ -197,7 +197,7 @@ function TabExpansion($line, $lastWord) {
+         $command = $commands[0]
+         $completer = [Completer]::new()
+         $completer.AddOpts(([Option]::new(("-h", "--help", "-v", "--verbose", "-q", "--quiet"))))
+-        $sectionOption = [Option]::new(@("-G", "--group")).WithValues(@(getSections))
++        $sectionOption = [Option]::new(@("-G", "--group", "--with", "--without")).WithValues(@(getSections))
+         $projectOption = [Option]::new(@("-p", "--project")).WithValues(@())
+         $skipOption = [Option]::new(@("-k", "--skip")).WithValues(@())
+         $venvOption = [Option]::new(@("--venv")).WithValues(@())
+@@ -210,7 +210,7 @@ function TabExpansion($line, $lastWord) {
+                         [Option]::new((
+                             "-d", "--dev", "--save-compatible", "--save-wildcard", "--dry-run", "--save-exact",
+                             "--save-minimum", "--update-eager", "--update-reuse", "--update-all", "-g", "--global",
+-                            "--no-sync", "--no-editable", "--no-self", "-u", "--unconstrained", "--no-isolation", "--stable",
++                            "--no-sync", "--no-editable", "--no-self", "-u", "--unconstrained", "--no-isolation", "-C", "--config-setting", "--stable",
+                             "--pre", "--prerelease", "-L", "--lockfile", "--fail-fast", "-x", "--frozen-lockfile", "--update-reuse-installed"
+                         )),
+                         $sectionOption,
+@@ -299,7 +299,7 @@ function TabExpansion($line, $lastWord) {
+                 $completer.AddOpts(@(
+                         [Option]::new((
+                             "-d", "--dev", "-g", "--global", "--dry-run", "--no-default", "--frozen-lockfile", "--prod",
+-                            "--production", "--no-editable", "--no-self", "--no-isolation", "--check", "-L",
++                            "--production", "--no-editable", "--no-self", "-C", "--config-setting", "--no-isolation", "--check", "-L",
+                             "--lockfile", "--fail-fast", "-x", "--plugins"
+                         )),
+                         $sectionOption,
+@@ -325,7 +325,7 @@ function TabExpansion($line, $lastWord) {
+                 $completer.AddOpts(
+                     @(
+                         [Option]::new(@(
+-                            "--global", "-g", "--no-isolation", "--refresh", "-L", "--lockfile", "--check", "--dev", "--prod",
++                            "--global", "-g", "-C", "--config-setting", "--no-isolation", "--refresh", "-L", "--lockfile", "--check", "--dev", "--prod",
+                             "--production", "-d", "--no-default", "--no-cross-platform", "--static-urls", "--no-static-urls",
+                             "--strategy", "-S", "--update-reuse", "--update-reuse-installed"
+                         )),
+@@ -378,7 +378,7 @@ function TabExpansion($line, $lastWord) {
+                     @(
+                         [Option]::new(@(
+                             "--global", "-g", "--dev", "-d", "--dry-run", "--no-sync", "--no-editable", "--no-self",
+-                            "--no-isolation", "-L", "--lockfile", "--fail-fast", "-x", "--frozen-lockfile"
++                            "-C", "--config-setting", "--no-isolation", "-L", "--lockfile", "--fail-fast", "-x", "--frozen-lockfile"
+                         )),
+                         $projectOption,
+                         $skipOption,
+@@ -414,7 +414,7 @@ function TabExpansion($line, $lastWord) {
+                         [Option]::new((
+                             "-d", "--dev", "-g", "--global", "--no-default", "--clean", "--only-keep", "--dry-run",
+                             "-r", "--reinstall", "--prod", "--production", "--no-editable", "--no-self", "--no-isolation",
+-                            "-L", "--lockfile", "--fail-fast", "-x"
++                            "-C", "--config-setting", "-L", "--lockfile", "--fail-fast", "-x"
+                         )),
+                         $sectionOption,
+                         $venvOption,
+@@ -430,7 +430,7 @@ function TabExpansion($line, $lastWord) {
+                             "--save-minimum", "--update-eager", "--update-reuse", "--update-all", "-g", "--global", "--dry-run",
+                             "--outdated", "--top", "-u", "--unconstrained", "--no-editable", "--no-self", "--no-isolation",
+                             "--no-sync", "--pre", "--prerelease", "-L", "--lockfile", "--fail-fast", "-x", "--frozen-lockfile",
+-                            "--update-reuse-installed", "--stable"
++                            "-C", "--config-setting", "--update-reuse-installed", "--stable"
+                         )),
+                         $sectionOption,
+                         $skipOption,
+diff --git a/src/pdm/cli/completions/pdm.zsh b/src/pdm/cli/completions/pdm.zsh
+index 1c8d4494f6..14356b1df4 100644
+--- a/src/pdm/cli/completions/pdm.zsh
++++ b/src/pdm/cli/completions/pdm.zsh
+@@ -83,6 +83,7 @@ _pdm() {
+         "--stable[Only allow stable versions to be pinned]"
+         {-e+,--editable+}'[Specify editable packages]:packages'
+         {-x,--fail-fast}'[Abort on first installation error]'
++        {-C,--config-setting}'[Pass options to the backend. options with a value must be specified after "=": "--config-setting=key(=value)" or "-Ckey(=value)"]:cs:'
+         "--no-isolation[do not isolate the build in a clean environment]"
+         "--dry-run[Show the difference only without modifying the lockfile content]"
+         '*:packages:_pdm_pip_packages'
+@@ -95,7 +96,7 @@ _pdm() {
+         {-d+,--dest+}'[Target directory to put artifacts]:directory:_files -/'
+         {-k,--skip}'[Skip some tasks and/or hooks by their comma-separated names]'
+         '--no-clean[Do not clean the target directory]'
+-        {-C,--config-setting}'[Pass options to the backend. options with a value must be specified after "=": "--config-setting=--opt(=value)" or "-C--opt(=value)"]'
++        {-C,--config-setting}'[Pass options to the backend. options with a value must be specified after "=": "--config-setting=key(=value)" or "-Ckey(=value)"]:cs:'
+         "--no-isolation[do not isolate the build in a clean environment]"
+       )
+       ;;
+@@ -156,7 +157,8 @@ _pdm() {
+         "--editable-self[Include the project itself as an editable dependency]"
+         {-L,--lockfile}'[Specify another lockfile path, or use `PDM_LOCKFILE` env variable. Default: pdm.lock]:lockfile:_files'
+         {-o+,--output+}"[Write output to the given file, or print to stdout if not given]:output file:_files"
+-        {-G+,--group+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        {-G+,--group+,--with+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        "--without+[Exclude groups of optional-dependencies or dev-dependencies]:group:_pdm_groups"
+         {-d,--dev}"[Select dev dependencies]"
+         {--prod,--production}"[Unselect dev dependencies]"
+         "--no-default[Don't include dependencies from the default group]"
+@@ -204,7 +206,8 @@ _pdm() {
+     install)
+       arguments+=(
+         {-g,--global}'[Use the global project, supply the project root with `-p` option]'
+-        {-G+,--group+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        {-G+,--group+,--with+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        "--without+[Exclude groups of optional-dependencies or dev-dependencies]:group:_pdm_groups"
+         {-d,--dev}"[Select dev dependencies]"
+         {-L,--lockfile}'[Specify another lockfile path, or use `PDM_LOCKFILE` env variable. Default: pdm.lock]:lockfile:_files'
+         {--prod,--production}"[Unselect dev dependencies]"
+@@ -214,6 +217,7 @@ _pdm() {
+         '--no-editable[Install non-editable versions for all packages]'
+         "--no-self[Don't install the project itself]"
+         {-x,--fail-fast}'[Abort on first installation error]'
++        {-C,--config-setting}'[Pass options to the backend. options with a value must be specified after "=": "--config-setting=key(=value)" or "-Ckey(=value)"]:cs:'
+         "--no-isolation[do not isolate the build in a clean environment]"
+         "--dry-run[Show the difference only without modifying the lock file content]"
+         "--check[Check if the lock file is up to date and fail otherwise]"
+@@ -243,11 +247,13 @@ _pdm() {
+       arguments+=(
+         {-g,--global}'[Use the global project, supply the project root with `-p` option]'
+         {-L,--lockfile}'[Specify another lockfile path, or use `PDM_LOCKFILE` env variable. Default: pdm.lock]:lockfile:_files'
++        {-C,--config-setting}'[Pass options to the backend. options with a value must be specified after "=": "--config-setting=key(=value)" or "-Ckey(=value)"]:cs:'
+         "--no-isolation[Do not isolate the build in a clean environment]"
+         {-k,--skip}'[Skip some tasks and/or hooks by their comma-separated names]'
+         "--refresh[Don't update pinned versions, only refresh the lock file]"
+         "--check[Check if the lock file is up to date and quit]"
+-        {-G+,--group+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        {-G+,--group+,--with+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        "--without+[Exclude groups of optional-dependencies or dev-dependencies]:group:_pdm_groups"
+         {-d,--dev}"[Select dev dependencies]"
+         {--prod,--production}"[Unselect dev dependencies]"
+         '--update-reuse[Reuse pinned versions already present in lock file if possible]'
+@@ -335,6 +341,7 @@ _pdm() {
+         "--no-self[Don't install the project itself]"
+         "--frozen-lockfile[Don't try to create or update the lockfile. \[env var: PDM_FROZEN_LOCKFILE\]]"
+         {-x,--fail-fast}'[Abort on first installation error]'
++        {-C,--config-setting}'[Pass options to the backend. options with a value must be specified after "=": "--config-setting=key(=value)" or "-Ckey(=value)"]:cs:'
+         "--no-isolation[do not isolate the build in a clean environment]"
+         "--dry-run[Show the difference only without modifying the lockfile content]"
+         '--venv[Run the command in the virtual environment with the given key. \[env var: PDM_IN_VENV\]]:venv:'
+@@ -379,7 +386,8 @@ _pdm() {
+     sync)
+       arguments+=(
+         {-g,--global}'[Use the global project, supply the project root with `-p` option]'
+-        {-G+,--group+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        {-G+,--group+,--with+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        "--without+[Exclude groups of optional-dependencies or dev-dependencies]:group:_pdm_groups"
+         {-d,--dev}"[Select dev dependencies]"
+         {-L,--lockfile}'[Specify another lockfile path, or use `PDM_LOCKFILE` env variable. Default: pdm.lock]:lockfile:_files'
+         {--prod,--production}"[Unselect dev dependencies]"
+@@ -392,6 +400,7 @@ _pdm() {
+         {-x,--fail-fast}'[Abort on first installation error]'
+         '--no-editable[Install non-editable versions for all packages]'
+         "--no-self[Don't install the project itself]"
++        {-C,--config-setting}'[Pass options to the backend. options with a value must be specified after "=": "--config-setting=key(=value)" or "-Ckey(=value)"]:cs:'
+         "--no-isolation[do not isolate the build in a clean environment]"
+         '--venv[Run the command in the virtual environment with the given key. \[env var: PDM_IN_VENV\]]:venv:'
+       )
+@@ -399,7 +408,8 @@ _pdm() {
+     update)
+       arguments+=(
+         {-g,--global}'[Use the global project, supply the project root with `-p` option]'
+-        {-G+,--group+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        {-G+,--group+,--with+}'[Select group of optional-dependencies or dev-dependencies(with -d). Can be supplied multiple times, use ":all" to include all groups under the same species]:group:_pdm_groups'
++        "--without+[Exclude groups of optional-dependencies or dev-dependencies]:group:_pdm_groups"
+         {-L,--lockfile}'[Specify another lockfile path, or use `PDM_LOCKFILE` env variable. Default: pdm.lock]:lockfile:_files'
+         '--save-compatible[Save compatible version specifiers]'
+         '--save-wildcard[Save wildcard version specifiers]'
+@@ -424,6 +434,7 @@ _pdm() {
+         "--dry-run[Show the difference only without modifying the lockfile content]"
+         "--outdated[Show the difference only without modifying the lockfile content]"
+         {-x,--fail-fast}'[Abort on first installation error]'
++        {-C,--config-setting}'[Pass options to the backend. options with a value must be specified after "=": "--config-setting=key(=value)" or "-Ckey(=value)"]:cs:'
+         "--no-isolation[do not isolate the build in a clean environment]"
+         '--venv[Run the command in the virtual environment with the given key. \[env var: PDM_IN_VENV\]]:venv:'
+         "*:packages:_pdm_packages"
+diff --git a/src/pdm/cli/options.py b/src/pdm/cli/options.py
+index e0826516a6..b4c5cbf971 100644
+--- a/src/pdm/cli/options.py
++++ b/src/pdm/cli/options.py
+@@ -60,6 +60,26 @@ def __call__(
+         namespace.callbacks.append(callback)
+ 
+ 
++class ExtendMapAction(argparse._AppendAction):
++    def __call__(
++        self,
++        parser: argparse.ArgumentParser,
++        namespace: argparse.Namespace,
++        values: str | Sequence[Any] | None,
++        option_string: str | None = None,
++    ) -> None:
++        assert isinstance(values, str)
++        k, _, v = values.partition("=")
++        mapping = getattr(namespace, self.dest, None) or {}
++        if k in mapping:
++            if not isinstance(mapping[k], list):
++                mapping[k] = [mapping[k]]
++            mapping[k].append(v)
++        else:
++            mapping[k] = v
++        setattr(namespace, self.dest, mapping)
++
++
+ class ArgumentGroup(Option):
+     """A reusable argument group object which can call `add_argument()`
+     to add more arguments. And itself will be registered to the parser later.
+@@ -234,7 +254,7 @@ def no_isolation_option(
+     dest="excluded_groups",
+     metavar="",
+     action=split_lists(","),
+-    help="Exclude groups of optional-dependencies when using :all",
++    help="Exclude groups of optional-dependencies or dev-dependencies",
+     default=[],
+ )
+ groups_group.add_argument(
+@@ -451,3 +471,13 @@ def ignore_python_option(
+     help="[DEPRECATED] Do not store static file URLs in the lockfile",
+     const="no_static_urls",
+ )
++
++config_setting_option = Option(
++    "--config-setting",
++    "-C",
++    action=ExtendMapAction,
++    help="Pass options to the builder. options with a value must be "
++    'specified after "=": `--config-setting=key(=value)` '
++    "or `-Ckey(=value)`",
++)
++install_group.options.append(config_setting_option)
+diff --git a/src/pdm/core.py b/src/pdm/core.py
+index 63dae51120..6678635364 100644
+--- a/src/pdm/core.py
++++ b/src/pdm/core.py
+@@ -58,6 +58,9 @@ def __init__(self) -> None:
+         self.version = __version__
+         self.exit_stack = contextlib.ExitStack()
+         self.ui = termui.UI(exit_stack=self.exit_stack)
++        # The config settings map shared by all packages
++        self.config_settings: dict[str, Any] | None = None
++        self.exit_stack.callback(setattr, self, "config_settings", None)
+         self.init_parser()
+         self.load_plugins()
+ 
+@@ -145,6 +148,7 @@ def handle(self, project: Project, options: argparse.Namespace) -> None:
+         os.makedirs(self.ui.log_dir, exist_ok=True)
+ 
+         command = cast("BaseCommand | None", getattr(options, "command", None))
++        self.config_settings = getattr(options, "config_setting", None)
+         hooks = HookManager(project, getattr(options, "skip", None))
+         hooks.try_emit("pre_invoke", command=command.name if command else None, options=options)
+ 

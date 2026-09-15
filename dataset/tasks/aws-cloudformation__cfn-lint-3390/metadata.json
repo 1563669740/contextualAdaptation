@@ -1,0 +1,41 @@
+{
+  "task_id": "aws-cloudformation__cfn-lint-3390",
+  "repo": "aws-cloudformation/cfn-lint",
+  "pull_number": "3390",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=3 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.9,
+  "base_commit": "3d9be79618e80095826882637f13ecf96af88639",
+  "repo_commit": "3d9be79618e80095826882637f13ecf96af88639",
+  "gold_commit": "1dd51b5f05db427262b670dfb8cc7ca1942fdb59",
+  "gold_commit_count": 2,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 2,
+  "gold_loc_added": 39,
+  "gold_loc_deleted": 11,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 4,
+  "pass_to_pass_count": 981,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

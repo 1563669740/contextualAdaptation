@@ -1,0 +1,3 @@
+[
+  "geopandas/tools/tests/test_sjoin.py::TestSpatialJoin::test_sjoin_left_order[within]"
+]

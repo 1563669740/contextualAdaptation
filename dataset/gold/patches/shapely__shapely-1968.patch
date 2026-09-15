@@ -1,0 +1,201 @@
+diff --git a/CHANGES.txt b/CHANGES.txt
+index ab916064f..13dd3fdf0 100644
+--- a/CHANGES.txt
++++ b/CHANGES.txt
+@@ -20,6 +20,9 @@ Improvements:
+ - The ``include_z`` in ``shapely.transform()`` now also allows ``None``, which
+   lets it automatically detect the dimensionality of each input geometry.
+ - Upgraded the GEOS version in the binary wheel distributions to 3.12.1.
++- The ``voronoi_polygons`` now accepts the ``ordered`` keyword, optionally forcing the
++  order of polygons within the GeometryCollection to follow the order of input
++  coordinates. Requires at least GEOS 3.12. (#1968)
+ 
+ Breaking changes in GEOS 3.12:
+ 
+diff --git a/shapely/constructive.py b/shapely/constructive.py
+index 35e808fc3..d31b15a27 100644
+--- a/shapely/constructive.py
++++ b/shapely/constructive.py
+@@ -4,6 +4,7 @@
+ from shapely._enum import ParamEnum
+ from shapely.algorithms._oriented_envelope import _oriented_envelope_min_area
+ from shapely.decorators import multithreading_enabled, requires_geos
++from shapely.errors import UnsupportedGEOSVersionError
+ 
+ __all__ = [
+     "BufferCapStyle",
+@@ -91,7 +92,7 @@ def buffer(
+     join_style="round",
+     mitre_limit=5.0,
+     single_sided=False,
+-    **kwargs
++    **kwargs,
+ ):
+     """
+     Computes the buffer of a geometry for positive and negative buffer distance.
+@@ -185,7 +186,7 @@ def buffer(
+         np.intc(join_style),
+         mitre_limit,
+         np.bool_(single_sided),
+-        **kwargs
++        **kwargs,
+     )
+ 
+ 
+@@ -251,7 +252,7 @@ def offset_curve(
+         np.intc(quad_segs),
+         np.intc(join_style),
+         np.double(mitre_limit),
+-        **kwargs
++        **kwargs,
+     )
+ 
+ 
+@@ -330,7 +331,7 @@ def clip_by_rect(geometry, xmin, ymin, xmax, ymax, **kwargs):
+         np.double(ymin),
+         np.double(xmax),
+         np.double(ymax),
+-        **kwargs
++        **kwargs,
+     )
+ 
+ 
+@@ -944,7 +945,7 @@ def snap(geometry, reference, tolerance, **kwargs):
+ 
+ @multithreading_enabled
+ def voronoi_polygons(
+-    geometry, tolerance=0.0, extend_to=None, only_edges=False, **kwargs
++    geometry, tolerance=0.0, extend_to=None, only_edges=False, ordered=False, **kwargs
+ ):
+     """Computes a Voronoi diagram from the vertices of an input geometry.
+ 
+@@ -963,6 +964,10 @@ def voronoi_polygons(
+     only_edges : bool or array_like, default False
+         If set to True, the triangulation will return a collection of
+         linestrings instead of polygons.
++    ordered : bool or array_like, default False
++        If set to True, polygons within the GeometryCollection will be ordered
++        according to the order of the input vertices. Note that this may slow
++        down the computation. Requires GEOS >= 3.12.0
+     **kwargs
+         See :ref:`NumPy ufunc docs <ufuncs.kwargs>` for other keyword arguments.
+ 
+@@ -982,8 +987,17 @@ def voronoi_polygons(
+     <MULTILINESTRING ((3 4, 3 0))>
+     >>> voronoi_polygons(Point(2, 2))
+     <GEOMETRYCOLLECTION EMPTY>
++    >>> voronoi_polygons(points, ordered=True)
++    <GEOMETRYCOLLECTION (POLYGON ((0 0, 0 4, 3 4, 3 0, 0 0)), POLYGON ((6 4, 6 0...>
+     """
+-    return lib.voronoi_polygons(geometry, tolerance, extend_to, only_edges, **kwargs)
++    if ordered is not False and lib.geos_version < (3, 12, 0):
++        raise UnsupportedGEOSVersionError(
++            "Ordered Voronoi polygons require GEOS >= 3.12.0, "
++            f"found {lib.geos_version_string}"
++        )
++    return lib.voronoi_polygons(
++        geometry, tolerance, extend_to, only_edges, ordered, **kwargs
++    )
+ 
+ 
+ @multithreading_enabled
+diff --git a/src/fast_loop_macros.h b/src/fast_loop_macros.h
+index 8f207d38c..fba026933 100644
+--- a/src/fast_loop_macros.h
++++ b/src/fast_loop_macros.h
+@@ -53,6 +53,17 @@
+   npy_intp i;                                                                          \
+   for (i = 0; i < n; i++, ip1 += is1, ip2 += is2, ip3 += is3, ip4 += is4, op1 += os1)
+ 
++/** (ip1, ip2, ip3, ip4, ip5) -> (op1) */
++#define QUINARY_LOOP                                                                 \
++  char *ip1 = args[0], *ip2 = args[1], *ip3 = args[2], *ip4 = args[3], *ip5 = args[4], \
++       *op1 = args[5];                                                                 \
++  npy_intp is1 = steps[0], is2 = steps[1], is3 = steps[2], is4 = steps[3],            \
++           is5 = steps[4], os1 = steps[5];                                            \
++  npy_intp n = dimensions[0];                                                         \
++  npy_intp i;                                                                         \
++  for (i = 0; i < n; i++, ip1 += is1, ip2 += is2, ip3 += is3, ip4 += is4, ip5 += is5, \
++           op1 += os1)
++
+ /** (ip1, cp1) -> (op1) */
+ #define SINGLE_COREDIM_LOOP_OUTER                          \
+   char *ip1 = args[0], *op1 = args[1], *cp1;               \
+diff --git a/src/ufuncs.c b/src/ufuncs.c
+index 9d08fa20c..4d1276959 100644
+--- a/src/ufuncs.c
++++ b/src/ufuncs.c
+@@ -1948,14 +1948,14 @@ static void delaunay_triangles_func(char** args, const npy_intp* dimensions, con
+ }
+ static PyUFuncGenericFunction delaunay_triangles_funcs[1] = {&delaunay_triangles_func};
+ 
+-static char voronoi_polygons_dtypes[5] = {NPY_OBJECT, NPY_DOUBLE, NPY_OBJECT, NPY_BOOL,
+-                                          NPY_OBJECT};
++static char voronoi_polygons_dtypes[6] = {NPY_OBJECT, NPY_DOUBLE, NPY_OBJECT, NPY_BOOL,
++                                          NPY_BOOL, NPY_OBJECT};
+ static void voronoi_polygons_func(char** args, const npy_intp* dimensions, const npy_intp* steps,
+                                   void* data) {
+   GEOSGeometry *in1 = NULL, *in3 = NULL;
+   GEOSGeometry** geom_arr;
+ 
+-  CHECK_NO_INPLACE_OUTPUT(4);
++  CHECK_NO_INPLACE_OUTPUT(5);
+ 
+   // allocate a temporary array to store output GEOSGeometry objects
+   geom_arr = malloc(sizeof(void*) * dimensions[0]);
+@@ -1963,7 +1963,7 @@ static void voronoi_polygons_func(char** args, const npy_intp* dimensions, const
+ 
+   GEOS_INIT_THREADS;
+ 
+-  QUATERNARY_LOOP {
++  QUINARY_LOOP {
+     CHECK_SIGNALS_THREADS(i);
+     if (errstate == PGERR_PYSIGNAL) {
+       destroy_geom_arr(ctx, geom_arr, i - 1);
+@@ -1978,11 +1978,18 @@ static void voronoi_polygons_func(char** args, const npy_intp* dimensions, const
+     }
+     double in2 = *(double*)ip2;
+     npy_bool in4 = *(npy_bool*)ip4;
++    npy_bool in5 = *(npy_bool*)ip5;
++    int flag = 0;
++    if (in4) {
++      flag = 1;
++    } else if (in5) {
++      flag = 2;
++    }
+     if ((in1 == NULL) || npy_isnan(in2)) {
+       /* propagate NULL geometries; in3 = NULL is actually supported */
+       geom_arr[i] = NULL;
+     } else {
+-      geom_arr[i] = GEOSVoronoiDiagram_r(ctx, in1, in3, in2, (int)in4);
++      geom_arr[i] = GEOSVoronoiDiagram_r(ctx, in1, in3, in2, flag);
+       if (geom_arr[i] == NULL) {
+         errstate = PGERR_GEOS_EXCEPTION;
+         destroy_geom_arr(ctx, geom_arr, i - 1);
+@@ -1995,7 +2002,7 @@ static void voronoi_polygons_func(char** args, const npy_intp* dimensions, const
+ 
+   // fill the numpy array with PyObjects while holding the GIL
+   if (errstate == PGERR_SUCCESS) {
+-    geom_arr_to_npy(geom_arr, args[4], steps[4], dimensions[0]);
++    geom_arr_to_npy(geom_arr, args[5], steps[5], dimensions[0]);
+   }
+   free(geom_arr);
+ }
+@@ -2457,7 +2464,7 @@ static void points_func(char** args, const npy_intp* dimensions, const npy_intp*
+ 
+   GEOS_INIT_THREADS;
+ 
+-  char *ip1 = args[0];               
++  char *ip1 = args[0];
+   npy_intp is1 = steps[0], cs1 = steps[3];
+   npy_intp n = dimensions[0], n_c1 = dimensions[1];
+   npy_intp i;
+@@ -3691,7 +3698,7 @@ int init_ufuncs(PyObject* m, PyObject* d) {
+   DEFINE_CUSTOM(equals_exact, 3);
+ 
+   DEFINE_CUSTOM(delaunay_triangles, 3);
+-  DEFINE_CUSTOM(voronoi_polygons, 4);
++  DEFINE_CUSTOM(voronoi_polygons, 5);
+   DEFINE_CUSTOM(is_valid_reason, 1);
+   DEFINE_CUSTOM(relate, 2);
+   DEFINE_CUSTOM(relate_pattern, 3);

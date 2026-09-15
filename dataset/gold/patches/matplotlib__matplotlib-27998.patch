@@ -1,0 +1,253 @@
+diff --git a/doc/api/next_api_changes/deprecations/27998-TS.rst b/doc/api/next_api_changes/deprecations/27998-TS.rst
+new file mode 100644
+index 000000000000..ab69b87f0989
+--- /dev/null
++++ b/doc/api/next_api_changes/deprecations/27998-TS.rst
+@@ -0,0 +1,7 @@
++``violinplot`` and ``violin`` *vert* parameter
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++The parameter *vert: bool* has been deprecated on `~.Axes.violinplot` and
++`~.Axes.violin`.
++It will be replaced by *orientation: {"vertical", "horizontal"}* for API
++consistency.
+diff --git a/doc/users/next_whats_new/violinplot_orientation.rst b/doc/users/next_whats_new/violinplot_orientation.rst
+new file mode 100644
+index 000000000000..23d81446ad35
+--- /dev/null
++++ b/doc/users/next_whats_new/violinplot_orientation.rst
+@@ -0,0 +1,21 @@
++``violinplot`` and ``violin`` orientation parameter
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++Violinplots have a new parameter *orientation: {"vertical", "horizontal"}*
++to change the orientation of the plot. This will replace the deprecated
++*vert: bool* parameter.
++
++
++.. plot::
++    :include-source: true
++    :alt: Example of creating 4 horizontal violinplots.
++
++    import matplotlib.pyplot as plt
++    import numpy as np
++
++    fig, ax = plt.subplots()
++    np.random.seed(19680801)
++    all_data = [np.random.normal(0, std, 100) for std in range(6, 10)]
++
++    ax.violinplot(all_data, orientation='horizontal')
++    plt.show()
+diff --git a/galleries/examples/statistics/violinplot.py b/galleries/examples/statistics/violinplot.py
+index afcc1c977034..5d1701d865c3 100644
+--- a/galleries/examples/statistics/violinplot.py
++++ b/galleries/examples/statistics/violinplot.py
+@@ -62,37 +62,37 @@
+                      quantiles=[0.05, 0.1, 0.8, 0.9], bw_method=0.5, side='high')
+ axs[0, 5].set_title('Custom violin 6', fontsize=fs)
+ 
+-axs[1, 0].violinplot(data, pos, points=80, vert=False, widths=0.7,
++axs[1, 0].violinplot(data, pos, points=80, orientation='horizontal', widths=0.7,
+                      showmeans=True, showextrema=True, showmedians=True)
+ axs[1, 0].set_title('Custom violin 7', fontsize=fs)
+ 
+-axs[1, 1].violinplot(data, pos, points=100, vert=False, widths=0.9,
++axs[1, 1].violinplot(data, pos, points=100, orientation='horizontal', widths=0.9,
+                      showmeans=True, showextrema=True, showmedians=True,
+                      bw_method='silverman')
+ axs[1, 1].set_title('Custom violin 8', fontsize=fs)
+ 
+-axs[1, 2].violinplot(data, pos, points=200, vert=False, widths=1.1,
++axs[1, 2].violinplot(data, pos, points=200, orientation='horizontal', widths=1.1,
+                      showmeans=True, showextrema=True, showmedians=True,
+                      bw_method=0.5)
+ axs[1, 2].set_title('Custom violin 9', fontsize=fs)
+ 
+-axs[1, 3].violinplot(data, pos, points=200, vert=False, widths=1.1,
++axs[1, 3].violinplot(data, pos, points=200, orientation='horizontal', widths=1.1,
+                      showmeans=True, showextrema=True, showmedians=True,
+                      quantiles=[[0.1], [], [], [0.175, 0.954], [0.75], [0.25]],
+                      bw_method=0.5)
+ axs[1, 3].set_title('Custom violin 10', fontsize=fs)
+ 
+-axs[1, 4].violinplot(data[-1:], pos[-1:], points=200, vert=False, widths=1.1,
+-                     showmeans=True, showextrema=True, showmedians=True,
++axs[1, 4].violinplot(data[-1:], pos[-1:], points=200, orientation='horizontal',
++                     widths=1.1, showmeans=True, showextrema=True, showmedians=True,
+                      quantiles=[0.05, 0.1, 0.8, 0.9], bw_method=0.5)
+ axs[1, 4].set_title('Custom violin 11', fontsize=fs)
+ 
+-axs[1, 5].violinplot(data[-1:], pos[-1:], points=200, vert=False, widths=1.1,
+-                     showmeans=True, showextrema=True, showmedians=True,
++axs[1, 5].violinplot(data[-1:], pos[-1:], points=200, orientation='horizontal',
++                     widths=1.1, showmeans=True, showextrema=True, showmedians=True,
+                      quantiles=[0.05, 0.1, 0.8, 0.9], bw_method=0.5, side='low')
+ 
+-axs[1, 5].violinplot(data[-1:], pos[-1:], points=200, vert=False, widths=1.1,
+-                     showmeans=True, showextrema=True, showmedians=True,
++axs[1, 5].violinplot(data[-1:], pos[-1:], points=200, orientation='horizontal',
++                     widths=1.1, showmeans=True, showextrema=True, showmedians=True,
+                      quantiles=[0.05, 0.1, 0.8, 0.9], bw_method=0.5, side='high')
+ axs[1, 5].set_title('Custom violin 12', fontsize=fs)
+ 
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index 26a3a580ba3e..a6e6bc9780b7 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -8350,9 +8350,10 @@ def matshow(self, Z, **kwargs):
+ 
+     @_api.make_keyword_only("3.9", "vert")
+     @_preprocess_data(replace_names=["dataset"])
+-    def violinplot(self, dataset, positions=None, vert=True, widths=0.5,
+-                   showmeans=False, showextrema=True, showmedians=False,
+-                   quantiles=None, points=100, bw_method=None, side='both'):
++    def violinplot(self, dataset, positions=None, vert=None,
++                   orientation='vertical', widths=0.5, showmeans=False,
++                   showextrema=True, showmedians=False, quantiles=None,
++                   points=100, bw_method=None, side='both',):
+         """
+         Make a violin plot.
+ 
+@@ -8370,9 +8371,21 @@ def violinplot(self, dataset, positions=None, vert=True, widths=0.5,
+             The positions of the violins; i.e. coordinates on the x-axis for
+             vertical violins (or y-axis for horizontal violins).
+ 
+-        vert : bool, default: True.
+-            If true, creates a vertical violin plot.
+-            Otherwise, creates a horizontal violin plot.
++        vert : bool, optional
++            .. deprecated:: 3.10
++                Use *orientation* instead.
++
++                If this is given during the deprecation period, it overrides
++                the *orientation* parameter.
++
++            If True, plots the violins vertically.
++            If False, plots the violins horizontally.
++
++        orientation : {'vertical', 'horizontal'}, default: 'vertical'
++            If 'horizontal', plots the violins horizontally.
++            Otherwise, plots the violins vertically.
++
++            .. versionadded:: 3.10
+ 
+         widths : float or array-like, default: 0.5
+             The maximum width of each violin in units of the *positions* axis.
+@@ -8457,12 +8470,14 @@ def _kde_method(X, coords):
+         vpstats = cbook.violin_stats(dataset, _kde_method, points=points,
+                                      quantiles=quantiles)
+         return self.violin(vpstats, positions=positions, vert=vert,
+-                           widths=widths, showmeans=showmeans,
+-                           showextrema=showextrema, showmedians=showmedians, side=side)
++                           orientation=orientation, widths=widths,
++                           showmeans=showmeans, showextrema=showextrema,
++                           showmedians=showmedians, side=side)
+ 
+     @_api.make_keyword_only("3.9", "vert")
+-    def violin(self, vpstats, positions=None, vert=True, widths=0.5,
+-               showmeans=False, showextrema=True, showmedians=False, side='both'):
++    def violin(self, vpstats, positions=None, vert=None,
++               orientation='vertical', widths=0.5, showmeans=False,
++               showextrema=True, showmedians=False, side='both'):
+         """
+         Draw a violin plot from pre-computed statistics.
+ 
+@@ -8500,9 +8515,21 @@ def violin(self, vpstats, positions=None, vert=True, widths=0.5,
+             The positions of the violins; i.e. coordinates on the x-axis for
+             vertical violins (or y-axis for horizontal violins).
+ 
+-        vert : bool, default: True.
+-            If true, plots the violins vertically.
+-            Otherwise, plots the violins horizontally.
++        vert : bool, optional
++            .. deprecated:: 3.10
++                Use *orientation* instead.
++
++                If this is given during the deprecation period, it overrides
++                the *orientation* parameter.
++
++            If True, plots the violins vertically.
++            If False, plots the violins horizontally.
++
++        orientation : {'vertical', 'horizontal'}, default: 'vertical'
++            If 'horizontal', plots the violins horizontally.
++            Otherwise, plots the violins vertically.
++
++            .. versionadded:: 3.10
+ 
+         widths : float or array-like, default: 0.5
+             The maximum width of each violin in units of the *positions* axis.
+@@ -8572,6 +8599,18 @@ def violin(self, vpstats, positions=None, vert=True, widths=0.5,
+         datashape_message = ("List of violinplot statistics and `{0}` "
+                              "values must have the same length")
+ 
++        # vert and orientation parameters are linked until vert's
++        # deprecation period expires. If both are selected,
++        # vert takes precedence.
++        if vert is not None:
++            _api.warn_deprecated(
++                "3.10",
++                name="vert: bool",
++                alternative="orientation: {'vertical', 'horizontal'}"
++                )
++            orientation = 'vertical' if vert else 'horizontal'
++        _api.check_in_list(['horizontal', 'vertical'], orientation=orientation)
++
+         # Validate positions
+         if positions is None:
+             positions = range(1, N + 1)
+@@ -8600,7 +8639,7 @@ def violin(self, vpstats, positions=None, vert=True, widths=0.5,
+             fillcolor = linecolor = self._get_lines.get_next_color()
+ 
+         # Check whether we are rendering vertically or horizontally
+-        if vert:
++        if orientation == 'vertical':
+             fill = self.fill_betweenx
+             if side in ['low', 'high']:
+                 perp_lines = functools.partial(self.hlines, colors=linecolor,
+diff --git a/lib/matplotlib/axes/_axes.pyi b/lib/matplotlib/axes/_axes.pyi
+index be0a0e48d662..ac407270bff3 100644
+--- a/lib/matplotlib/axes/_axes.pyi
++++ b/lib/matplotlib/axes/_axes.pyi
+@@ -739,7 +739,8 @@ class Axes(_AxesBase):
+         dataset: ArrayLike | Sequence[ArrayLike],
+         positions: ArrayLike | None = ...,
+         *,
+-        vert: bool = ...,
++        vert: bool | None = ...,
++        orientation: Literal["vertical", "horizontal"] = ...,
+         widths: float | ArrayLike = ...,
+         showmeans: bool = ...,
+         showextrema: bool = ...,
+@@ -758,7 +759,8 @@ class Axes(_AxesBase):
+         vpstats: Sequence[dict[str, Any]],
+         positions: ArrayLike | None = ...,
+         *,
+-        vert: bool = ...,
++        vert: bool | None = ...,
++        orientation: Literal["vertical", "horizontal"] = ...,
+         widths: float | ArrayLike = ...,
+         showmeans: bool = ...,
+         showextrema: bool = ...,
+diff --git a/lib/matplotlib/pyplot.py b/lib/matplotlib/pyplot.py
+index 2376c6243929..f10273495b51 100644
+--- a/lib/matplotlib/pyplot.py
++++ b/lib/matplotlib/pyplot.py
+@@ -4142,7 +4142,8 @@ def triplot(*args, **kwargs):
+ def violinplot(
+     dataset: ArrayLike | Sequence[ArrayLike],
+     positions: ArrayLike | None = None,
+-    vert: bool = True,
++    vert: bool | None = None,
++    orientation: Literal["vertical", "horizontal"] = "vertical",
+     widths: float | ArrayLike = 0.5,
+     showmeans: bool = False,
+     showextrema: bool = True,
+@@ -4161,6 +4162,7 @@ def violinplot(
+         dataset,
+         positions=positions,
+         vert=vert,
++        orientation=orientation,
+         widths=widths,
+         showmeans=showmeans,
+         showextrema=showextrema,

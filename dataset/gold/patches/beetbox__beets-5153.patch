@@ -1,0 +1,96 @@
+diff --git a/beets/autotag/hooks.py b/beets/autotag/hooks.py
+index 13c43e8cf2..67546f47c8 100644
+--- a/beets/autotag/hooks.py
++++ b/beets/autotag/hooks.py
+@@ -94,6 +94,7 @@ def __init__(
+         month: Optional[int] = None,
+         day: Optional[int] = None,
+         label: Optional[str] = None,
++        barcode: Optional[str] = None,
+         mediums: Optional[int] = None,
+         artist_sort: Optional[str] = None,
+         artists_sort: Optional[List[str]] = None,
+@@ -136,6 +137,7 @@ def __init__(
+         self.month = month
+         self.day = day
+         self.label = label
++        self.barcode = barcode
+         self.mediums = mediums
+         self.artist_sort = artist_sort
+         self.artists_sort = artists_sort or []
+@@ -175,6 +177,7 @@ def decode(self, codec: str = "utf-8"):
+             "artist",
+             "albumtype",
+             "label",
++            "barcode",
+             "artist_sort",
+             "catalognum",
+             "script",
+diff --git a/beets/autotag/match.py b/beets/autotag/match.py
+index c79eba2d7e..a256960f73 100644
+--- a/beets/autotag/match.py
++++ b/beets/autotag/match.py
+@@ -102,6 +102,7 @@ def current_metadata(
+         "disctotal",
+         "mb_albumid",
+         "label",
++        "barcode",
+         "catalognum",
+         "country",
+         "media",
+diff --git a/beets/autotag/mb.py b/beets/autotag/mb.py
+index d1ac7956d9..1fd41fd2c9 100644
+--- a/beets/autotag/mb.py
++++ b/beets/autotag/mb.py
+@@ -45,6 +45,7 @@
+     "catalognum": "catno",
+     "country": "country",
+     "label": "label",
++    "barcode": "barcode",
+     "media": "format",
+     "year": "date",
+ }
+@@ -531,6 +532,7 @@ def album_info(release: Dict) -> beets.autotag.hooks.AlbumInfo:
+         artists_credit=artists_credit_names,
+         data_source="MusicBrainz",
+         data_url=album_url(release["id"]),
++        barcode=release.get("barcode"),
+     )
+     info.va = info.artist_id == VARIOUS_ARTISTS_ID
+     if info.va:
+@@ -831,6 +833,7 @@ def _merge_pseudo_and_actual_album(
+             "original_month",
+             "original_day",
+             "label",
++            "barcode",
+             "asin",
+             "style",
+             "genre",
+diff --git a/beets/library.py b/beets/library.py
+index 5ce59852bd..754583f57c 100644
+--- a/beets/library.py
++++ b/beets/library.py
+@@ -562,6 +562,7 @@ class Item(LibModel):
+         "albumtype": types.STRING,
+         "albumtypes": types.SEMICOLON_SPACE_DSV,
+         "label": types.STRING,
++        "barcode": types.STRING,
+         "acoustid_fingerprint": types.STRING,
+         "acoustid_id": types.STRING,
+         "mb_releasegroupid": types.STRING,
+@@ -1162,6 +1163,7 @@ class Album(LibModel):
+         "albumtype": types.STRING,
+         "albumtypes": types.SEMICOLON_SPACE_DSV,
+         "label": types.STRING,
++        "barcode": types.STRING,
+         "mb_releasegroupid": types.STRING,
+         "release_group_title": types.STRING,
+         "asin": types.STRING,
+@@ -1217,6 +1219,7 @@ class Album(LibModel):
+         "albumtype",
+         "albumtypes",
+         "label",
++        "barcode",
+         "mb_releasegroupid",
+         "asin",
+         "catalognum",

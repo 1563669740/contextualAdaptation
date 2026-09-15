@@ -1,0 +1,17 @@
+[
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromUserPrompts::test_valid_tools_and_example[No-4]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromUserPrompts::test_valid_tools_and_example[No-2,3,4]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromUserPrompts::test_valid_tools_and_example[No-3-5]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromConfigFile::test_valid_tools_and_example[No-docs]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromConfigFile::test_valid_tools_and_example[No-doc]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromConfigFile::test_valid_tools_and_example[No-tests,logs,doc]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromConfigFile::test_valid_tools_and_example[No-log,docs,data,test,lint]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromConfigFile::test_valid_tools_and_example[No-log,",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromConfigFile::test_valid_tools_and_example[No-TEST,",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromCLI::test_valid_tools_flag[No-docs]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromCLI::test_valid_tools_flag[No-doc]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromCLI::test_valid_tools_flag[No-tests,logs,doc]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromCLI::test_valid_tools_flag[No-log,docs,data,test,lint]",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromCLI::test_valid_tools_flag[No-log,",
+  "tests/framework/cli/test_starters.py::TestToolsAndExampleFromCLI::test_valid_tools_flag[No-TEST,"
+]

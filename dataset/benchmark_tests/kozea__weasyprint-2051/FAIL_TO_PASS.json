@@ -1,0 +1,3 @@
+[
+  "tests/draw/test_table.py::test_running_elements_table_border_collapse_margin"
+]

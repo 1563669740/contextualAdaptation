@@ -1,0 +1,12 @@
+[
+  "tests/console/Console/test_progress_bar.py::test_wait_bar_always_interactive",
+  "tests/console/Console/test_properties.py::test_is_interactive_always_interactive",
+  "tests/console/Console/test_release_console_control.py::test_wait_bar_is_active",
+  "tests/console/Console/test_wait_bar.py::test_wait_bar_done_message_interactive",
+  "tests/console/Console/test_wait_bar.py::test_wait_bar_done_message_nested_interactive",
+  "tests/console/Console/test_wait_bar.py::test_wait_bar_transient_interactive[Wait",
+  "tests/console/Console/test_wait_bar.py::test_wait_bar_transient_nested_interactive[Wait",
+  "tests/console/Console/test_wait_bar.py::test_wait_bar_keyboard_interrupt_interactive[Wait",
+  "tests/console/Console/test_wait_bar.py::test_wait_bar_keyboard_interrupt_nested_interactive[Wait",
+  "tests/console/Console/test_wait_bar.py::test_wait_bar_always_interactive"
+]

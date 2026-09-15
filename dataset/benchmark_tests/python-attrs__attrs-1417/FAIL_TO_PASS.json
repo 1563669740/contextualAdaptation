@@ -1,0 +1,3 @@
+[
+  "tests/test_hooks.py::TestTransformHook::test_hook_generator"
+]

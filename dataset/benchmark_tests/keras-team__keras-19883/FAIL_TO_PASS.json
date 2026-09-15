@@ -1,0 +1,4 @@
+[
+  "keras/src/ops/numpy_test.py::NumpyOneInputOpsDynamicShapeTest::test_tile",
+  "keras/src/ops/numpy_test.py::NumpyOneInputOpsStaticShapeTest::test_tile"
+]

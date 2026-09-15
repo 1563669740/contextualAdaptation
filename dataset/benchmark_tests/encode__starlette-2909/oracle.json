@@ -1,0 +1,12 @@
+{
+  "task_id": "encode__starlette-2909",
+  "log_parser": "pytest",
+  "test_cmds": [
+    "cat scripts/test",
+    "pytest -rA"
+  ],
+  "fail_to_pass_count": 8,
+  "pass_to_pass_count": 891,
+  "resolution_rule": "resolved iff every FAIL_TO_PASS test passes AND every PASS_TO_PASS test still passes after applying the candidate patch",
+  "visibility": "evaluation_only"
+}

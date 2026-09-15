@@ -1,0 +1,58 @@
+diff --git a/reflex/state.py b/reflex/state.py
+index 4b66185bf3d..a9c5c9d8335 100644
+--- a/reflex/state.py
++++ b/reflex/state.py
+@@ -315,7 +315,7 @@ def __init_subclass__(cls, **kwargs):
+         cls.new_backend_vars = {
+             name: value
+             for name, value in cls.__dict__.items()
+-            if types.is_backend_variable(name)
++            if types.is_backend_variable(name, cls)
+             and name not in cls.inherited_backend_vars
+             and not isinstance(value, FunctionType)
+         }
+@@ -876,7 +876,10 @@ def __setattr__(self, name: str, value: Any):
+             setattr(self.parent_state, name, value)
+             return
+ 
+-        if types.is_backend_variable(name) and name not in RESERVED_BACKEND_VAR_NAMES:
++        if (
++            types.is_backend_variable(name, self.__class__)
++            and name not in RESERVED_BACKEND_VAR_NAMES
++        ):
+             self._backend_vars.__setitem__(name, value)
+             self.dirty_vars.add(name)
+             self._mark_dirty()
+@@ -1175,7 +1178,7 @@ def get_delta(self) -> Delta:
+         subdelta = {
+             prop: getattr(self, prop)
+             for prop in delta_vars
+-            if not types.is_backend_variable(prop)
++            if not types.is_backend_variable(prop, self.__class__)
+         }
+         if len(subdelta) > 0:
+             delta[self.get_full_name()] = subdelta
+diff --git a/reflex/utils/types.py b/reflex/utils/types.py
+index 6191f5de333..06237d36ad5 100644
+--- a/reflex/utils/types.py
++++ b/reflex/utils/types.py
+@@ -251,15 +251,18 @@ def is_valid_var_type(type_: Type) -> bool:
+     return _issubclass(type_, StateVar) or serializers.has_serializer(type_)
+ 
+ 
+-def is_backend_variable(name: str) -> bool:
++def is_backend_variable(name: str, cls: Type | None = None) -> bool:
+     """Check if this variable name correspond to a backend variable.
+ 
+     Args:
+         name: The name of the variable to check
++        cls: The class of the variable to check
+ 
+     Returns:
+         bool: The result of the check
+     """
++    if cls is not None and name.startswith(f"_{cls.__name__}__"):
++        return False
+     return name.startswith("_") and not name.startswith("__")
+ 
+ 

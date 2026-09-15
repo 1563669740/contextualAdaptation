@@ -1,0 +1,39 @@
+diff --git a/conan/api/subapi/export.py b/conan/api/subapi/export.py
+index 9c3a59c9525..ab8d410cdd2 100644
+--- a/conan/api/subapi/export.py
++++ b/conan/api/subapi/export.py
+@@ -2,7 +2,7 @@
+ from conan.internal.conan_app import ConanApp
+ from conans.client.cmd.export import cmd_export
+ from conans.client.conanfile.package import run_package_method
+-from conans.client.graph.graph import BINARY_BUILD
++from conans.client.graph.graph import BINARY_BUILD, RECIPE_INCACHE
+ from conans.model.package_ref import PkgReference
+ from conans.util.files import mkdir
+ 
+@@ -52,6 +52,7 @@ def export_pkg(self, deps_graph, source_folder, output_folder):
+         cache.assign_prev(pkg_layout)
+         pkg_node.prev = prev
+         pkg_node.pref_timestamp = pref.timestamp  # assigned by assign_prev
++        pkg_node.recipe = RECIPE_INCACHE
+         pkg_node.binary = BINARY_BUILD
+         # Make sure folder is updated
+         final_folder = pkg_layout.package()
+diff --git a/conan/cli/commands/export_pkg.py b/conan/cli/commands/export_pkg.py
+index 3007d73af80..ebc9e94603e 100644
+--- a/conan/cli/commands/export_pkg.py
++++ b/conan/cli/commands/export_pkg.py
+@@ -93,9 +93,10 @@ def export_pkg(conan_api, parser, *args):
+ 
+     if test_conanfile_path:
+         from conan.cli.commands.test import run_test
+-        deps_graph = run_test(conan_api, test_conanfile_path, ref, profile_host, profile_build,
+-                              remotes=remotes, lockfile=lockfile, update=False, build_modes=None)
+-        # TODO: Do something with lockfile, same as create()
++        # same as ``conan create`` the lockfile, and deps graph is the one of the exported-pkg
++        # not the one from test_package
++        run_test(conan_api, test_conanfile_path, ref, profile_host, profile_build,
++                 remotes=remotes, lockfile=lockfile, update=False, build_modes=None)
+ 
+     conan_api.lockfile.save_lockfile(lockfile, args.lockfile_out, cwd)
+     return {"graph": deps_graph,

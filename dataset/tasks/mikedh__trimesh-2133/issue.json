@@ -1,0 +1,13 @@
+{
+  "task_id": "mikedh__trimesh-2133",
+  "repo": "mikedh/trimesh",
+  "issue_number": "2132",
+  "issue_url": "https://github.com/mikedh/trimesh/issues/2132",
+  "issue_created_at": "1970-01-01 00:28:26.649118+00:00",
+  "issue_title": "OBJ export doesn't have newline on last line.",
+  "issue_body": "Currently this breaks Prusa Slicer.\r\nI reported it to them too, but I think it best if both sides fix it.\r\n(PS should be more forgiving, Trimesh really should end the line properly.)",
+  "problem_statement": "OBJ export doesn't have newline on last line.\nCurrently this breaks Prusa Slicer.\r\nI reported it to them too, but I think it best if both sides fix it.\r\n(PS should be more forgiving, Trimesh really should end the line properly.)\r\n\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "Thanks for the report!\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

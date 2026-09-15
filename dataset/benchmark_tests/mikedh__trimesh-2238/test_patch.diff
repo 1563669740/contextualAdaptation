@@ -1,0 +1,296 @@
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+index f9adb61f2..18c242a94 100644
+--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -14,7 +14,7 @@ jobs:
+     - name: Set up Python ${{ matrix.python-version }}
+       uses: actions/setup-python@v4
+       with:
+-        python-version: "3.11"
++        python-version: "3.12"
+     - name: Install
+       run: pip install ruff
+     - name: Run Ruff
+@@ -25,7 +25,7 @@ jobs:
+     runs-on: ${{ matrix.os }}
+     strategy:
+       matrix:
+-        python-version: ["3.7", "3.11"]
++        python-version: ["3.8", "3.12"]
+         os: [ubuntu-latest, windows-latest, macos-13]
+     steps:
+     - uses: actions/checkout@v3
+diff --git a/tests/test_boolean.py b/tests/test_boolean.py
+index bdb50ef7c..b244101b5 100644
+--- a/tests/test_boolean.py
++++ b/tests/test_boolean.py
+@@ -95,6 +95,109 @@ def test_empty(self):
+ 
+             assert i.is_empty
+ 
++    def test_boolean_manifold(self):
++        if manifold3d is None:
++            return
++
++        times = {}
++        for operation in ["union", "intersection"]:
++            if operation == "union":
++                # chain of icospheres
++                meshes = [
++                    g.trimesh.primitives.Sphere(center=[x / 2, 0, 0], subdivisions=0)
++                    for x in range(100)
++                ]
++            else:
++                # closer icospheres for non-empty-intersection
++                meshes = [
++                    g.trimesh.primitives.Sphere(center=[x, x, x], subdivisions=0)
++                    for x in g.np.linspace(0, 0.5, 101)
++                ]
++
++            # the old 'serial' manifold method
++            tic = g.time.time()
++            manifolds = [
++                manifold3d.Manifold(
++                    mesh=manifold3d.Mesh(
++                        vert_properties=g.np.array(mesh.vertices, dtype=g.np.float32),
++                        tri_verts=g.np.array(mesh.faces, dtype=g.np.uint32),
++                    )
++                )
++                for mesh in meshes
++            ]
++            result_manifold = manifolds[0]
++            for manifold in manifolds[1:]:
++                if operation == "union":
++                    result_manifold = result_manifold + manifold
++                else:  # operation == "intersection":
++                    result_manifold = result_manifold ^ manifold
++            result_mesh = result_manifold.to_mesh()
++            old_mesh = g.trimesh.Trimesh(
++                vertices=result_mesh.vert_properties, faces=result_mesh.tri_verts
++            )
++            times["serial " + operation] = g.time.time() - tic
++
++            # new 'binary' method
++            tic = g.time.time()
++            new_mesh = g.trimesh.boolean.boolean_manifold(meshes, operation)
++            times["binary " + operation] = g.time.time() - tic
++
++            assert old_mesh.is_volume == new_mesh.is_volume
++            assert old_mesh.body_count == new_mesh.body_count
++            assert g.np.isclose(old_mesh.volume, new_mesh.volume)
++
++        g.log.info(times)
++
++    def test_reduce_cascade(self):
++        # the multiply will explode quickly past the integer maximum
++
++        from functools import reduce
++
++        from trimesh.boolean import reduce_cascade
++
++        def both(operation, items):
++            """
++            Run our cascaded reduce and regular reduce.
++            """
++
++            b = reduce_cascade(operation, items)
++
++            if len(items) > 0:
++                assert b == reduce(operation, items)
++
++            return b
++
++        for i in range(20):
++            data = g.np.arange(i)
++            c = both(items=data, operation=lambda a, b: a + b)
++
++            if i == 0:
++                assert c is None
++            else:
++                assert c == g.np.arange(i).sum()
++
++            # try a multiply
++            data = g.np.arange(i)
++            c = both(items=data, operation=lambda a, b: a * b)
++
++            if i == 0:
++                assert c is None
++            else:
++                assert c == g.np.prod(data)
++
++            # try a multiply
++            data = g.np.arange(i)[1:]
++            c = both(items=data, operation=lambda a, b: a * b)
++            if i <= 1:
++                assert c is None
++            else:
++                assert c == g.np.prod(data)
++
++        data = ["a", "b", "c", "d", "e", "f", "g"]
++        print("# reduce_pairwise\n-----------")
++        r = both(operation=lambda a, b: a + b, items=data)
++        assert r == "abcdefg"
++
+ 
+ if __name__ == "__main__":
+     g.trimesh.util.attach_to_log()
+diff --git a/tests/test_creation.py b/tests/test_creation.py
+index e7f1abd67..ac5638599 100644
+--- a/tests/test_creation.py
++++ b/tests/test_creation.py
+@@ -11,6 +11,9 @@ def setUp(self):
+             engines.append("triangle")
+         if g.trimesh.util.has_module("mapbox_earcut"):
+             engines.append("earcut")
++        if g.trimesh.util.has_module("manifold3d"):
++            engines.append("manifold")
++
+         self.engines = engines
+ 
+     def test_box(self):
+@@ -245,10 +248,13 @@ def test_triangulate(self):
+         # make sure difference did what we think it should
+         assert g.np.isclose(donut.area, bigger.area - smaller.area)
+ 
+-        times = {"earcut": 0.0, "triangle": 0.0}
+-        iterations = 50
++        times = {"earcut": 0.0, "triangle": 0.0, "manifold": 0.0}
++        iterations = 10
+         # get a polygon to benchmark times with including interiors
+         bench = [bigger, smaller, donut]
++        for path in g.get_2D(1):
++            bench.extend(path.polygons_full)
++
+         bench.extend(g.get_mesh("2D/ChuteHolderPrint.DXF").polygons_full)
+         bench.extend(g.get_mesh("2D/wrench.dxf").polygons_full)
+ 
+@@ -284,9 +290,8 @@ def test_triangulate(self):
+         g.log.info(f"benchmarked triangulation on {len(bench)} polygons: {times!s}")
+ 
+     def test_triangulate_plumbing(self):
+-        """
+-        Check the plumbing of path triangulation
+-        """
++        # @ Check the plumbing of path triangulation
++
+         if len(self.engines) == 0:
+             return
+         p = g.get_mesh("2D/ChuteHolderPrint.DXF")
+@@ -313,7 +318,7 @@ def check_triangulation(v, f, true_area):
+ 
+     tri = g.trimesh.util.stack_3D(v)[f]
+     area = g.trimesh.triangles.area(tri).sum()
+-    assert g.np.isclose(area, true_area)
++    assert g.np.isclose(area, true_area, rtol=1e-7)
+ 
+ 
+ def test_torus():
+diff --git a/tests/test_gltf.py b/tests/test_gltf.py
+index 1cf09fbc7..8794c48bd 100644
+--- a/tests/test_gltf.py
++++ b/tests/test_gltf.py
+@@ -808,7 +808,7 @@ def test_vertex_colors_import(self):
+         assert hasattr(mesh.visual, "vertex_colors")
+ 
+         # Loaded mesh should have all vertex colors filled with magenta color
+-        magenta = g.np.array([255, 0, 255, 255])
++        magenta = g.np.array([255, 0, 255, 255], dtype=g.np.uint8)
+         for color in mesh.visual.vertex_colors:
+             is_magenta = g.np.array_equal(color, magenta)
+             assert is_magenta, f"Imported vertex color is not of expected value: got {color}, expected {magenta}"
+diff --git a/tests/test_project.py b/tests/test_project.py
+new file mode 100644
+index 000000000..63908fd84
+--- /dev/null
++++ b/tests/test_project.py
+@@ -0,0 +1,32 @@
++try:
++    import generic as g
++except ImportError:
++    from . import generic as g
++
++
++def test_projection_already_2D():
++    # get a flat part with the flat dimension pointed in +Y
++    m = g.get_mesh("1002_tray_bottom.STL")
++
++    # align the mesh with +Z
++    m.apply_transform(g.trimesh.geometry.align_vectors([0, 1, 0], [0, 0, 1]))
++
++    # make sure we rotated it correctly so the flat axis
++    # is along +Z
++    assert m.extents.argmin() == 2
++
++    # get the outline in 3D
++    path_3D = m.outline(m.facets[m.facets_area.argmax()])
++
++    # get the projection onto the plane
++    path_2D, _to_3D = path_3D.to_planar()
++
++    # just slice off the third column
++    path_3D.vertices = path_3D.vertices[:, :2]
++    assert path_3D.vertices.shape[1] == 2
++    check, to_3D = path_3D.to_planar()
++    assert g.np.isclose(check.area, path_2D.area)
++
++
++if __name__ == "__main__":
++    test_projection_already_2D()
+diff --git a/tests/test_simplify.py b/tests/test_simplify.py
+index 45e4529e9..2d06dbc8d 100644
+--- a/tests/test_simplify.py
++++ b/tests/test_simplify.py
+@@ -64,6 +64,8 @@ def test_spline(self):
+         m = scene.geometry["disc_cam_A"]
+ 
+         path_3D = m.outline(m.facets[m.facets_area.argmax()])
++
++        # get the projection
+         path_2D, _to_3D = path_3D.to_planar()
+ 
+         simple = g.trimesh.path.simplify.simplify_spline(
+diff --git a/tests/test_triangles.py b/tests/test_triangles.py
+index d94821d63..6d995984f 100644
+--- a/tests/test_triangles.py
++++ b/tests/test_triangles.py
+@@ -3,6 +3,8 @@
+ except BaseException:
+     import generic as g
+ 
++from trimesh.triangles import barycentric_to_points, points_to_barycentric
++
+ 
+ class TrianglesTest(g.unittest.TestCase):
+     def test_barycentric(self):
+@@ -13,18 +15,27 @@ def test_barycentric(self):
+             #  are the same as the conversion and back
+             for method in ["cross", "cramer"]:
+                 for i in range(3):
+-                    barycentric = g.trimesh.triangles.points_to_barycentric(
++                    barycentric = points_to_barycentric(
+                         m.triangles, m.triangles[:, i], method=method
+                     )
+                     assert (
+                         g.np.abs(barycentric - g.np.roll([1.0, 0, 0], i)) < 1e-8
+                     ).all()
+ 
+-                    points = g.trimesh.triangles.barycentric_to_points(
+-                        m.triangles, barycentric
+-                    )
++                    points = barycentric_to_points(m.triangles, barycentric)
+                     assert (g.np.abs(points - m.triangles[:, i]) < 1e-8).all()
+ 
++    def test_barycentric_2D(self):
++        # points_to_barycentric should work in 2D and 3D
++        tri = g.np.array([[[0, 0], [1, 0], [0, 1]]], dtype=g.np.float64)
++        points = g.np.array([[0.25, 0.25]])
++        b = points_to_barycentric(tri, points)
++        assert ((b > 0) & (b < 1.0)).all()
++
++        r = barycentric_to_points(tri, b)
++
++        assert g.np.allclose(r, points)
++
+     def test_closest(self):
+         closest = g.trimesh.triangles.closest_point(
+             triangles=g.data["triangles"]["triangles"],

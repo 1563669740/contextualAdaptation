@@ -1,0 +1,26 @@
+diff --git a/conans/client/profile_loader.py b/conans/client/profile_loader.py
+index cc4763fba8e..c532e6b6912 100644
+--- a/conans/client/profile_loader.py
++++ b/conans/client/profile_loader.py
+@@ -263,7 +263,6 @@ def get_profile(profile_text, base_profile=None):
+                                                          "options", "conf", "buildenv", "runenv",
+                                                          "replace_requires", "replace_tool_requires",
+                                                          "runner"])
+-
+         # Parse doc sections into Conan model, Settings, Options, etc
+         settings, package_settings = _ProfileValueParser._parse_settings(doc)
+         options = Options.loads(doc.options) if doc.options else None
+diff --git a/conans/util/config_parser.py b/conans/util/config_parser.py
+index 75d4ad93a74..8a7ac602fb0 100644
+--- a/conans/util/config_parser.py
++++ b/conans/util/config_parser.py
+@@ -44,6 +44,9 @@ def __init__(self, text, allowed_fields=None, strip_comments=False):
+                 if self._allowed_fields and field not in self._allowed_fields:
+                     raise ConanException("ConfigParser: Unrecognized field '%s'" % field)
+                 current_lines = []
++                # Duplicated section
++                if field in self._sections:
++                    raise ConanException(f"ConfigParser: Duplicated section: [{field}]")
+                 self._sections[field] = current_lines
+             else:
+                 if current_lines is None:

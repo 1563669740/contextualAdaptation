@@ -1,0 +1,103 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index c36233573a3..cf70dee2f38 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -89,6 +89,9 @@ Bugs fixed
+ * #12494: Fix invalid genindex.html file produced with translated docs
+   (regression in 7.1.0).
+   Patch by Nicolas Peugnet.
++* #11961: Omit anchor references from document title entries in the search index,
++  removing duplication of search results.
++  Patch by James Addison.
+ 
+ Testing
+ -------
+diff --git a/sphinx/environment/__init__.py b/sphinx/environment/__init__.py
+index bd652fe51d2..0aecc62855c 100644
+--- a/sphinx/environment/__init__.py
++++ b/sphinx/environment/__init__.py
+@@ -253,7 +253,7 @@ def __init__(self, app: Sphinx) -> None:
+         # search index data
+ 
+         # docname -> title
+-        self._search_index_titles: dict[str, str] = {}
++        self._search_index_titles: dict[str, str | None] = {}
+         # docname -> filename
+         self._search_index_filenames: dict[str, str] = {}
+         # stemmed words -> set(docname)
+@@ -261,7 +261,7 @@ def __init__(self, app: Sphinx) -> None:
+         # stemmed words in titles -> set(docname)
+         self._search_index_title_mapping: dict[str, set[str]] = {}
+         # docname -> all titles in document
+-        self._search_index_all_titles: dict[str, list[tuple[str, str]]] = {}
++        self._search_index_all_titles: dict[str, list[tuple[str, str | None]]] = {}
+         # docname -> list(index entry)
+         self._search_index_index_entries: dict[str, list[tuple[str, str, str]]] = {}
+         # objtype -> index
+diff --git a/sphinx/search/__init__.py b/sphinx/search/__init__.py
+index 2638f92ffb4..ec194ef6e96 100644
+--- a/sphinx/search/__init__.py
++++ b/sphinx/search/__init__.py
+@@ -198,7 +198,7 @@ def _is_meta_keywords(
+ @dataclasses.dataclass
+ class WordStore:
+     words: list[str] = dataclasses.field(default_factory=list)
+-    titles: list[tuple[str, str]] = dataclasses.field(default_factory=list)
++    titles: list[tuple[str, str | None]] = dataclasses.field(default_factory=list)
+     title_words: list[str] = dataclasses.field(default_factory=list)
+ 
+ 
+@@ -253,7 +253,7 @@ class IndexBuilder:
+     def __init__(self, env: BuildEnvironment, lang: str, options: dict[str, str], scoring: str) -> None:
+         self.env = env
+         # docname -> title
+-        self._titles: dict[str, str] = env._search_index_titles
++        self._titles: dict[str, str | None] = env._search_index_titles
+         # docname -> filename
+         self._filenames: dict[str, str] = env._search_index_filenames
+         # stemmed words -> set(docname)
+@@ -261,7 +261,7 @@ def __init__(self, env: BuildEnvironment, lang: str, options: dict[str, str], sc
+         # stemmed words in titles -> set(docname)
+         self._title_mapping: dict[str, set[str]] = env._search_index_title_mapping
+         # docname -> all titles in document
+-        self._all_titles: dict[str, list[tuple[str, str]]] = env._search_index_all_titles
++        self._all_titles: dict[str, list[tuple[str, str | None]]] = env._search_index_all_titles
+         # docname -> list(index entry)
+         self._index_entries: dict[str, list[tuple[str, str, str]]] = env._search_index_index_entries
+         # objtype -> index
+@@ -369,6 +369,13 @@ def get_objects(self, fn2index: dict[str, int]
+         return rv
+ 
+     def get_terms(self, fn2index: dict[str, int]) -> tuple[dict[str, list[int] | int], dict[str, list[int] | int]]:
++        """
++        Return a mapping of document and title terms to their corresponding sorted document IDs.
++
++        When a term is only found within a single document, then the value for that term will be
++        an integer value.  When a term is found within multiple documents, the value will be a list
++        of integers.
++        """
+         rvs: tuple[dict[str, list[int] | int], dict[str, list[int] | int]] = ({}, {})
+         for rv, mapping in zip(rvs, (self._mapping, self._title_mapping)):
+             for k, v in mapping.items():
+@@ -391,7 +398,7 @@ def freeze(self) -> dict[str, Any]:
+         objtypes = {v: k[0] + ':' + k[1] for (k, v) in self._objtypes.items()}
+         objnames = self._objnames
+ 
+-        alltitles: dict[str, list[tuple[int, str]]] = {}
++        alltitles: dict[str, list[tuple[int, str | None]]] = {}
+         for docname, titlelist in sorted(self._all_titles.items()):
+             for title, titleid in titlelist:
+                 alltitles.setdefault(title, []).append((fn2index[docname], titleid))
+@@ -502,9 +509,10 @@ def _visit_nodes(node):
+             elif isinstance(node, nodes.Text):
+                 word_store.words.extend(split(node.astext()))
+             elif isinstance(node, nodes.title):
+-                title = node.astext()
++                title, is_main_title = node.astext(), len(word_store.titles) == 0
+                 ids = node.parent['ids']
+-                word_store.titles.append((title, ids[0] if ids else None))
++                title_node_id = None if is_main_title else ids[0] if ids else None
++                word_store.titles.append((title, title_node_id))
+                 word_store.title_words.extend(split(title))
+             for child in node.children:
+                 _visit_nodes(child)

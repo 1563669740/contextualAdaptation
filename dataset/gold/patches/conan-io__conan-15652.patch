@@ -1,0 +1,199 @@
+diff --git a/conan/api/subapi/graph.py b/conan/api/subapi/graph.py
+index b23b10b30c4..2b526058779 100644
+--- a/conan/api/subapi/graph.py
++++ b/conan/api/subapi/graph.py
+@@ -151,7 +151,7 @@ def load_graph_consumer(self, path, name, version, user, channel,
+         return deps_graph
+ 
+     def load_graph(self, root_node, profile_host, profile_build, lockfile=None, remotes=None,
+-                   update=False, check_update=False):
++                   update=None, check_update=False):
+         """ Compute the dependency graph, starting from a root package, evaluation the graph with
+         the provided configuration in profile_build, and profile_host. The resulting graph is a
+         graph of recipes, but packages are not computed yet (package_ids) will be empty in the
+diff --git a/conan/cli/args.py b/conan/cli/args.py
+index 39b99740e45..a5466bcaa80 100644
+--- a/conan/cli/args.py
++++ b/conan/cli/args.py
+@@ -47,13 +47,13 @@ def add_common_install_arguments(parser):
+     group.add_argument("-nr", "--no-remote", action="store_true",
+                        help='Do not use remote, resolve exclusively in the cache')
+ 
+-    update_help = ("Will check the remote and in case a newer version and/or revision of "
+-                   "the dependencies exists there, it will install those in the local cache. "
++    update_help = ("Will install newer versions and/or revisions in the local cache "
++                   "for the given reference, or all in case no argument is supplied. "
+                    "When using version ranges, it will install the latest version that "
+                    "satisfies the range. Also, if using revisions, it will update to the "
+                    "latest revision for the resolved version range.")
+-    parser.add_argument("-u", "--update", action='store_true', default=False,
+-                        help=update_help)
++
++    parser.add_argument("-u", "--update", action="append", nargs="?", help=update_help, const="*")
+     add_profiles_args(parser)
+ 
+ 
+diff --git a/conan/cli/commands/create.py b/conan/cli/commands/create.py
+index b5b337d80bd..76df9960e36 100644
+--- a/conan/cli/commands/create.py
++++ b/conan/cli/commands/create.py
+@@ -105,7 +105,7 @@ def create(conan_api, parser, *args):
+         # The test_package do not make the "conan create" command return a different graph or
+         # produce a different lockfile. The result is always the same, irrespective of test_package
+         run_test(conan_api, test_conanfile_path, ref, profile_host, profile_build, remotes, lockfile,
+-                 update=False, build_modes=args.build, build_modes_test=args.build_test,
++                 update=None, build_modes=args.build, build_modes_test=args.build_test,
+                  tested_python_requires=tested_python_requires, tested_graph=deps_graph)
+ 
+     conan_api.lockfile.save_lockfile(lockfile, args.lockfile_out, cwd)
+diff --git a/conan/cli/commands/export_pkg.py b/conan/cli/commands/export_pkg.py
+index ebc9e94603e..c9a6e9438c2 100644
+--- a/conan/cli/commands/export_pkg.py
++++ b/conan/cli/commands/export_pkg.py
+@@ -96,7 +96,7 @@ def export_pkg(conan_api, parser, *args):
+         # same as ``conan create`` the lockfile, and deps graph is the one of the exported-pkg
+         # not the one from test_package
+         run_test(conan_api, test_conanfile_path, ref, profile_host, profile_build,
+-                 remotes=remotes, lockfile=lockfile, update=False, build_modes=None)
++                 remotes=remotes, lockfile=lockfile, update=None, build_modes=None)
+ 
+     conan_api.lockfile.save_lockfile(lockfile, args.lockfile_out, cwd)
+     return {"graph": deps_graph,
+diff --git a/conan/cli/commands/install.py b/conan/cli/commands/install.py
+index 9c7ffa2b5bf..cad3168a543 100644
+--- a/conan/cli/commands/install.py
++++ b/conan/cli/commands/install.py
+@@ -40,7 +40,6 @@ def install(conan_api, parser, *args):
+                         help='Whether the provided path is a build-require')
+     args = parser.parse_args(*args)
+     validate_common_graph_args(args)
+-
+     # basic paths
+     cwd = os.getcwd()
+     path = conan_api.local.get_conanfile_path(args.path, cwd, py=None) if args.path else None
+diff --git a/conans/client/graph/graph_binaries.py b/conans/client/graph/graph_binaries.py
+index 0d2f3634d1d..fd552e97fd6 100644
+--- a/conans/client/graph/graph_binaries.py
++++ b/conans/client/graph/graph_binaries.py
+@@ -8,6 +8,7 @@
+                                        RECIPE_CONSUMER, RECIPE_VIRTUAL, BINARY_SKIP,
+                                        BINARY_INVALID, BINARY_EDITABLE_BUILD, RECIPE_PLATFORM,
+                                        BINARY_PLATFORM)
++from conans.client.graph.proxy import should_update_reference
+ from conans.errors import NoRemoteAvailable, NotFoundException, \
+     PackageNotFoundException, conanfile_exception_formatter, ConanConnectionError
+ 
+@@ -60,7 +61,7 @@ def _get_package_from_remotes(self, node, remotes, update):
+                 info = node.conanfile.info
+                 latest_pref = self._remote_manager.get_latest_package_reference(pref, r, info)
+                 results.append({'pref': latest_pref, 'remote': r})
+-                if len(results) > 0 and not update:
++                if len(results) > 0 and not should_update_reference(node.ref, update):
+                     break
+             except NotFoundException:
+                 pass
+@@ -68,7 +69,7 @@ def _get_package_from_remotes(self, node, remotes, update):
+                 ConanOutput().error(f"Failed checking for binary '{pref}' in remote '{r.name}': "
+                                     "remote not available")
+                 raise
+-        if not remotes and update:
++        if not remotes and should_update_reference(node.ref, update):
+             node.conanfile.output.warning("Can't update, there are no remotes defined")
+ 
+         if len(results) > 0:
+@@ -130,7 +131,7 @@ def _compatible_found(pkg_id, compatible_pkg):
+ 
+         conanfile.output.info(f"Checking {len(compatibles)} compatible configurations")
+         for package_id, compatible_package in compatibles.items():
+-            if update:
++            if should_update_reference(node.ref, update):
+                 conanfile.output.info(f"'{package_id}': "
+                                       f"{conanfile.info.dump_diff(compatible_package)}")
+             node._package_id = package_id  # Modifying package id under the hood, FIXME
+@@ -253,7 +254,7 @@ def _process_compatible_node(self, node, remotes, update):
+         if cache_latest_prev is not None:
+             # This binary already exists in the cache, maybe can be updated
+             self._evaluate_in_cache(cache_latest_prev, node, remotes, update)
+-        elif update:
++        elif should_update_reference(node.ref, update):
+             self._evaluate_download(node, remotes, update)
+ 
+     def _process_locked_node(self, node, build_mode, locked_prev):
+@@ -292,7 +293,7 @@ def _evaluate_download(self, node, remotes, update):
+ 
+     def _evaluate_in_cache(self, cache_latest_prev, node, remotes, update):
+         assert cache_latest_prev.revision
+-        if update:
++        if should_update_reference(node.ref, update):
+             output = node.conanfile.output
+             try:
+                 self._get_package_from_remotes(node, remotes, update)
+diff --git a/conans/client/graph/proxy.py b/conans/client/graph/proxy.py
+index 324e88942f6..e502e54a577 100644
+--- a/conans/client/graph/proxy.py
++++ b/conans/client/graph/proxy.py
+@@ -49,7 +49,7 @@ def _get_recipe(self, reference, remotes, update, check_update):
+ 
+         # TODO: cache2.0: check with new --update flows
+         # TODO: If the revision is given, then we don't need to check for updates?
+-        if not (check_update or update):
++        if not (check_update or should_update_reference(reference, update)):
+             status = RECIPE_INCACHE
+             return recipe_layout, status, None
+ 
+@@ -71,7 +71,7 @@ def _get_recipe(self, reference, remotes, update, check_update):
+         if remote_ref.revision != ref.revision:
+             if cache_time < remote_ref.timestamp:
+                 # the remote one is newer
+-                if update:
++                if should_update_reference(remote_ref, update):
+                     output.info("Retrieving from remote '%s'..." % remote.name)
+                     new_recipe_layout = self._download(remote_ref, remote)
+                     status = RECIPE_UPDATED
+@@ -107,7 +107,7 @@ def _find_newest_recipe_in_remotes(self, reference, remotes, update, check_updat
+                     ref = self._remote_manager.get_latest_recipe_reference(reference, remote)
+                 else:
+                     ref = self._remote_manager.get_recipe_revision_reference(reference, remote)
+-                if not update and not check_update:
++                if not should_update_reference(reference, update) and not check_update:
+                     return remote, ref
+                 results.append({'remote': remote, 'ref': ref})
+             except NotFoundException:
+@@ -142,3 +142,10 @@ def _download(self, ref, remote):
+         output = ConanOutput(scope=str(ref))
+         output.info("Downloaded recipe revision %s" % ref.revision)
+         return recipe_layout
++
++
++def should_update_reference(reference, update):
++    if update is None:
++        return False
++    # Legacy syntax had --update without pattern, it manifests as a "*" pattern
++    return any(name == "*" or reference.name == name for name in update)
+diff --git a/conans/client/graph/range_resolver.py b/conans/client/graph/range_resolver.py
+index 828c3c9f9ad..16336607ca4 100644
+--- a/conans/client/graph/range_resolver.py
++++ b/conans/client/graph/range_resolver.py
+@@ -1,3 +1,4 @@
++from conans.client.graph.proxy import should_update_reference
+ from conans.errors import ConanException
+ from conans.model.recipe_ref import RecipeReference
+ from conans.model.version_range import VersionRange
+@@ -31,7 +32,7 @@ def resolve(self, require, base_conanref, remotes, update):
+         search_ref = RecipeReference(ref.name, "*", ref.user, ref.channel)
+ 
+         resolved_ref = self._resolve_local(search_ref, version_range)
+-        if resolved_ref is None or update:
++        if resolved_ref is None or should_update_reference(search_ref, update):
+             remote_resolved_ref = self._resolve_remote(search_ref, version_range, remotes, update)
+             if resolved_ref is None or (remote_resolved_ref is not None and
+                                         resolved_ref.version < remote_resolved_ref.version):
+@@ -84,7 +85,7 @@ def _resolve_remote(self, search_ref, version_range, remotes, update):
+             resolved_version = self._resolve_version(version_range, remote_results,
+                                                      self._resolve_prereleases)
+             if resolved_version:
+-                if not update:
++                if not should_update_reference(search_ref, update):
+                     return resolved_version  # Return first valid occurrence in first remote
+                 else:
+                     update_candidates.append(resolved_version)

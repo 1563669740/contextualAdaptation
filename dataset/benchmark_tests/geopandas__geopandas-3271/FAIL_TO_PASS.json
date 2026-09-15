@@ -1,0 +1,11 @@
+[
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_segmentize_wrong_index",
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_concave_hull_wrong_index",
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_delaunay_triangles_wrong_index",
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_interpolate_distance_wrong_index",
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_buffer_distance_wrong_index",
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_simplify_wrong_index",
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_offset_curve_wrong_index",
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_remove_repeated_points_wrong_index",
+  "geopandas/tests/test_geom_methods.py::TestGeomMethods::test_force_3d_wrong_index"
+]

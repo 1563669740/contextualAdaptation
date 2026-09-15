@@ -1,0 +1,63 @@
+diff --git a/docs/gear_up/configuration.rst b/docs/gear_up/configuration.rst
+index 8653358f..a0dbd027 100644
+--- a/docs/gear_up/configuration.rst
++++ b/docs/gear_up/configuration.rst
+@@ -7,6 +7,24 @@ The SQLLineage configuration allows user to customize the behaviour of sqllineag
+ We adopt environment variable approach for global key-value mapping. The keys listed in this section should start with
+ `"SQLLINEAGE_"` to be a valid config. For example, to use DEFAULT_SCHEMA, use ``SQLLINEAGE_DEFAULT_SCHEMA=default``.
+ 
++.. note::
++     Starting v1.5.2, we also support changing config at runtime. A local config is kept for each thread that will mask
++     global config. Local configuration must be set using context manager:
++
++     .. code-block:: python
++
++        >>> from sqllineage.config import SQLLineageConfig
++        >>> from sqllineage.runner import LineageRunner
++
++        >>> with SQLLineageConfig(DEFAULT_SCHEMA="ods"):
++        >>>     print(LineageRunner("select * from test").source_tables)
++        [Table: ods.test]
++        >>> with SQLLineageConfig(DEFAULT_SCHEMA="dwd"):
++        >>>     print(LineageRunner("select * from test").source_tables)
++        [Table: dwd.test]
++
++     Note when setting local config, the key does not start with `"SQLLINEAGE_"`.
++
+ DEFAULT_SCHEMA
+ ==============
+ Default schema, or interchangeably called database. Tables without schema qualifier parsed from SQL is set with a schema
+diff --git a/sqllineage/core/models.py b/sqllineage/core/models.py
+index 01e6985c..49ce17a5 100644
+--- a/sqllineage/core/models.py
++++ b/sqllineage/core/models.py
+@@ -12,13 +12,17 @@ class Schema:
+     """
+ 
+     unknown = "<default>"
+-    default = SQLLineageConfig.DEFAULT_SCHEMA or unknown
+ 
+-    def __init__(self, name: str = default):
++    def __init__(self, name: Optional[str] = None):
+         """
+         :param name: schema name
+         """
+-        self.raw_name = escape_identifier_name(name)
++        if name:
++            self.raw_name = escape_identifier_name(name)
++        elif SQLLineageConfig.DEFAULT_SCHEMA:
++            self.raw_name = escape_identifier_name(SQLLineageConfig.DEFAULT_SCHEMA)
++        else:
++            self.raw_name = escape_identifier_name(Schema.unknown)
+ 
+     def __str__(self):
+         return self.raw_name
+@@ -33,7 +37,7 @@ def __hash__(self):
+         return hash(str(self))
+ 
+     def __bool__(self):
+-        return str(self) != self.default
++        return str(self) != self.unknown
+ 
+ 
+ class Table:

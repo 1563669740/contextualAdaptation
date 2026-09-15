@@ -1,0 +1,4 @@
+[
+  "pvlib/tests/test_modelchain.py::test_temperature_model_not_specified",
+  "pvlib/tests/test_modelchain.py::test_inconsistent_array_params"
+]

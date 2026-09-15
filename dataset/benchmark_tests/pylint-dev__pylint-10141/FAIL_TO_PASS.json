@@ -1,0 +1,11 @@
+[
+  "tests/lint/unittest_expand_modules.py::TestExpandModules::test_expand_modules[files_or_modules0-expected0]",
+  "tests/lint/unittest_expand_modules.py::TestExpandModules::test_expand_modules[files_or_modules1-expected1]",
+  "tests/lint/unittest_expand_modules.py::TestExpandModules::test_expand_modules[files_or_modules2-expected2]",
+  "tests/lint/unittest_expand_modules.py::TestExpandModules::test_expand_modules_relative_path[files_or_modules0-expected0]",
+  "tests/lint/unittest_expand_modules.py::TestExpandModules::test_expand_modules_relative_path[files_or_modules1-expected1]",
+  "tests/lint/unittest_expand_modules.py::TestExpandModules::test_expand_modules_deduplication[files_or_modules0-expected0]",
+  "tests/lint/unittest_expand_modules.py::TestExpandModules::test_expand_modules_deduplication[files_or_modules1-expected1]",
+  "tests/lint/unittest_expand_modules.py::TestExpandModules::test_expand_modules_with_ignore[files_or_modules1-expected1]",
+  "tests/test_self.py::TestRunTC::test_output_with_verbose"
+]

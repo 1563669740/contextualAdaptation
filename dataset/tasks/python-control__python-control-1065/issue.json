@@ -1,0 +1,13 @@
+{
+  "task_id": "python-control__python-control-1065",
+  "repo": "python-control/python-control",
+  "issue_number": "1063",
+  "issue_url": "https://github.com/python-control/python-control/issues/1063",
+  "issue_created_at": "1970-01-01 00:28:52.330713+00:00",
+  "issue_title": "rlocus evaluation for a single gain value",
+  "issue_body": "I recall in the past being able to evaluate rlocus for a single gain to obtain the closed-loop poles (as well as plotting), along the lines of:\r\n\r\nL = tf([1,1],[1,2,3])\r\nrr = rlocus(L, gains=np.array([1]))\r\n\r\nbut this fails giving the final message: \r\n.../site-packages/control/pzmap.py:124\r\nValueError: zero-size array to reduction operation minimum which has no identity\r\n\r\nWhile this does work:\r\nrr = rlocus(L, gains=np.array([1,1]))\r\nallowing for an evaluation at a single gain would be nice.",
+  "problem_statement": "rlocus evaluation for a single gain value\nI recall in the past being able to evaluate rlocus for a single gain to obtain the closed-loop poles (as well as plotting), along the lines of:\r\n\r\nL = tf([1,1],[1,2,3])\r\nrr = rlocus(L, gains=np.array([1]))\r\n\r\nbut this fails giving the final message: \r\n.../site-packages/control/pzmap.py:124\r\nValueError: zero-size array to reduction operation minimum which has no identity\r\n\r\nWhile this does work:\r\nrr = rlocus(L, gains=np.array([1,1]))\r\nallowing for an evaluation at a single gain would be nice.\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

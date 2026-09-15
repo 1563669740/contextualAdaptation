@@ -1,0 +1,41 @@
+diff --git a/tests/test_lab_generate.py b/tests/test_lab_generate.py
+index b913511974..32bf21c2cd 100644
+--- a/tests/test_lab_generate.py
++++ b/tests/test_lab_generate.py
+@@ -141,6 +141,7 @@ def test_OpenAI_server_error(self, get_instructions_from_model):
+                         logger=logging.getLogger("test_logger"),
+                         api_base="localhost:8000",
+                         api_key="",
++                        model_family="merlinite",
+                         model_name="test-model",
+                         num_cpus=10,
+                         num_instructions_to_generate=100,
+@@ -177,6 +178,7 @@ def test_generate_no_error(self, get_instructions_from_model):
+                     api_base="localhost:8000",
+                     api_key="",
+                     model_name="my-model",
++                    model_family="merlinite",
+                     num_cpus=10,
+                     num_instructions_to_generate=1,
+                     taxonomy=mt.root,
+@@ -221,6 +223,7 @@ def test_knowledge_docs_no_error(self, read_taxonomy, get_instructions_from_mode
+                     api_base="localhost:8000",
+                     api_key="",
+                     model_name="my-model",
++                    model_family="merlinite",
+                     num_cpus=10,
+                     num_instructions_to_generate=1,
+                     taxonomy=mt.root,
+diff --git a/tests/test_lab_train.py b/tests/test_lab_train.py
+index b9973f2787..4407e6565d 100644
+--- a/tests/test_lab_train.py
++++ b/tests/test_lab_train.py
+@@ -347,7 +347,7 @@ def test_train_linux(
+             self.assertEqual(linux_train_mock.call_args[1]["num_epochs"], 1)
+             self.assertIsNotNone(linux_train_mock.call_args[1]["device"])
+             self.assertFalse(linux_train_mock.call_args[1]["four_bit_quant"])
+-            self.assertEqual(len(linux_train_mock.call_args[1]), 5)
++            self.assertEqual(len(linux_train_mock.call_args[1]), 6)
+             is_macos_with_m_chip_mock.assert_called_once()
+             self.assertFalse(os.path.isfile(LINUX_GGUF_FILE))
+ 

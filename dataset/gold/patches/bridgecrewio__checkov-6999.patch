@@ -1,0 +1,150 @@
+diff --git a/checkov/terraform/checks/graph_checks/gcp/GCPMySQLdbInstancePoint_In_TimeRecoveryBackupIsEnabled.yaml b/checkov/terraform/checks/graph_checks/gcp/GCPMySQLdbInstancePoint_In_TimeRecoveryBackupIsEnabled.yaml
+index e313c1911c..26eddc27a1 100644
+--- a/checkov/terraform/checks/graph_checks/gcp/GCPMySQLdbInstancePoint_In_TimeRecoveryBackupIsEnabled.yaml
++++ b/checkov/terraform/checks/graph_checks/gcp/GCPMySQLdbInstancePoint_In_TimeRecoveryBackupIsEnabled.yaml
+@@ -5,6 +5,11 @@ metadata:
+ 
+ definition:
+   or:
++    - cond_type: "attribute"
++      resource_types:
++        - "google_sql_database_instance"
++      attribute: "master_instance_name"
++      operator: "exists"
+     - cond_type: "attribute"
+       resource_types: 
+         - "google_sql_database_instance"
+diff --git a/checkov/terraform/checks/resource/aws/AutoScalingLaunchTemplate.py b/checkov/terraform/checks/resource/aws/AutoScalingLaunchTemplate.py
+index 7e82e766ae..be7cd5ce0e 100644
+--- a/checkov/terraform/checks/resource/aws/AutoScalingLaunchTemplate.py
++++ b/checkov/terraform/checks/resource/aws/AutoScalingLaunchTemplate.py
+@@ -1,11 +1,8 @@
+-from typing import Any
++from checkov.common.models.enums import CheckCategories, CheckResult
++from checkov.terraform.checks.resource.base_resource_value_check import BaseResourceCheck
+ 
+-from checkov.common.models.enums import CheckCategories
+-from checkov.terraform.checks.resource.base_resource_value_check import BaseResourceValueCheck
+-from checkov.common.models.consts import ANY_VALUE
+ 
+-
+-class AutoScalingLaunchTemplate(BaseResourceValueCheck):
++class AutoScalingLaunchTemplate(BaseResourceCheck):
+     def __init__(self) -> None:
+         """
+         NIST.800-53.r5 CA-9(1), NIST.800-53.r5 CM-2, NIST.800-53.r5 CM-2(2)
+@@ -17,11 +14,14 @@ def __init__(self) -> None:
+         categories = (CheckCategories.GENERAL_SECURITY,)
+         super().__init__(name=name, id=id, categories=categories, supported_resources=supported_resources)
+ 
+-    def get_inspected_key(self) -> str:
+-        return "launch_template"
++    def scan_resource_conf(self, conf) -> CheckResult:
++        if "launch_template" in conf:
++            return CheckResult.PASSED
++
++        if "mixed_instances_policy" in conf and "launch_template" in conf["mixed_instances_policy"][0]:
++            return CheckResult.PASSED
+ 
+-    def get_expected_value(self) -> Any:
+-        return ANY_VALUE
++        return CheckResult.FAILED
+ 
+ 
+ check = AutoScalingLaunchTemplate()
+diff --git a/checkov/terraform/checks/resource/aws/RDSInstancePerfInsightsEncryptionWithCMK.py b/checkov/terraform/checks/resource/aws/RDSInstancePerfInsightsEncryptionWithCMK.py
+index 575b45a981..7f7f342cfb 100644
+--- a/checkov/terraform/checks/resource/aws/RDSInstancePerfInsightsEncryptionWithCMK.py
++++ b/checkov/terraform/checks/resource/aws/RDSInstancePerfInsightsEncryptionWithCMK.py
+@@ -1,20 +1,28 @@
+-from checkov.common.models.enums import CheckCategories
++from typing import Any
++
++from checkov.common.models.enums import CheckCategories, CheckResult
+ from checkov.terraform.checks.resource.base_resource_value_check import BaseResourceValueCheck
+ from checkov.common.models.consts import ANY_VALUE
+ 
+ 
+ class RDSInstancePerfInsightsEncryptionWithCMK(BaseResourceValueCheck):
+-    def __init__(self):
++    def __init__(self) -> None:
+         name = "Ensure RDS Performance Insights are encrypted using KMS CMKs"
+         id = "CKV_AWS_354"
+         supported_resources = ['aws_rds_cluster_instance', 'aws_db_instance']
+         categories = [CheckCategories.ENCRYPTION]
+         super().__init__(name=name, id=id, categories=categories, supported_resources=supported_resources)
+ 
+-    def get_inspected_key(self):
++    def scan_resource_conf(self, conf) -> CheckResult:
++        if 'performance_insights_enabled' in conf and conf['performance_insights_enabled'][0]:
++            if 'performance_insights_kms_key_id' not in conf or not conf['performance_insights_kms_key_id']:
++                return CheckResult.FAILED
++        return CheckResult.PASSED
++
++    def get_inspected_key(self) -> str:
+         return 'performance_insights_kms_key_id'
+ 
+-    def get_expected_value(self):
++    def get_expected_value(self) -> Any:
+         return ANY_VALUE
+ 
+ 
+diff --git a/checkov/terraform/checks/resource/aws/SecretManagerSecret90days.py b/checkov/terraform/checks/resource/aws/SecretManagerSecret90days.py
+index db9e6014fc..39b6f4c2a7 100644
+--- a/checkov/terraform/checks/resource/aws/SecretManagerSecret90days.py
++++ b/checkov/terraform/checks/resource/aws/SecretManagerSecret90days.py
+@@ -1,5 +1,5 @@
+ from __future__ import annotations
+-
++import re
+ from typing import Any
+ 
+ from checkov.common.util.type_forcers import force_int
+@@ -15,16 +15,46 @@ def __init__(self) -> None:
+         categories = (CheckCategories.GENERAL_SECURITY,)
+         super().__init__(name=name, id=id, categories=categories, supported_resources=supported_resources)
+ 
++    def _check_rate_expression(self, expression: str) -> bool:
++        rate_match = re.match(r'rate\((\d+)\s+(days?|hours?|minutes?)\)', expression)
++        if rate_match:
++            value = int(rate_match.group(1))
++            unit = rate_match.group(2)
++
++            if unit.startswith('day'):
++                return value < 90
++            elif unit.startswith('hour'):
++                return value < 2160  # 90 days * 24 hours
++            elif unit.startswith('minute'):
++                return value < 129600  # 90 days * 24 hours * 60 minutes
++        return False
++
+     def scan_resource_conf(self, conf: dict[str, list[Any]]) -> CheckResult:
+         self.evaluated_keys = ["rotation_rules"]
+         rules = conf.get("rotation_rules")
+         if rules and isinstance(rules, list):
+-            days = rules[0].get('automatically_after_days')
++            rotation_rule = rules[0]
++
++            # Check for automatically_after_days
++            days = rotation_rule.get('automatically_after_days')
+             if days and isinstance(days, list):
+                 self.evaluated_keys = ["rotation_rules/[0]/automatically_after_days"]
+                 days = force_int(days[0])
+                 if days is not None and days < 90:
+                     return CheckResult.PASSED
++
++            # Check for schedule_expression
++            schedule = rotation_rule.get('schedule_expression')
++            if schedule and isinstance(schedule, list):
++                self.evaluated_keys = ["rotation_rules/[0]/schedule_expression"]
++                expression = schedule[0]
++
++                if expression.startswith('rate('):
++                    return CheckResult.PASSED if self._check_rate_expression(expression) else CheckResult.FAILED
++                elif expression.startswith('cron('):
++                    # TODO: Handle failing cron expressions
++                    return CheckResult.PASSED
++
+         return CheckResult.FAILED
+ 
+ 

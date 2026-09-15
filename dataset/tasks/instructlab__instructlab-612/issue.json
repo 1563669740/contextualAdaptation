@@ -1,0 +1,13 @@
+{
+  "task_id": "instructlab__instructlab-612",
+  "repo": "instructlab/instructlab",
+  "issue_number": "251",
+  "issue_url": "https://github.com/instructlab/instructlab/issues/251",
+  "issue_created_at": "1970-01-01 00:28:30.413274+00:00",
+  "issue_title": "TESTING: lint flag styles",
+  "issue_body": "Flags should be hyphen-only\r\n\r\ne.g. `--model-dir` and not `--model_dir`",
+  "problem_statement": "TESTING: lint flag styles\nFlags should be hyphen-only\r\n\r\ne.g. `--model-dir` and not `--model_dir`\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

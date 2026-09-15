@@ -1,0 +1,4 @@
+[
+  "tests/torchtune/models/test_lora_llama2.py::TestLoRALlama2::test_forward[lora_modules0-expected0]",
+  "tests/torchtune/models/test_lora_llama2.py::TestLoRALlama2::test_forward[lora_modules1-expected1]"
+]

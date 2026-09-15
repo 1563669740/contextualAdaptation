@@ -1,0 +1,6 @@
+[
+  "tests/plugins/test_tv3cat.py::TestPluginCanHandleUrlTV3Cat::test_url_matches_positive_named[NAME=live",
+  "tests/plugins/test_tv3cat.py::TestPluginCanHandleUrlTV3Cat::test_url_matches_positive_named[NAME=vod",
+  "tests/plugins/test_tv3cat.py::TestPluginCanHandleUrlTV3Cat::test_url_matches_groups_named[NAME=live",
+  "tests/plugins/test_tv3cat.py::TestPluginCanHandleUrlTV3Cat::test_url_matches_groups_named[NAME=vod"
+]

@@ -1,0 +1,56 @@
+diff --git a/RELEASE.md b/RELEASE.md
+index 4824c264ce..21925f4395 100644
+--- a/RELEASE.md
++++ b/RELEASE.md
+@@ -3,6 +3,7 @@
+ ## Major features and improvements
+ 
+ ## Bug fixes and other changes
++* Updated error message for invalid catalog entries.
+ 
+ ## Breaking changes to the API
+ 
+diff --git a/kedro/io/core.py b/kedro/io/core.py
+index 0a3dbc93a2..ec1b25bfea 100644
+--- a/kedro/io/core.py
++++ b/kedro/io/core.py
+@@ -155,7 +155,7 @@ def from_config(
+         except Exception as exc:
+             raise DatasetError(
+                 f"An exception occurred when parsing config "
+-                f"for dataset '{name}':\n{str(exc)}"
++                f"for dataset '{name}':\n{str(exc)}."
+             ) from exc
+ 
+         try:
+@@ -384,7 +384,11 @@ def parse_dataset_definition(
+     config = copy.deepcopy(config)
+ 
+     if "type" not in config:
+-        raise DatasetError("'type' is missing from dataset catalog configuration")
++        raise DatasetError(
++            "'type' is missing from dataset catalog configuration."
++            "\nHint: If this catalog entry is intended for variable interpolation, "
++            "make sure that the top level key is preceded by an underscore."
++        )
+ 
+     dataset_type = config.pop("type")
+     class_obj = None
+diff --git a/kedro/io/data_catalog.py b/kedro/io/data_catalog.py
+index ea0fb12f75..7e2bdebdf1 100644
+--- a/kedro/io/data_catalog.py
++++ b/kedro/io/data_catalog.py
+@@ -288,6 +288,13 @@ class to be loaded is specified with the key ``type`` and their
+         user_default = {}
+ 
+         for ds_name, ds_config in catalog.items():
++            if not isinstance(ds_config, dict):
++                raise DatasetError(
++                    f"Catalog entry '{ds_name}' is not a valid dataset configuration. "
++                    "\nHint: If this catalog entry is intended for variable interpolation, "
++                    "make sure that the key is preceded by an underscore."
++                )
++
+             ds_config = _resolve_credentials(  # noqa: PLW2901
+                 ds_config, credentials
+             )

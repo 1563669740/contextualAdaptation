@@ -1,0 +1,26 @@
+diff --git a/haystack/core/component/component.py b/haystack/core/component/component.py
+index ed88c7fbd8..d43b8fa6bf 100644
+--- a/haystack/core/component/component.py
++++ b/haystack/core/component/component.py
+@@ -139,7 +139,10 @@ def __call__(cls, *args, **kwargs):
+             instance.__canals_input__ = {}
+         run_signature = inspect.signature(getattr(cls, "run"))
+         for param in list(run_signature.parameters)[1:]:  # First is 'self' and it doesn't matter.
+-            if run_signature.parameters[param].kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:  # ignore `**kwargs`
++            if run_signature.parameters[param].kind not in (
++                inspect.Parameter.VAR_POSITIONAL,
++                inspect.Parameter.VAR_KEYWORD,
++            ):  # ignore variable args
+                 socket_kwargs = {"name": param, "type": run_signature.parameters[param].annotation}
+                 if run_signature.parameters[param].default != inspect.Parameter.empty:
+                     socket_kwargs["default_value"] = run_signature.parameters[param].default
+diff --git a/releasenotes/notes/component-kw-only-run-args-eedee8907232d2d4.yaml b/releasenotes/notes/component-kw-only-run-args-eedee8907232d2d4.yaml
+new file mode 100644
+index 0000000000..68ef50fbff
+--- /dev/null
++++ b/releasenotes/notes/component-kw-only-run-args-eedee8907232d2d4.yaml
+@@ -0,0 +1,4 @@
++---
++fixes:
++  - |
++    Fix ComponentMeta ignoring keyword-only parameters in the `run` method. ComponentMeta.__call__ handles the creation of InputSockets for the component's inputs when the latter has not explicitly called _Component.set_input_types(). This logic was not correctly handling keyword-only parameters.

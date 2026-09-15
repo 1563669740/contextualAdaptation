@@ -1,0 +1,4 @@
+[
+  "conans/test/integration/lockfile/test_lock_packages.py::test_lock_packages[requires]",
+  "conans/test/integration/lockfile/test_lock_packages.py::test_lock_packages[tool_requires]"
+]

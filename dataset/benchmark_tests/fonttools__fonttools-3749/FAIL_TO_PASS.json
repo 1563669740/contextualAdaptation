@@ -1,0 +1,4 @@
+[
+  "Tests/feaLib/builder_test.py::BuilderTest::test_Fea2feaFile_duplicate_language_stmt",
+  "Tests/feaLib/builder_test.py::BuilderTest::test_FeatureFile_duplicate_language_stmt"
+]

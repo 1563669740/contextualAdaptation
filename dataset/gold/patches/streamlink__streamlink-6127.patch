@@ -1,0 +1,17 @@
+diff --git a/src/streamlink/plugins/nicolive.py b/src/streamlink/plugins/nicolive.py
+index 514114638bb..45596cc6ffe 100644
+--- a/src/streamlink/plugins/nicolive.py
++++ b/src/streamlink/plugins/nicolive.py
+@@ -116,9 +116,9 @@ def set_wsclient(self, wsclient: NicoLiveWsClient):
+         self.wsclient = wsclient
+ 
+ 
+-@pluginmatcher(re.compile(
+-    r"https?://(?P<domain>live\d*\.nicovideo\.jp)/watch/(lv|co)\d+",
+-))
++@pluginmatcher(
++    re.compile(r"https?://(?P<domain>live\d*\.nicovideo\.jp)/watch/(lv|co|user/)\d+"),
++)
+ @pluginargument(
+     "email",
+     sensitive=True,

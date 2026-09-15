@@ -1,0 +1,20 @@
+diff --git a/changes/1746.bugfix.rst b/changes/1746.bugfix.rst
+new file mode 100644
+index 000000000..0c9d3a96f
+--- /dev/null
++++ b/changes/1746.bugfix.rst
+@@ -0,0 +1,1 @@
++Escaping of quotation marks in TOML templates was corrected.
+diff --git a/src/briefcase/integrations/cookiecutter.py b/src/briefcase/integrations/cookiecutter.py
+index 25c0e5868..3c66ffd06 100644
+--- a/src/briefcase/integrations/cookiecutter.py
++++ b/src/briefcase/integrations/cookiecutter.py
+@@ -62,7 +62,7 @@ def __init__(self, environment):
+ 
+         def escape_toml(obj):
+             """Escapes double quotes and backslashes."""
+-            return obj.replace('"', '"').replace("\\", "\\\\")
++            return obj.replace("\\", "\\\\").replace('"', '\\"')
+ 
+         def escape_non_ascii(obj):
+             """Quotes obj if non ascii characters are present."""

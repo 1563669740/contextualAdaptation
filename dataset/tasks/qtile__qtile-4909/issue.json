@@ -1,0 +1,13 @@
+{
+  "task_id": "qtile__qtile-4909",
+  "repo": "qtile/qtile",
+  "issue_number": "4908",
+  "issue_url": "https://github.com/qtile/qtile/issues/4908",
+  "issue_created_at": "1970-01-01 00:28:39.952968+00:00",
+  "issue_title": "WindowCount widget does not update on togroup() without switch_group",
+  "issue_body": "### Issue description\n\nI use keybindings for calling `lazy.window.togroup(name)` (without `switch_group=True`) and I noticed that the WindowCount widget does not update until I change group or spawn/close a window in the current group.\r\n\r\nA fix is to subscribe to the `group_window_add` hook in the WindowCount widget. I will prepare a PR.\r\n\r\n\n\n### Version\n\n0.26.1.dev0+ge4b4bb8b.d20240523\n\n### Backend\n\nX11 (default)\n\n### Config\n\n_No response_\n\n### Logs\n\n_No response_\n\n### Required\n\n- [X] I have searched past issues to see if this bug has already been reported, and it hasn't been.\n- [X] I understand that people give their precious time for free, and thus I've done my very best to make this problem as easy as possible to investigate.",
+  "problem_statement": "WindowCount widget does not update on togroup() without switch_group\n### Issue description\n\nI use keybindings for calling `lazy.window.togroup(name)` (without `switch_group=True`) and I noticed that the WindowCount widget does not update until I change group or spawn/close a window in the current group.\r\n\r\nA fix is to subscribe to the `group_window_add` hook in the WindowCount widget. I will prepare a PR.\r\n\r\n\n\n### Version\n\n0.26.1.dev0+ge4b4bb8b.d20240523\n\n### Backend\n\nX11 (default)\n\n### Config\n\n_No response_\n\n### Logs\n\n_No response_\n\n### Required\n\n- [X] I have searched past issues to see if this bug has already been reported, and it hasn't been.\n- [X] I understand that people give their precious time for free, and thus I've done my very best to make this problem as easy as possible to investigate.\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

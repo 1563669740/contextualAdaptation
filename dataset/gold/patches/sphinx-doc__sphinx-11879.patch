@@ -1,0 +1,26 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 73cb7409de0..3843e3691cd 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -21,6 +21,8 @@ Features added
+   Patch by Bénédikt Tran.
+ 
+   .. _`<search>`: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/search
++* #11803: autodoc: Use an overriden ``__repr__()`` function in an enum,
++  if defined. Patch by Shengyu Zhang.
+ 
+ Bugs fixed
+ ----------
+diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py
+index 218f4abca21..a70beb70e3b 100644
+--- a/sphinx/util/inspect.py
++++ b/sphinx/util/inspect.py
+@@ -387,6 +387,8 @@ def object_description(obj: Any, *, _seen: frozenset = frozenset()) -> str:
+         return 'frozenset({%s})' % ', '.join(object_description(x, _seen=seen)
+                                              for x in sorted_values)
+     elif isinstance(obj, enum.Enum):
++        if obj.__repr__.__func__ is not enum.Enum.__repr__:  # type: ignore[attr-defined]
++            return repr(obj)
+         return f'{obj.__class__.__name__}.{obj.name}'
+     elif isinstance(obj, tuple):
+         if id(obj) in seen:

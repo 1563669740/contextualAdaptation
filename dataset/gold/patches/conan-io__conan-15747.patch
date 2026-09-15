@@ -1,0 +1,13 @@
+diff --git a/conans/model/conf.py b/conans/model/conf.py
+index 65d7a6993b7..9743c6c7301 100644
+--- a/conans/model/conf.py
++++ b/conans/model/conf.py
+@@ -645,7 +645,7 @@ def serialize(self):
+             if pattern is None:
+                 result.update(conf.serialize())
+             else:
+-                for k, v in conf.serialize():
++                for k, v in conf.serialize().items():
+                     result[f"{pattern}:{k}"] = v
+         return result
+ 

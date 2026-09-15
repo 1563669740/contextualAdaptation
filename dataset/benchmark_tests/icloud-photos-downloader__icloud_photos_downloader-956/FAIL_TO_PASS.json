@@ -1,0 +1,3 @@
+[
+  "tests/test_download_photos.py::DownloadPhotoTestCase::test_download_two_sizes_with_force_size"
+]

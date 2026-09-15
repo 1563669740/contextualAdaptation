@@ -1,0 +1,141 @@
+diff --git a/.spellcheck-en-custom.txt b/.spellcheck-en-custom.txt
+index 1f002f3df3..41a661bb0f 100644
+--- a/.spellcheck-en-custom.txt
++++ b/.spellcheck-en-custom.txt
+@@ -133,6 +133,7 @@ Shaders
+ Shivchander
+ Srivastava
+ sshkey
++subcommand
+ subdirectory
+ Sudalairaj
+ Taj
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 797ef64049..93e47d6417 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,9 @@
+ ## v0.19
+ 
++### Features
++
++* Add `log_format` to the `config.yaml` file to allow for customizing the log format.
++
+ ### Breaking Changes
+ 
+ * InstructLab now uses XDG-based directories on macOS, similar to Linux.
+diff --git a/src/instructlab/configuration.py b/src/instructlab/configuration.py
+index 75521d50ee..19db82a231 100644
+--- a/src/instructlab/configuration.py
++++ b/src/instructlab/configuration.py
+@@ -4,6 +4,7 @@
+ from os import path
+ from re import match
+ from typing import Any, Optional, Union
++import logging
+ import os
+ import sys
+ import textwrap
+@@ -54,6 +55,11 @@ class _general(BaseModel):
+     # additional fields with defaults
+     log_level: StrictStr = Field(default="INFO", description="Log level for logging.")
+     debug_level: int = Field(default=0, description="Debug level for logging.")
++    log_format: StrictStr = Field(
++        default="%(levelname)s %(asctime)s %(name)s:%(lineno)d: %(message)s",
++        description="Log format. https://docs.python.org/3/library/logging.html#logrecord-attributes",
++        validate_default=True,
++    )
+ 
+     @field_validator("log_level")
+     def validate_log_level(cls, v):
+@@ -75,6 +81,19 @@ def validate_log_level(cls, v):
+             )
+         return v.upper()
+ 
++    @field_validator("log_format")
++    @classmethod
++    def validate_log_format(cls, log_format):
++        try:
++            logging.PercentStyle(log_format).validate()
++            return log_format
++        except ValueError as e:
++            raise ValueError(
++                f"\nFailed to configure log format: {e}\n"
++                "Have you specified a valid log format?\n"
++                "Consider reading: https://docs.python.org/3/library/logging.html#logrecord-attributes"
++            ) from e
++
+     @model_validator(mode="after")
+     def after_debug_level(self):
+         # set debug level when log level is DEBUG
+@@ -1063,7 +1082,9 @@ def init(
+         log.configure_logging(
+             log_level=config_obj.general.log_level.upper(),
+             debug_level=config_obj.general.debug_level,
++            fmt=config_obj.general.log_format,
+         )
++
+         # subtly get the additional args per cfg section
+         # if any are missing, add in sane defaults
+         train_additional = ctx.default_map["train"]["additional_args"]
+diff --git a/src/instructlab/log.py b/src/instructlab/log.py
+index 6d43997721..5b5edbca06 100644
+--- a/src/instructlab/log.py
++++ b/src/instructlab/log.py
+@@ -3,10 +3,9 @@
+ # Standard
+ import logging
+ import os
++import pathlib
+ import sys
+ 
+-FORMAT = "%(levelname)s %(asctime)s %(name)s:%(lineno)d: %(message)s"
+-
+ 
+ class CustomFormatter(logging.Formatter):
+     def format(self, record):
+@@ -37,15 +36,17 @@ def isatty(self):
+         return False
+ 
+ 
+-def stdout_stderr_to_logger(logger, log_file):
++def stdout_stderr_to_logger(
++    logger: logging.Logger, log_file: pathlib.Path | None, fmt: str
++):
+     if log_file:
+         # Use the existing log file if it exists and append to it
+         mode = "a"
+         # Create file handler
+         file_handler = logging.FileHandler(log_file, mode, encoding="utf-8")
+         logger.addHandler(file_handler)
+-        # Create formatter and set it for both handlers
+-        formatter = CustomFormatter(FORMAT)
++        # Create formatter and add it to the handler
++        formatter = CustomFormatter(fmt)
+         file_handler.setFormatter(formatter)
+ 
+     sys.stdout = LoggerWriter(logger.info)
+@@ -56,7 +57,7 @@ def configure_logging(
+     *,
+     log_level: str,
+     debug_level: int = 0,
+-    fmt: str = FORMAT,
++    fmt: str,
+ ) -> None:
+     """Configure logging framework"""
+     root = logging.getLogger()
+diff --git a/src/instructlab/model/serve.py b/src/instructlab/model/serve.py
+index 475d5dcbbd..a474d9718a 100644
+--- a/src/instructlab/model/serve.py
++++ b/src/instructlab/model/serve.py
+@@ -126,7 +126,9 @@ def serve(
+         raise click.exceptions.Exit(1)
+ 
+     # Redirect server stdout and stderr to the logger
+-    log.stdout_stderr_to_logger(logger, log_file)
++    log.stdout_stderr_to_logger(
++        logger=logger, log_file=log_file, fmt=ctx.obj.config.general.log_format
++    )
+ 
+     if chat_template is None:
+         chat_template = ctx.obj.config.serve.chat_template

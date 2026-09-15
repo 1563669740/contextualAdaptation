@@ -1,0 +1,3 @@
+[
+  "tests/test_ply.py::PlyTest::test_face_attributes"
+]

@@ -1,0 +1,228 @@
+diff --git a/docs/changelog/3190.bugfix.rst b/docs/changelog/3190.bugfix.rst
+new file mode 100644
+index 000000000..1415fa365
+--- /dev/null
++++ b/docs/changelog/3190.bugfix.rst
+@@ -0,0 +1,1 @@
++Add provision arguments to ToxParser to fix crash when provisioning new tox environment without list-dependencies by :user:`seyidaniels`
+diff --git a/src/tox/config/cli/parser.py b/src/tox/config/cli/parser.py
+index 55cdfb4f8..7afe87753 100644
+--- a/src/tox/config/cli/parser.py
++++ b/src/tox/config/cli/parser.py
+@@ -5,13 +5,15 @@
+ import argparse
+ import logging
+ import os
++import random
+ import sys
+-from argparse import SUPPRESS, Action, ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
++from argparse import SUPPRESS, Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser, Namespace
+ from pathlib import Path
+ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Type, TypeVar, cast
+ 
+ from tox.config.loader.str_convert import StrConvert
+ from tox.plugin import NAME
++from tox.util.ci import is_ci
+ 
+ from .env_var import get_env_var
+ from .ini import IniConfig
+@@ -178,8 +180,75 @@ def add_command(
+                 excl_group = group.add_mutually_exclusive_group(**e_kwargs)
+                 for a_args, _, a_kwargs in arguments:
+                     excl_group.add_argument(*a_args, **a_kwargs)
++        self._add_provision_arguments(sub_parser)
+         return sub_parser
+ 
++    def _add_provision_arguments(self, sub_parser: ToxParser) -> None:  # noqa: PLR6301
++        sub_parser.add_argument(
++            "--result-json",
++            dest="result_json",
++            metavar="path",
++            of_type=Path,
++            default=None,
++            help="write a JSON file with detailed information about all commands and results involved",
++        )
++
++        class SeedAction(Action):
++            def __call__(
++                self,
++                parser: ArgumentParser,  # noqa: ARG002
++                namespace: Namespace,
++                values: str | Sequence[Any] | None,
++                option_string: str | None = None,  # noqa: ARG002
++            ) -> None:
++                if values == "notset":
++                    result = None
++                else:
++                    try:
++                        result = int(cast(str, values))
++                        if result <= 0:
++                            msg = "must be greater than zero"
++                            raise ValueError(msg)  # noqa: TRY301
++                    except ValueError as exc:
++                        raise ArgumentError(self, str(exc)) from exc
++                setattr(namespace, self.dest, result)
++
++        if os.environ.get("PYTHONHASHSEED", "random") != "random":
++            hashseed_default = int(os.environ["PYTHONHASHSEED"])
++        else:
++            hashseed_default = random.randint(1, 1024 if sys.platform == "win32" else 4294967295)  # noqa: S311
++        sub_parser.add_argument(
++            "--hashseed",
++            metavar="SEED",
++            help="set PYTHONHASHSEED to SEED before running commands. Defaults to a random integer in the range "
++            "[1, 4294967295] ([1, 1024] on Windows). Passing 'notset' suppresses this behavior.",
++            action=SeedAction,
++            of_type=Optional[int],  # type: ignore[arg-type]
++            default=hashseed_default,
++            dest="hash_seed",
++        )
++        sub_parser.add_argument(
++            "--discover",
++            dest="discover",
++            nargs="+",
++            metavar="path",
++            help="for Python discovery first try the Python executables under these paths",
++            default=[],
++        )
++        list_deps = sub_parser.add_mutually_exclusive_group()
++        list_deps.add_argument(
++            "--list-dependencies",
++            action="store_true",
++            default=is_ci(),
++            help="list the dependencies installed during environment setup",
++        )
++        list_deps.add_argument(
++            "--no-list-dependencies",
++            action="store_false",
++            dest="list_dependencies",
++            help="never list the dependencies installed during environment setup",
++        )
++
+     def add_argument_group(self, *args: Any, **kwargs: Any) -> Any:
+         result = super().add_argument_group(*args, **kwargs)
+         if self.of_cmd is None and args not in {("positional arguments",), ("optional arguments",)}:
+diff --git a/src/tox/plugin/__init__.py b/src/tox/plugin/__init__.py
+index 7ec350875..c8bff4b03 100644
+--- a/src/tox/plugin/__init__.py
++++ b/src/tox/plugin/__init__.py
+@@ -1,6 +1,6 @@
+ """
+ tox uses `pluggy <https://pluggy.readthedocs.io/en/stable/>`_ to customize the default behavior. It provides an
+-extension mechanism for plugin management an calling hooks.
++extension mechanism for plugin management by calling hooks.
+ 
+ Pluggy discovers a plugin by looking up for entry-points named ``tox``, for example in a pyproject.toml:
+ 
+diff --git a/src/tox/session/cmd/run/common.py b/src/tox/session/cmd/run/common.py
+index fbddbcce9..07731dab6 100644
+--- a/src/tox/session/cmd/run/common.py
++++ b/src/tox/session/cmd/run/common.py
+@@ -4,8 +4,6 @@
+ 
+ import logging
+ import os
+-import random
+-import sys
+ import time
+ from argparse import Action, ArgumentError, ArgumentParser, Namespace
+ from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, as_completed
+@@ -21,7 +19,6 @@
+ from tox.journal import write_journal
+ from tox.session.cmd.run.single import ToxEnvRunResult, run_one
+ from tox.tox_env.runner import RunToxEnv
+-from tox.util.ci import is_ci
+ from tox.util.graph import stable_topological_sort
+ from tox.util.spinner import MISS_DURATION, Spinner
+ 
+@@ -62,17 +59,8 @@ def __call__(
+         setattr(namespace, self.dest, path)
+ 
+ 
+-def env_run_create_flags(parser: ArgumentParser, mode: str) -> None:  # noqa: C901
++def env_run_create_flags(parser: ArgumentParser, mode: str) -> None:
+     # mode can be one of: run, run-parallel, legacy, devenv, config
+-    if mode not in {"config", "depends"}:
+-        parser.add_argument(
+-            "--result-json",
+-            dest="result_json",
+-            metavar="path",
+-            of_type=Path,
+-            default=None,
+-            help="write a JSON file with detailed information about all commands and results involved",
+-        )
+     if mode not in {"devenv", "depends"}:
+         parser.add_argument(
+             "-s",
+@@ -114,51 +102,6 @@ def env_run_create_flags(parser: ArgumentParser, mode: str) -> None:  # noqa: C9
+             help="install package in development mode",
+             dest="develop",
+         )
+-    if mode != "depends":
+-
+-        class SeedAction(Action):
+-            def __call__(
+-                self,
+-                parser: ArgumentParser,  # noqa: ARG002
+-                namespace: Namespace,
+-                values: str | Sequence[Any] | None,
+-                option_string: str | None = None,  # noqa: ARG002
+-            ) -> None:
+-                if values == "notset":
+-                    result = None
+-                else:
+-                    try:
+-                        result = int(cast(str, values))
+-                        if result <= 0:
+-                            msg = "must be greater than zero"
+-                            raise ValueError(msg)  # noqa: TRY301
+-                    except ValueError as exc:
+-                        raise ArgumentError(self, str(exc)) from exc
+-                setattr(namespace, self.dest, result)
+-
+-        if os.environ.get("PYTHONHASHSEED", "random") != "random":
+-            hashseed_default = int(os.environ["PYTHONHASHSEED"])
+-        else:
+-            hashseed_default = random.randint(1, 1024 if sys.platform == "win32" else 4294967295)  # noqa: S311
+-
+-        parser.add_argument(
+-            "--hashseed",
+-            metavar="SEED",
+-            help="set PYTHONHASHSEED to SEED before running commands. Defaults to a random integer in the range "
+-            "[1, 4294967295] ([1, 1024] on Windows). Passing 'notset' suppresses this behavior.",
+-            action=SeedAction,
+-            of_type=Optional[int],
+-            default=hashseed_default,
+-            dest="hash_seed",
+-        )
+-    parser.add_argument(
+-        "--discover",
+-        dest="discover",
+-        nargs="+",
+-        metavar="path",
+-        help="for Python discovery first try the Python executables under these paths",
+-        default=[],
+-    )
+     if mode != "depends":
+         parser.add_argument(
+             "--no-recreate-pkg",
+@@ -166,19 +109,6 @@ def __call__(
+             help="if recreate is set do not recreate packaging tox environment(s)",
+             action="store_true",
+         )
+-        list_deps = parser.add_mutually_exclusive_group()
+-        list_deps.add_argument(
+-            "--list-dependencies",
+-            action="store_true",
+-            default=is_ci(),
+-            help="list the dependencies installed during environment setup",
+-        )
+-        list_deps.add_argument(
+-            "--no-list-dependencies",
+-            action="store_false",
+-            dest="list_dependencies",
+-            help="never list the dependencies installed during environment setup",
+-        )
+     if mode not in {"devenv", "config", "depends"}:
+         parser.add_argument(
+             "--skip-pkg-install",

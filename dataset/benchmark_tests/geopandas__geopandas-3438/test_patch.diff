@@ -1,0 +1,22 @@
+diff --git a/geopandas/tests/test_plotting.py b/geopandas/tests/test_plotting.py
+index e74f7a1ca0..83395ac82c 100644
+--- a/geopandas/tests/test_plotting.py
++++ b/geopandas/tests/test_plotting.py
+@@ -451,6 +451,17 @@ def test_no_missing_and_missing_kwds(self):
+         df["category"] = df["values"].astype("str")
+         df.plot("category", missing_kwds={"facecolor": "none"}, legend=True)
+ 
++    def test_missing_aspect(self):
++        self.df.loc[0, "values"] = np.nan
++        ax = self.df.plot(
++            "values",
++            missing_kwds={"color": "r"},
++            categorical=True,
++            legend=True,
++            aspect=2,
++        )
++        assert ax.get_aspect() == 2
++
+ 
+ class TestPointZPlotting:
+     def setup_method(self):

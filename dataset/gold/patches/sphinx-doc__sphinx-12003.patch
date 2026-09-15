@@ -1,0 +1,472 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 11ba6cbdef4..18e7a8038d4 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -94,6 +94,8 @@ Features added
+ * #8191, #8159: Add :rst:dir:`inheritance-diagram:include-subclasses` option to
+   the :rst:dir:`inheritance-diagram` directive.
+   Patch by Walter Dörwald.
++* #11995: autodoc: Add support for :confval:`python_display_short_literal_types`.
++  Patch by Bénédikt Tran and Adam Turner.
+ 
+ Bugs fixed
+ ----------
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index df951ccd1bf..5c2b202b927 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -44,7 +44,7 @@
+     from sphinx.environment import BuildEnvironment, _CurrentDocument
+     from sphinx.events import EventManager
+     from sphinx.ext.autodoc.directive import DocumenterBridge
+-    from sphinx.util.typing import ExtensionMetadata, OptionSpec
++    from sphinx.util.typing import ExtensionMetadata, OptionSpec, _RestifyMode
+ 
+     _AutodocObjType = Literal[
+         'module', 'class', 'exception', 'function', 'method', 'attribute'
+@@ -76,6 +76,14 @@
+ special_member_re = re.compile(r'^__\S+__$')
+ 
+ 
++def _get_render_mode(
++    typehints_format: Literal['fully-qualified', 'short'],
++) -> _RestifyMode:
++    if typehints_format == 'short':
++        return 'smart'
++    return 'fully-qualified-except-typing'
++
++
+ def identity(x: Any) -> Any:
+     return x
+ 
+@@ -1472,6 +1480,8 @@ def format_args(self, **kwargs: Any) -> str:
+             kwargs.setdefault('show_annotation', False)
+         if self.config.autodoc_typehints_format == 'short':
+             kwargs.setdefault('unqualified_typehints', True)
++        if self.config.python_display_short_literal_types:
++            kwargs.setdefault('short_literals', True)
+ 
+         try:
+             self._events.emit('autodoc-before-process-signature', self.object, False)
+@@ -1507,6 +1517,8 @@ def add_directive_header(self, sig: str) -> None:
+     def format_signature(self, **kwargs: Any) -> str:
+         if self.config.autodoc_typehints_format == 'short':
+             kwargs.setdefault('unqualified_typehints', True)
++        if self.config.python_display_short_literal_types:
++            kwargs.setdefault('short_literals', True)
+ 
+         sigs = []
+         if (
+@@ -1794,6 +1806,8 @@ def format_args(self, **kwargs: Any) -> str:
+             kwargs.setdefault('show_annotation', False)
+         if self.config.autodoc_typehints_format == 'short':
+             kwargs.setdefault('unqualified_typehints', True)
++        if self.config.python_display_short_literal_types:
++            kwargs.setdefault('short_literals', True)
+ 
+         try:
+             self._signature_class, _signature_method_name, sig = self._get_signature()
+@@ -1835,6 +1849,8 @@ def format_signature(self, **kwargs: Any) -> str:
+ 
+         if self.config.autodoc_typehints_format == 'short':
+             kwargs.setdefault('unqualified_typehints', True)
++        if self.config.python_display_short_literal_types:
++            kwargs.setdefault('short_literals', True)
+ 
+         sig = super().format_signature()
+         sigs = []
+@@ -1931,10 +1947,8 @@ def add_directive_header(self, sig: str) -> None:
+                 'autodoc-process-bases', self.fullname, self.object, self.options, bases
+             )
+ 
+-            if self.config.autodoc_typehints_format == 'short':
+-                base_classes = [restify(cls, 'smart') for cls in bases]
+-            else:
+-                base_classes = [restify(cls) for cls in bases]
++            mode = _get_render_mode(self.config.autodoc_typehints_format)
++            base_classes = [restify(cls, mode=mode) for cls in bases]
+ 
+             sourcename = self.get_sourcename()
+             self.add_line('', sourcename)
+@@ -2047,25 +2061,21 @@ def get_variable_comment(self) -> list[str] | None:
+             return None
+ 
+     def add_content(self, more_content: StringList | None) -> None:
++        mode = _get_render_mode(self.config.autodoc_typehints_format)
++        short_literals = self.config.python_display_short_literal_types
++
+         if isinstance(self.object, NewType):
+-            if self.config.autodoc_typehints_format == 'short':
+-                supertype = restify(self.object.__supertype__, 'smart')
+-            else:
+-                supertype = restify(self.object.__supertype__)
++            supertype = restify(self.object.__supertype__, mode=mode)
+ 
+             more_content = StringList([_('alias of %s') % supertype, ''], source='')
+         if isinstance(self.object, TypeVar):
+             attrs = [repr(self.object.__name__)]
+-            for constraint in self.object.__constraints__:
+-                if self.config.autodoc_typehints_format == 'short':
+-                    attrs.append(stringify_annotation(constraint, 'smart'))
+-                else:
+-                    attrs.append(stringify_annotation(constraint))
++            attrs.extend(
++                stringify_annotation(constraint, mode, short_literals=short_literals)
++                for constraint in self.object.__constraints__
++            )
+             if self.object.__bound__:
+-                if self.config.autodoc_typehints_format == 'short':
+-                    bound = restify(self.object.__bound__, 'smart')
+-                else:
+-                    bound = restify(self.object.__bound__)
++                bound = restify(self.object.__bound__, mode=mode)
+                 attrs.append(r'bound=\ ' + bound)
+             if self.object.__covariant__:
+                 attrs.append('covariant=True')
+@@ -2085,10 +2095,7 @@ def add_content(self, more_content: StringList | None) -> None:
+ 
+         if self.doc_as_attr and not self.get_variable_comment():
+             try:
+-                if self.config.autodoc_typehints_format == 'short':
+-                    alias = restify(self.object, 'smart')
+-                else:
+-                    alias = restify(self.object)
++                alias = restify(self.object, mode=mode)
+                 more_content = StringList([_('alias of %s') % alias], source='')
+             except AttributeError:
+                 pass  # Invalid class object is passed.
+@@ -2180,10 +2187,8 @@ def should_suppress_directive_header(self) -> bool:
+ 
+     def update_content(self, more_content: StringList) -> None:
+         if inspect.isgenericalias(self.object):
+-            if self.config.autodoc_typehints_format == 'short':
+-                alias = restify(self.object, 'smart')
+-            else:
+-                alias = restify(self.object)
++            mode = _get_render_mode(self.config.autodoc_typehints_format)
++            alias = restify(self.object, mode=mode)
+ 
+             more_content.append(_('alias of %s') % alias, '')
+             more_content.append('', '')
+@@ -2307,15 +2312,13 @@ def add_directive_header(self, sig: str) -> None:
+                     include_extras=True,
+                 )
+                 if self.objpath[-1] in annotations:
+-                    if self.config.autodoc_typehints_format == 'short':
+-                        objrepr = stringify_annotation(
+-                            annotations.get(self.objpath[-1]), 'smart'
+-                        )
+-                    else:
+-                        objrepr = stringify_annotation(
+-                            annotations.get(self.objpath[-1]),
+-                            'fully-qualified-except-typing',
+-                        )
++                    mode = _get_render_mode(self.config.autodoc_typehints_format)
++                    short_literals = self.config.python_display_short_literal_types
++                    objrepr = stringify_annotation(
++                        annotations.get(self.objpath[-1]),
++                        mode,
++                        short_literals=short_literals,
++                    )
+                     self.add_line('   :type: ' + objrepr, sourcename)
+ 
+             try:
+@@ -2405,6 +2408,8 @@ def format_args(self, **kwargs: Any) -> str:
+             kwargs.setdefault('show_annotation', False)
+         if self.config.autodoc_typehints_format == 'short':
+             kwargs.setdefault('unqualified_typehints', True)
++        if self.config.python_display_short_literal_types:
++            kwargs.setdefault('short_literals', True)
+ 
+         try:
+             if self.object == object.__init__ and self.parent != object:  # NoQA: E721
+@@ -2474,6 +2479,8 @@ def document_members(self, all_members: bool = False) -> None:
+     def format_signature(self, **kwargs: Any) -> str:
+         if self.config.autodoc_typehints_format == 'short':
+             kwargs.setdefault('unqualified_typehints', True)
++        if self.config.python_display_short_literal_types:
++            kwargs.setdefault('short_literals', True)
+ 
+         sigs = []
+         if (
+@@ -2957,15 +2964,13 @@ def add_directive_header(self, sig: str) -> None:
+                     include_extras=True,
+                 )
+                 if self.objpath[-1] in annotations:
+-                    if self.config.autodoc_typehints_format == 'short':
+-                        objrepr = stringify_annotation(
+-                            annotations.get(self.objpath[-1]), 'smart'
+-                        )
+-                    else:
+-                        objrepr = stringify_annotation(
+-                            annotations.get(self.objpath[-1]),
+-                            'fully-qualified-except-typing',
+-                        )
++                    mode = _get_render_mode(self.config.autodoc_typehints_format)
++                    short_literals = self.config.python_display_short_literal_types
++                    objrepr = stringify_annotation(
++                        annotations.get(self.objpath[-1]),
++                        mode,
++                        short_literals=short_literals,
++                    )
+                     self.add_line('   :type: ' + objrepr, sourcename)
+ 
+             try:
+@@ -3100,12 +3105,11 @@ def add_directive_header(self, sig: str) -> None:
+                 func, type_aliases=self.config.autodoc_type_aliases
+             )
+             if signature.return_annotation is not Parameter.empty:
+-                if self.config.autodoc_typehints_format == 'short':
+-                    objrepr = stringify_annotation(signature.return_annotation, 'smart')
+-                else:
+-                    objrepr = stringify_annotation(
+-                        signature.return_annotation, 'fully-qualified-except-typing'
+-                    )
++                mode = _get_render_mode(self.config.autodoc_typehints_format)
++                short_literals = self.config.python_display_short_literal_types
++                objrepr = stringify_annotation(
++                    signature.return_annotation, mode, short_literals=short_literals
++                )
+                 self.add_line('   :type: ' + objrepr, sourcename)
+         except TypeError as exc:
+             logger.warning(
+diff --git a/sphinx/ext/autodoc/typehints.py b/sphinx/ext/autodoc/typehints.py
+index c5f8a2c9afd..63403772137 100644
+--- a/sphinx/ext/autodoc/typehints.py
++++ b/sphinx/ext/autodoc/typehints.py
+@@ -20,7 +20,7 @@
+ 
+     from sphinx.application import Sphinx
+     from sphinx.ext.autodoc import Options
+-    from sphinx.util.typing import ExtensionMetadata
++    from sphinx.util.typing import ExtensionMetadata, _StringifyMode
+ 
+ 
+ def record_typehints(
+@@ -33,11 +33,14 @@ def record_typehints(
+     retann: str,
+ ) -> None:
+     """Record type hints to env object."""
++    mode: _StringifyMode
+     if app.config.autodoc_typehints_format == 'short':
+         mode = 'smart'
+     else:
+         mode = 'fully-qualified'
+ 
++    short_literals = app.config.python_display_short_literal_types
++
+     try:
+         if callable(obj):
+             current_document = app.env.current_document
+@@ -46,11 +49,12 @@ def record_typehints(
+             for param in sig.parameters.values():
+                 if param.annotation is not param.empty:
+                     annotation[param.name] = stringify_annotation(
+-                        param.annotation,
+-                        mode,  # type: ignore[arg-type]
++                        param.annotation, mode, short_literals=short_literals
+                     )
+             if sig.return_annotation is not sig.empty:
+-                annotation['return'] = stringify_annotation(sig.return_annotation, mode)  # type: ignore[arg-type]
++                annotation['return'] = stringify_annotation(
++                    sig.return_annotation, mode, short_literals=short_literals
++                )
+     except (TypeError, ValueError):
+         pass
+ 
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index 1a3ffd8bdc4..d1317e9d841 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -1095,8 +1095,13 @@ def _lookup_annotation(self, _name: str) -> str:
+                     )
+                     self._annotations = get_type_hints(self._obj, None, localns)
+                 if _name in self._annotations:
++                    short_literals = getattr(
++                        self._config, 'python_display_short_literal_types', False
++                    )
+                     return stringify_annotation(
+-                        self._annotations[_name], 'fully-qualified-except-typing'
++                        self._annotations[_name],
++                        mode='fully-qualified-except-typing',
++                        short_literals=short_literals,
+                     )
+         # No annotation found
+         return ''
+diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py
+index 73d75c40447..d77f31161ec 100644
+--- a/sphinx/util/inspect.py
++++ b/sphinx/util/inspect.py
+@@ -31,6 +31,8 @@
+ 
+     from typing_extensions import TypeIs
+ 
++    from sphinx.util.typing import _StringifyMode
++
+     class _SupportsGet(Protocol):
+         def __get__(self, instance: Any, owner: type | None = ..., /) -> Any: ...
+ 
+@@ -842,6 +844,7 @@ def stringify_signature(
+     show_annotation: bool = True,
+     show_return_annotation: bool = True,
+     unqualified_typehints: bool = False,
++    short_literals: bool = False,
+ ) -> str:
+     """Stringify a :class:`~inspect.Signature` object.
+ 
+@@ -849,7 +852,9 @@ def stringify_signature(
+     :param show_return_annotation: If enabled, show annotation of the return value
+     :param unqualified_typehints: If enabled, show annotations as unqualified
+                                   (ex. io.StringIO -> StringIO)
++    :param short_literals: If enabled, use short literal types.
+     """
++    mode: _StringifyMode
+     if unqualified_typehints:
+         mode = 'smart'
+     else:
+@@ -884,7 +889,11 @@ def stringify_signature(
+ 
+         if show_annotation and param.annotation is not EMPTY:
+             arg.write(': ')
+-            arg.write(stringify_annotation(param.annotation, mode))  # type: ignore[arg-type]
++            arg.write(
++                stringify_annotation(
++                    param.annotation, mode, short_literals=short_literals
++                )
++            )
+         if param.default is not EMPTY:
+             if show_annotation and param.annotation is not EMPTY:
+                 arg.write(' = ')
+@@ -907,7 +916,9 @@ def stringify_signature(
+     ):
+         return f'({concatenated_args})'
+     else:
+-        retann = stringify_annotation(sig.return_annotation, mode)  # type: ignore[arg-type]
++        retann = stringify_annotation(
++            sig.return_annotation, mode, short_literals=short_literals
++        )
+         return f'({concatenated_args}) -> {retann}'
+ 
+ 
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index ef7b9462364..594b050dfa6 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -388,6 +388,8 @@ def stringify_annotation(
+     annotation: Any,
+     /,
+     mode: _StringifyMode = 'fully-qualified-except-typing',
++    *,
++    short_literals: bool = False,
+ ) -> str:
+     """Stringify type annotation object.
+ 
+@@ -401,6 +403,8 @@ def stringify_annotation(
+                      Show the name of the annotation.
+                  'fully-qualified'
+                      Show the module name and qualified name of the annotation.
++
++    :param short_literals: Render :py:class:`Literals` in PEP 604 style (``|``).
+     """
+     from sphinx.ext.autodoc.mock import ismock, ismockmodule  # lazy loading
+ 
+@@ -462,7 +466,10 @@ def stringify_annotation(
+         if not args:  # Empty tuple, list, ...
+             return repr(annotation)
+ 
+-        concatenated_args = ', '.join(stringify_annotation(arg, mode) for arg in args)
++        concatenated_args = ', '.join(
++            stringify_annotation(arg, mode=mode, short_literals=short_literals)
++            for arg in args
++        )
+         return f'{annotation_qualname}[{concatenated_args}]'
+     else:
+         # add other special cases that can be directly formatted
+@@ -496,13 +503,16 @@ def stringify_annotation(
+                 # of ``typing`` and all of them define ``__origin__``
+                 qualname = stringify_annotation(
+                     annotation.__origin__,
+-                    'fully-qualified-except-typing',
++                    mode='fully-qualified-except-typing',
++                    short_literals=short_literals,
+                 ).replace('typing.', '')  # ex. Union
+     elif annotation_qualname:
+         qualname = annotation_qualname
+     elif hasattr(annotation, '__origin__'):
+         # instantiated generic provided by a user
+-        qualname = stringify_annotation(annotation.__origin__, mode)
++        qualname = stringify_annotation(
++            annotation.__origin__, mode=mode, short_literals=short_literals
++        )
+     elif isinstance(annotation, types.UnionType):
+         qualname = 'types.UnionType'
+     else:
+@@ -525,33 +535,49 @@ def stringify_annotation(
+             )
+             return f'{module_prefix}Literal[{args}]'
+         if qualname in {'Optional', 'Union', 'types.UnionType'}:
+-            return ' | '.join(stringify_annotation(a, mode) for a in annotation_args)
++            return ' | '.join(
++                stringify_annotation(a, mode=mode, short_literals=short_literals)
++                for a in annotation_args
++            )
+         elif qualname == 'Callable':
+             args = ', '.join(
+-                stringify_annotation(a, mode) for a in annotation_args[:-1]
++                stringify_annotation(a, mode=mode, short_literals=short_literals)
++                for a in annotation_args[:-1]
++            )
++            returns = stringify_annotation(
++                annotation_args[-1], mode=mode, short_literals=short_literals
+             )
+-            returns = stringify_annotation(annotation_args[-1], mode)
+             return f'{module_prefix}Callable[[{args}], {returns}]'
+         elif qualname == 'Literal':
++            if short_literals:
++                return ' | '.join(
++                    _format_literal_arg_stringify(a, mode=mode) for a in annotation_args
++                )
+             args = ', '.join(
+                 _format_literal_arg_stringify(a, mode=mode) for a in annotation_args
+             )
+             return f'{module_prefix}Literal[{args}]'
+         elif _is_annotated_form(annotation):  # for py310+
+-            args = stringify_annotation(annotation_args[0], mode)
++            args = stringify_annotation(
++                annotation_args[0], mode=mode, short_literals=short_literals
++            )
+             meta_args = []
+             for m in annotation.__metadata__:
+                 if isinstance(m, type):
+-                    meta_args.append(stringify_annotation(m, mode))
++                    meta_args.append(
++                        stringify_annotation(
++                            m, mode=mode, short_literals=short_literals
++                        )
++                    )
+                 elif dataclasses.is_dataclass(m):
+                     # use stringify_annotation for the repr of field values rather than repr
+                     d_fields = ', '.join([
+-                        f'{f.name}={stringify_annotation(getattr(m, f.name), mode)}'
++                        f'{f.name}={stringify_annotation(getattr(m, f.name), mode=mode, short_literals=short_literals)}'  # NoQA: E501
+                         for f in dataclasses.fields(m)
+                         if f.repr
+                     ])
+                     meta_args.append(
+-                        f'{stringify_annotation(type(m), mode)}({d_fields})'
++                        f'{stringify_annotation(type(m), mode=mode, short_literals=short_literals)}({d_fields})'  # NoQA: E501
+                     )
+                 else:
+                     meta_args.append(repr(m))
+@@ -566,7 +592,10 @@ def stringify_annotation(
+             # Suppress arguments if all system defined TypeVars (ex. Dict[KT, VT])
+             return module_prefix + qualname
+         else:
+-            args = ', '.join(stringify_annotation(a, mode) for a in annotation_args)
++            args = ', '.join(
++                stringify_annotation(a, mode=mode, short_literals=short_literals)
++                for a in annotation_args
++            )
+             return f'{module_prefix}{qualname}[{args}]'
+ 
+     return module_prefix + qualname

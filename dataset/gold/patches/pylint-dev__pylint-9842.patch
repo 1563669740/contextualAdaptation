@@ -1,0 +1,260 @@
+diff --git a/doc/data/messages/t/too-many-positional-arguments/bad.py b/doc/data/messages/t/too-many-positional-arguments/bad.py
+new file mode 100644
+index 0000000000..2a2c5b4cac
+--- /dev/null
++++ b/doc/data/messages/t/too-many-positional-arguments/bad.py
+@@ -0,0 +1,5 @@
++class FiveArgumentMethods:
++    """The max positional arguments default is 5."""
++
++    def take_five_args(self, a, b, c, d, e):  # [too-many-positional-arguments]
++        pass
+diff --git a/doc/data/messages/t/too-many-positional-arguments/details.rst b/doc/data/messages/t/too-many-positional-arguments/details.rst
+new file mode 100644
+index 0000000000..bed5bfb806
+--- /dev/null
++++ b/doc/data/messages/t/too-many-positional-arguments/details.rst
+@@ -0,0 +1,10 @@
++Positional arguments work well for cases where the the use cases are
++self-evident, such as unittest's ``assertEqual(first, second, msg=None)``.
++Comprehensibility suffers beyond a handful of arguments, though, so for
++functions that take more inputs, require that additional arguments be
++passed by *keyword only* by preceding them with ``*``:
++
++.. code-block:: python
++
++    def make_noise(self, volume, *, color=noise.PINK, debug=True):
++        ...
+diff --git a/doc/data/messages/t/too-many-positional-arguments/good.py b/doc/data/messages/t/too-many-positional-arguments/good.py
+new file mode 100644
+index 0000000000..ab4a9f2735
+--- /dev/null
++++ b/doc/data/messages/t/too-many-positional-arguments/good.py
+@@ -0,0 +1,5 @@
++class FiveArgumentMethods:
++    """The max positional arguments default is 5."""
++
++    def take_five_args(self, a, b, c, d, *, e=False):
++        pass
+diff --git a/doc/data/messages/t/too-many-positional-arguments/pylintrc b/doc/data/messages/t/too-many-positional-arguments/pylintrc
+new file mode 100644
+index 0000000000..271f58965b
+--- /dev/null
++++ b/doc/data/messages/t/too-many-positional-arguments/pylintrc
+@@ -0,0 +1,2 @@
++[MESSAGES CONTROL]
++disable=too-many-arguments
+diff --git a/doc/data/messages/t/too-many-positional/related.rst b/doc/data/messages/t/too-many-positional-arguments/related.rst
+similarity index 100%
+rename from doc/data/messages/t/too-many-positional/related.rst
+rename to doc/data/messages/t/too-many-positional-arguments/related.rst
+diff --git a/doc/data/messages/t/too-many-positional/details.rst b/doc/data/messages/t/too-many-positional/details.rst
+deleted file mode 100644
+index b9acd905f0..0000000000
+--- a/doc/data/messages/t/too-many-positional/details.rst
++++ /dev/null
+@@ -1,1 +0,0 @@
+-Reserved message name, not yet implemented.
+diff --git a/doc/user_guide/checkers/features.rst b/doc/user_guide/checkers/features.rst
+index a6434333f7..e83312b8a3 100644
+--- a/doc/user_guide/checkers/features.rst
++++ b/doc/user_guide/checkers/features.rst
+@@ -437,10 +437,8 @@ Design checker Messages
+   simpler (and so easier to use) class.
+ :too-many-locals (R0914): *Too many local variables (%s/%s)*
+   Used when a function or method has too many local variables.
+-:too-many-positional (R0917): *Too many positional arguments in a function call.*
+-  Will be implemented in https://github.com/pylint-
+-  dev/pylint/issues/9099,msgid/symbol pair reserved for compatibility with
+-  ruff, see https://github.com/astral-sh/ruff/issues/8946.
++:too-many-positional-arguments (R0917): *Too many positional arguments (%s/%s)*
++  Used when a function has too many positional arguments.
+ :too-many-public-methods (R0904): *Too many public methods (%s/%s)*
+   Used when class has too many public methods, try to reduce this to get a
+   simpler (and so easier to use) class.
+diff --git a/doc/user_guide/configuration/all-options.rst b/doc/user_guide/configuration/all-options.rst
+index eb7d72f2a3..568cdde85c 100644
+--- a/doc/user_guide/configuration/all-options.rst
++++ b/doc/user_guide/configuration/all-options.rst
+@@ -765,6 +765,13 @@ Standard Checkers
+ **Default:**  ``7``
+ 
+ 
++--max-positional-arguments
++""""""""""""""""""""""""""
++*Maximum number of positional arguments for function / method.*
++
++**Default:**  ``5``
++
++
+ --max-public-methods
+ """"""""""""""""""""
+ *Maximum number of public methods for a class (see R0904).*
+@@ -822,6 +829,8 @@ Standard Checkers
+ 
+    max-parents = 7
+ 
++   max-positional-arguments = 5
++
+    max-public-methods = 20
+ 
+    max-returns = 6
+diff --git a/doc/user_guide/messages/messages_overview.rst b/doc/user_guide/messages/messages_overview.rst
+index 18570b0fdc..6ad50562f8 100644
+--- a/doc/user_guide/messages/messages_overview.rst
++++ b/doc/user_guide/messages/messages_overview.rst
+@@ -539,7 +539,7 @@ All messages in the refactor category:
+    refactor/too-many-instance-attributes
+    refactor/too-many-locals
+    refactor/too-many-nested-blocks
+-   refactor/too-many-positional
++   refactor/too-many-positional-arguments
+    refactor/too-many-public-methods
+    refactor/too-many-return-statements
+    refactor/too-many-statements
+diff --git a/doc/whatsnew/fragments/9099.new_check b/doc/whatsnew/fragments/9099.new_check
+new file mode 100644
+index 0000000000..4c5744bb54
+--- /dev/null
++++ b/doc/whatsnew/fragments/9099.new_check
+@@ -0,0 +1,8 @@
++Added `too-many-positional-arguments` to allow distinguishing the configuration for too many
++total arguments (with keyword-only params specified after `*`) from the configuration
++for too many positional-or-keyword or positional-only arguments.
++
++As part of evaluating whether this check makes sense for your project, ensure you
++adjust the value of `--max-positional-arguments`.
++
++Closes #9099
+diff --git a/examples/pylintrc b/examples/pylintrc
+index 24d91bd4e9..645bf7f441 100644
+--- a/examples/pylintrc
++++ b/examples/pylintrc
+@@ -319,6 +319,8 @@ max-statements=50
+ # Minimum number of public methods for a class (see R0903).
+ min-public-methods=2
+ 
++# Minimum number of public methods for a class (see R0903).
++max-positional-arguments=5
+ 
+ [EXCEPTIONS]
+ 
+diff --git a/examples/pyproject.toml b/examples/pyproject.toml
+index 8b3c7b29f7..bae7233081 100644
+--- a/examples/pyproject.toml
++++ b/examples/pyproject.toml
+@@ -281,6 +281,9 @@ max-statements = 50
+ # Minimum number of public methods for a class (see R0903).
+ min-public-methods = 2
+ 
++# Maximum number of positional arguments (see R0917).
++max-positional-arguments = 5
++
+ [tool.pylint.exceptions]
+ # Exceptions that will emit a warning when caught.
+ overgeneral-exceptions = ["builtins.BaseException", "builtins.Exception"]
+diff --git a/pylint/checkers/design_analysis.py b/pylint/checkers/design_analysis.py
+index 78378e92c9..5c1adbc888 100644
+--- a/pylint/checkers/design_analysis.py
++++ b/pylint/checkers/design_analysis.py
+@@ -16,6 +16,7 @@
+ 
+ from pylint.checkers import BaseChecker
+ from pylint.checkers.utils import is_enum, only_required_for_messages
++from pylint.interfaces import HIGH
+ from pylint.typing import MessageDefinitionTuple
+ 
+ if TYPE_CHECKING:
+@@ -81,11 +82,9 @@
+             "Used when an if statement contains too many boolean expressions.",
+         ),
+         "R0917": (
+-            "Too many positional arguments in a function call.",
+-            "too-many-positional",
+-            "Will be implemented in https://github.com/pylint-dev/pylint/issues/9099,"
+-            "msgid/symbol pair reserved for compatibility with ruff, "
+-            "see https://github.com/astral-sh/ruff/issues/8946.",
++            "Too many positional arguments (%s/%s)",
++            "too-many-positional-arguments",
++            "Used when a function has too many positional arguments.",
+         ),
+     }
+ )
+@@ -311,6 +310,15 @@ class MisdesignChecker(BaseChecker):
+                 "help": "Maximum number of arguments for function / method.",
+             },
+         ),
++        (
++            "max-positional-arguments",
++            {
++                "default": 5,
++                "type": "int",
++                "metavar": "<int>",
++                "help": "Maximum number of positional arguments for function / method.",
++            },
++        ),
+         (
+             "max-locals",
+             {
+@@ -525,6 +533,7 @@ def leave_classdef(self, node: nodes.ClassDef) -> None:
+         "too-many-branches",
+         "too-many-arguments",
+         "too-many-locals",
++        "too-many-positional-arguments",
+         "too-many-statements",
+         "keyword-arg-before-vararg",
+     )
+@@ -536,13 +545,20 @@ def visit_functiondef(self, node: nodes.FunctionDef) -> None:
+         self._returns.append(0)
+         # check number of arguments
+         args = node.args.args + node.args.posonlyargs + node.args.kwonlyargs
++        pos_args = node.args.args + node.args.posonlyargs
+         ignored_argument_names = self.linter.config.ignored_argument_names
+         if args is not None:
+             ignored_args_num = 0
+             if ignored_argument_names:
+-                ignored_args_num = sum(
+-                    1 for arg in args if ignored_argument_names.match(arg.name)
++                ignored_pos_args_num = sum(
++                    1 for arg in pos_args if ignored_argument_names.match(arg.name)
++                )
++                ignored_kwonly_args_num = sum(
++                    1
++                    for arg in node.args.kwonlyargs
++                    if ignored_argument_names.match(arg.name)
+                 )
++                ignored_args_num = ignored_pos_args_num + ignored_kwonly_args_num
+ 
+             argnum = len(args) - ignored_args_num
+             if argnum > self.linter.config.max_args:
+@@ -551,6 +567,16 @@ def visit_functiondef(self, node: nodes.FunctionDef) -> None:
+                     node=node,
+                     args=(len(args), self.linter.config.max_args),
+                 )
++            pos_args_count = (
++                len(args) - len(node.args.kwonlyargs) - ignored_pos_args_num
++            )
++            if pos_args_count > self.linter.config.max_positional_arguments:
++                self.add_message(
++                    "too-many-positional-arguments",
++                    node=node,
++                    args=(pos_args_count, self.linter.config.max_positional_arguments),
++                    confidence=HIGH,
++                )
+         else:
+             ignored_args_num = 0
+         # check number of local variables
+diff --git a/pylintrc b/pylintrc
+index 8989a90a77..c1c70c0731 100644
+--- a/pylintrc
++++ b/pylintrc
+@@ -433,6 +433,9 @@ max-attributes=11
+ # Maximum number of statements in a try-block
+ max-try-statements = 7
+ 
++# Maximum number of positional arguments (see R0917).
++max-positional-arguments = 12
++
+ [CLASSES]
+ 
+ # List of method names used to declare (i.e. assign) instance attributes.

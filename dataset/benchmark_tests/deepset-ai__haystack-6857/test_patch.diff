@@ -1,0 +1,45 @@
+diff --git a/releasenotes/notes/meta-in-bytestream-a29816c919c0be5a.yaml b/releasenotes/notes/meta-in-bytestream-a29816c919c0be5a.yaml
+new file mode 100644
+index 0000000000..e116c73fbc
+--- /dev/null
++++ b/releasenotes/notes/meta-in-bytestream-a29816c919c0be5a.yaml
+@@ -0,0 +1,3 @@
++---
++enhancements:
++  - Add meta parameter to `ByteStream.from_file_path()` and `ByteStream.from_string()`.
+diff --git a/test/dataclasses/test_byte_stream.py b/test/dataclasses/test_byte_stream.py
+index 62aa1add6d..57d444b038 100644
+--- a/test/dataclasses/test_byte_stream.py
++++ b/test/dataclasses/test_byte_stream.py
+@@ -1,9 +1,5 @@
+-import io
+-
+ from haystack.dataclasses import ByteStream
+ 
+-import pytest
+-
+ 
+ def test_from_file_path(tmp_path, request):
+     test_bytes = "Hello, world!\n".encode()
+@@ -19,6 +15,10 @@ def test_from_file_path(tmp_path, request):
+     assert b.data == test_bytes
+     assert b.mime_type == "text/plain"
+ 
++    b = ByteStream.from_file_path(test_path, meta={"foo": "bar"})
++    assert b.data == test_bytes
++    assert b.meta == {"foo": "bar"}
++
+ 
+ def test_from_string():
+     test_string = "Hello, world!"
+@@ -30,6 +30,10 @@ def test_from_string():
+     assert b.data.decode() == test_string
+     assert b.mime_type == "text/plain"
+ 
++    b = ByteStream.from_string(test_string, meta={"foo": "bar"})
++    assert b.data.decode() == test_string
++    assert b.meta == {"foo": "bar"}
++
+ 
+ def test_to_file(tmp_path, request):
+     test_str = "Hello, world!\n"

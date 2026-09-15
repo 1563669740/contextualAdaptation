@@ -1,0 +1,43 @@
+diff --git a/asyncua/server/address_space.py b/asyncua/server/address_space.py
+index 07de08c86..7a0729156 100644
+--- a/asyncua/server/address_space.py
++++ b/asyncua/server/address_space.py
+@@ -711,25 +711,23 @@ def make_aspace_shelf(self, path: Path):
+             for nodeid, ndata in self._nodes.items():
+                 s[nodeid.to_string()] = ndata
+ 
+-    def load_aspace_shelf(self, path):
++    def load_aspace_shelf(self, path: Path):
+         """
+         Load the standard address space nodes from a python shelve via LazyLoadingDict as needed.
+         The dump() method can no longer be used if the address space is being loaded from a shelf
+ 
+         Note: Intended for slow devices, such as Raspberry Pi, to greatly improve start up time
+         """
+-        raise NotImplementedError
+ 
+-        # ToDo: async friendly implementation - load all at once?
+         class LazyLoadingDict(collections.abc.MutableMapping):
+             """
+             Special dict that only loads nodes as they are accessed. If a node is accessed it gets copied from the
+-            shelve to the cache dict. All user nodes are saved in the cache ONLY. Saving data back to the shelf
++            shelf to the cache dict. All user nodes are saved in the cache ONLY. Saving data back to the shelf
+             is currently NOT supported
+             """
+ 
+-            def __init__(self, source):
+-                self.source = source  # python shelf
++            def __init__(self, source: shelve.Shelf):
++                self.source: shelve.Shelf = source  # python shelf
+                 self.cache = {}  # internal dict
+ 
+             def __getitem__(self, key):
+@@ -759,7 +757,7 @@ def __len__(self):
+                 # only returns the length of items in the cache, not unaccessed items in the shelf
+                 return len(self.cache)
+ 
+-        self._nodes = LazyLoadingDict(shelve.open(path, "r"))
++        self._nodes = LazyLoadingDict(shelve.open(str(path), "r"))
+ 
+     def read_attribute_value(self, nodeid: ua.NodeId, attr: ua.AttributeIds) -> ua.DataValue:
+         # self.logger.debug("get attr val: %s %s", nodeid, attr)

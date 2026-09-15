@@ -1,0 +1,59 @@
+diff --git a/tests/test_lab.py b/tests/test_lab.py
+new file mode 100644
+index 0000000000..1f088f2d9c
+--- /dev/null
++++ b/tests/test_lab.py
+@@ -0,0 +1,25 @@
++# Standard
++import re
++import unittest
++
++# Third Party
++import click
++
++# First Party
++from cli import lab
++
++
++class TestConfig(unittest.TestCase):
++    def test_cli_params_hyphenated(self):
++        flag_pattern = re.compile("-{1,2}[a-z-]+")
++        invalid_flags = []
++        for name, cmd in lab.cli.commands.items():
++            for param in cmd.params:
++                if not isinstance(param, click.Option):
++                    continue
++                for opt in param.opts:
++                    if not flag_pattern.fullmatch(opt):
++                        invalid_flags.append(f"{name} {opt}")
++        self.assertFalse(
++            invalid_flags, "<- these commands are using non-hyphenated params"
++        )
+diff --git a/tests/test_lab_download.py b/tests/test_lab_download.py
+index 0c644f5ef5..5d5e7f646f 100644
+--- a/tests/test_lab_download.py
++++ b/tests/test_lab_download.py
+@@ -17,9 +17,6 @@ def mock_download_raise_exception(repo_id, revision, filename, local_dir):
+ 
+ 
+ class TestLabDownload(unittest.TestCase):
+-    def __init__(self, *args, **kwargs):
+-        super().__init__(*args, **kwargs)
+-
+     @patch("huggingface_hub.hf_hub_download")
+     def test_download(self, _):
+         runner = CliRunner()
+diff --git a/tests/test_lab_init.py b/tests/test_lab_init.py
+index 62e9f467bd..7e172d73b8 100644
+--- a/tests/test_lab_init.py
++++ b/tests/test_lab_init.py
+@@ -15,9 +15,6 @@
+ 
+ 
+ class TestLabInit(unittest.TestCase):
+-    def __init__(self, *args, **kwargs):
+-        super().__init__(*args, **kwargs)
+-
+     @patch("git.Repo.clone_from", MagicMock())
+     def test_init(self):
+         runner = CliRunner()

@@ -1,0 +1,193 @@
+diff --git a/test/unit/module/jsonschema/test_keywords.py b/test/unit/module/jsonschema/test_keywords.py
+new file mode 100644
+index 0000000000..ea3e968647
+--- /dev/null
++++ b/test/unit/module/jsonschema/test_keywords.py
+@@ -0,0 +1,85 @@
++"""
++Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++SPDX-License-Identifier: MIT-0
++"""
++
++from collections import deque
++
++import pytest
++
++from cfnlint.jsonschema import ValidationError, _keywords
++from cfnlint.jsonschema.validators import CfnTemplateValidator
++from cfnlint.rules import CloudFormationLintRule
++
++
++class Error(CloudFormationLintRule):
++    id = "E1111"
++
++    def validate(self, validator, s, instance, schema):
++        print(instance)
++        if s:
++            yield ValidationError(
++                "Error",
++                rule=self,
++            )
++
++
++@pytest.fixture
++def validator():
++    validator = CfnTemplateValidator(schema={})
++    validator = validator.extend(
++        validators={
++            "error": Error().validate,
++        }
++    )
++    return validator({})
++
++
++@pytest.mark.parametrize(
++    "name,instance,schema,expected",
++    [
++        (
++            "Valid anyOf",
++            "foo",
++            [{"const": "foo"}, {"const": "bar"}],
++            [],
++        ),
++        (
++            "Valid anyOf with error rule",
++            "foo",
++            [{"const": "foo"}, {"error": True}],
++            [],
++        ),
++        (
++            "Invalid anyOf with error rule",
++            "foo",
++            [{"error": True}, {"error": True}],
++            [
++                ValidationError(
++                    "'foo' is not valid under any of the given schemas",
++                    path=deque([]),
++                    schema_path=deque([]),
++                    context=[
++                        ValidationError(
++                            "Error",
++                            rule=Error(),
++                            path=deque([]),
++                            validator="error",
++                            schema_path=deque([0, "error"]),
++                        ),
++                        ValidationError(
++                            "Error",
++                            rule=Error(),
++                            path=deque([]),
++                            validator="error",
++                            schema_path=deque([1, "error"]),
++                        ),
++                    ],
++                ),
++            ],
++        ),
++    ],
++)
++def test_anyof(name, instance, schema, validator, expected):
++    errs = list(_keywords.anyOf(validator, schema, instance, schema))
++    assert errs == expected, f"{name!r} got errors {errs!r}"
+diff --git a/test/unit/rules/functions/test_sub_not_join_cdk.py b/test/unit/rules/functions/test_sub_not_join_cdk.py
+new file mode 100644
+index 0000000000..ebc45ca079
+--- /dev/null
++++ b/test/unit/rules/functions/test_sub_not_join_cdk.py
+@@ -0,0 +1,44 @@
++"""
++Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++SPDX-License-Identifier: MIT-0
++"""
++
++import pytest
++
++from cfnlint.rules.functions.SubNotJoin import SubNotJoin
++
++
++@pytest.fixture(scope="module")
++def rule():
++    rule = SubNotJoin()
++    yield rule
++
++
++@pytest.fixture
++def template():
++    return {
++        "Resources": {
++            "MyResource": {
++                "Type": "AWS::S3::Bucket",
++            },
++            "CDK": {
++                "Type": "AWS::CDK::Metadata",
++            },
++        },
++    }
++
++
++@pytest.mark.parametrize(
++    "name,instance,schema,expected",
++    [
++        (
++            "Invalid Fn::Join with an empty string",
++            {"Fn::Join": ["", ["foo", "bar"]]},
++            {"type": "string"},
++            [],
++        ),
++    ],
++)
++def test_validate(name, instance, schema, expected, rule, validator):
++    errs = list(rule.validate(validator, schema, instance, {}))
++    assert errs == expected, f"Test {name!r} got {errs!r}"
+diff --git a/test/unit/rules/resources/iam/test_resource_policy.py b/test/unit/rules/resources/iam/test_resource_policy.py
+index b88accf9b7..b56635507e 100644
+--- a/test/unit/rules/resources/iam/test_resource_policy.py
++++ b/test/unit/rules/resources/iam/test_resource_policy.py
+@@ -180,3 +180,47 @@ def test_string_statements(self):
+             errs[2].message, "'2012-10-18' is not one of ['2008-10-17', '2012-10-17']"
+         )
+         self.assertListEqual(list(errs[2].path), ["Version"])
++
++    def test_principal_wildcard(self):
++        validator = CfnTemplateValidator({}).evolve(
++            context=Context(functions=FUNCTIONS)
++        )
++
++        policy = {
++            "Version": "2012-10-17",
++            "Statement": [
++                {
++                    "Effect": "Allow",
++                    "Action": "*",
++                    "Resource": {
++                        "Fn::Sub": "arn:${AWS::Partition}:iam::123456789012:role/object-role"
++                    },
++                    "Principal": "*",
++                },
++                {
++                    "Effect": "Allow",
++                    "Action": "*",
++                    "Resource": {
++                        "Fn::Sub": "arn:${AWS::Partition}:iam::123456789012:role/object-role"
++                    },
++                    "Principal": {
++                        "AWS": "*",
++                    },
++                },
++                {
++                    "Effect": "Allow",
++                    "Action": "*",
++                    "Resource": {
++                        "Fn::Sub": "arn:${AWS::Partition}:iam::123456789012:role/object-role"
++                    },
++                    "Principal": {"Fn::Sub": "*"},
++                },
++            ],
++        }
++
++        errs = list(
++            self.rule.validate(
++                validator=validator, policy=policy, schema={}, policy_type=None
++            )
++        )
++        self.assertListEqual(errs, [])

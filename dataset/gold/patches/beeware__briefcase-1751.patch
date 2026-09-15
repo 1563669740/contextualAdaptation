@@ -1,0 +1,529 @@
+diff --git a/automation/src/automation/bootstraps/pursuedpybear.py b/automation/src/automation/bootstraps/pursuedpybear.py
+index 0545adeac..091178efa 100644
+--- a/automation/src/automation/bootstraps/pursuedpybear.py
++++ b/automation/src/automation/bootstraps/pursuedpybear.py
+@@ -17,12 +17,6 @@ def __init__(self, **props):
+         super().__init__(**props)
+         self.updates: int = 0
+ 
+-        self.add(
+-            ppb.Sprite(
+-                image=ppb.Image("{{{{ cookiecutter.module_name }}}}/resources/{{{{ cookiecutter.app_name }}}}.png"),
+-            )
+-        )
+-
+     def on_update(self, event, signal):
+         self.updates += 1
+         # quit after 2 seconds since on_update is run 60 times/second
+diff --git a/automation/src/automation/bootstraps/pygame.py b/automation/src/automation/bootstraps/pygame.py
+index 0f2fe8c9e..e0ee59129 100644
+--- a/automation/src/automation/bootstraps/pygame.py
++++ b/automation/src/automation/bootstraps/pygame.py
+@@ -34,11 +34,6 @@ def main():
+ 
+     os.environ["SDL_VIDEO_X11_WMCLASS"] = metadata["Formal-Name"]
+ 
+-    # Set the app's runtime icon
+-    pygame.display.set_icon(
+-        pygame.image.load(Path(__file__).parent / "resources/{{{{ cookiecutter.app_name }}}}.png")
+-    )
+-
+     pygame.init()
+     pygame.display.set_caption(metadata["Formal-Name"])
+     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+diff --git a/changes/1737.feature.rst b/changes/1737.feature.rst
+new file mode 100644
+index 000000000..9c7b8e863
+--- /dev/null
++++ b/changes/1737.feature.rst
+@@ -0,0 +1,1 @@
++When a platform supports a splash screen, that splash screen will be generated automatically based on the app icon, rather than requiring additional configuration.
+diff --git a/changes/1737.removal.1.rst b/changes/1737.removal.1.rst
+new file mode 100644
+index 000000000..59d50aa76
+--- /dev/null
++++ b/changes/1737.removal.1.rst
+@@ -0,0 +1,1 @@
++The ``splash`` configuration option will no longer be honored. Splash screens are now generated based on the icon image.
+diff --git a/changes/1737.removal.2.rst b/changes/1737.removal.2.rst
+new file mode 100644
+index 000000000..be1e6bb9f
+--- /dev/null
++++ b/changes/1737.removal.2.rst
+@@ -0,0 +1,1 @@
++Android apps now require an ``adaptive`` variant for icons. This requires 108px, 162px, 216px, 324px and 432px images with a transparent background. The Android ``square`` icon variant requires additional 320px, 480px, 640px, 960px and 1280px images.
+diff --git a/changes/1737.removal.3.rst b/changes/1737.removal.3.rst
+new file mode 100644
+index 000000000..b6f75e084
+--- /dev/null
++++ b/changes/1737.removal.3.rst
+@@ -0,0 +1,1 @@
++iOS apps now require 640px, 1280px and 1920px icon image.
+diff --git a/docs/reference/commands/build.rst b/docs/reference/commands/build.rst
+index 22a38e80b..59b0952f4 100644
+--- a/docs/reference/commands/build.rst
++++ b/docs/reference/commands/build.rst
+@@ -66,8 +66,8 @@ Update application requirements before building. Equivalent to running:
+ ``--update-resources``
+ ----------------------
+ 
+-Update application resources (e.g., icons and splash screens) before building.
+-Equivalent to running:
++Update application resources such as icons before building. Equivalent to
++running:
+ 
+ .. code-block:: console
+ 
+diff --git a/docs/reference/commands/run.rst b/docs/reference/commands/run.rst
+index f4b58f9bd..77d4bd76c 100644
+--- a/docs/reference/commands/run.rst
++++ b/docs/reference/commands/run.rst
+@@ -92,8 +92,8 @@ Update application requirements before running. Equivalent to running:
+ ``--update-resources``
+ ----------------------
+ 
+-Update application resources (e.g., icons and splash screens) before running.
+-Equivalent to running:
++Update application resources such as icons before running. Equivalent to
++running:
+ 
+ .. code-block:: console
+ 
+diff --git a/docs/reference/commands/update.rst b/docs/reference/commands/update.rst
+index cd0d4c30e..bfa22e7cd 100644
+--- a/docs/reference/commands/update.rst
++++ b/docs/reference/commands/update.rst
+@@ -44,7 +44,7 @@ Update application requirements.
+ ``--update-resources``
+ ----------------------
+ 
+-Update application resources (e.g., icons and splash screens).
++Update application resources such as icons.
+ 
+ ``--update-support``
+ ----------------------
+diff --git a/docs/reference/configuration.rst b/docs/reference/configuration.rst
+index 28cf501fc..f038f2384 100644
+--- a/docs/reference/configuration.rst
++++ b/docs/reference/configuration.rst
+@@ -287,9 +287,9 @@ be appended when the application is built.
+ ~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+ A path, relative to the directory where the ``pyproject.toml`` file is located,
+-to an image to use as the background for the installer. As with ``splash``, the
+-path should *exclude* the extension, and a platform-appropriate extension will
+-be appended when the application is built.
++to an image to use as the background for the installer. The path should
++*exclude* the extension, and a platform-appropriate extension will be appended
++when the application is built.
+ 
+ ``long_description``
+ ~~~~~~~~~~~~~~~~~~~~
+@@ -330,42 +330,6 @@ most specific.
+ An identifier used to differentiate specific builds of the same version of an
+ app. Defaults to ``1`` if not provided.
+ 
+-``splash``
+-~~~~~~~~~~
+-
+-A path, relative to the directory where the ``pyproject.toml`` file is located,
+-to an image to use as the splash screen for the application. The path should
+-*exclude* the extension; Briefcase will append a platform appropriate extension
+-when configuring the application.
+-
+-Some platforms require multiple splash images, at different sizes; these will
+-be handled by appending the required size to the provided icon name. For
+-example, iOS requires multiple splash images, (1024px, 2048px and 3072px);
+-with a ``splash`` setting of ``resources/my_splash``, Briefcase will look for
+-``resources/my_splash-1024.png``, ``resources/my_splash-2045.png``, and
+-``resources/my_splash-3072.png``. The sizes that are required are determined
+-by the platform template.
+-
+-Some platforms also require different *variants*. For example, Android requires
+-splash screens for ``normal``, ``large`` and ``xlarge`` devices. These variants
+-can be specified by qualifying the splash specification::
+-
+-    splash.normal = "resource/normal-splash"
+-    splash.large = "resource/large-splash"
+-    splash.xlarge = "resource/xlarge-splash"
+-
+-These settings can, if you wish, all use the same prefix.
+-
+-If the platform requires different sizes for each variant (as Android does),
+-those size will be appended to path provided by the variant specifier. For
+-example, using the previous example, Android would look for
+-``resource/normal-splash-320.png``,  ``resource/normal-splash-480.png``,
+-``resource/large-splash.480.png``, ``resource/xlarge-splash-720.png``, amongst
+-others.
+-
+-If the platform output format does not use a splash screen, the ``splash``
+-setting is ignored.
+-
+ ``splash_background_color``
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+diff --git a/docs/reference/platforms/android/gradle.rst b/docs/reference/platforms/android/gradle.rst
+index a201eff2a..2680be74c 100644
+--- a/docs/reference/platforms/android/gradle.rst
++++ b/docs/reference/platforms/android/gradle.rst
+@@ -53,8 +53,8 @@ Briefcase supports three packaging formats for an Android app:
+ Icon format
+ ===========
+ 
+-Android projects use ``.png`` format icons, in round and square variants. An
+-application must provide the icons in the following sizes, for 2 variants:
++Android projects use ``.png`` format icons, in round, square and adaptive variants. An
++application must provide the icons in the following sizes, for 3 variants:
+ 
+ * ``round``:
+ 
+@@ -71,45 +71,28 @@ application must provide the icons in the following sizes, for 2 variants:
+   * 96px (``xhdpi``; 2x scale)
+   * 144px (``xxhdpi``; 3x scale)
+   * 192px (``xxxhdpi``; 4x scale)
+-
+-Splash Image format
+-===================
+-
+-Android projects use ``.png`` format splash screen images. A splash screen
+-should be a square image with a transparent background. It must be specified
+-in a range of sizes and variants, to suit different possible device sizes
+-and device display densities:
+-
+-* ``normal`` (typical phones; up to 480 density-independent pixels):
+-
+-  * 320px (``mdpi``; baseline resolution)
+-  * 480px (``hdpi``; 1.5x scale)
+-  * 640px (``xhdpi``; 2x scale)
+-  * 960px (``xxhdpi``; 3x scale)
+-  * 1280px (``xxxhdpi``; 4x scale)
+-
+-* ``large`` (large format phones, or phone-tablet "phablet" hybrids; up to
+-  720 density-independent pixels):
+-
+-  * 480px (``mdpi``; baseline resolution)
+-  * 720px (``hdpi``; 1.5x scale)
+-  * 960px (``xhdpi``; 2x scale)
+-  * 1440px (``xxhdpi``; 3x scale)
+-  * 1920px (``xxxhdpi``; 4x scale)
+-
+-* ``xlarge`` (tablets; larger than 720 density-independent pixels)
+-
+-  * 720px (``mdpi``; baseline resolution)
+-  * 1080px (``hdpi``; 1.5x scale)
+-  * 1440px (``xhdpi``; 2x scale)
+-  * 2160px (``xxhdpi``; 3x scale)
+-  * 2880px (``xxxhdpi``; 4x scale)
+-
+-Consult `the Android documentation
+-<https://developer.android.com/guide/topics/large-screens/support-different-screen-sizes>`__
+-for more details on devices, sizes, and display densities. `This list of common
+-devices with their sizes and DPI <https://m2.material.io/resources/devices/>`__
+-may also be helpful.
++  * 320px (``mdpi``; baseline resolution for splash screen)
++  * 480px (``hdpi``; 1.5x scale for splash screen)
++  * 640px (``xhdpi``; 2x scale for splash screen)
++  * 960px (``xxhdpi``; 3x scale for splash screen)
++  * 1280px (``xxxhdpi``; 4x scale for splash screen)
++
++* ``adaptive``:
++
++  * 108px (``mdpi``; baseline resolution; 66px drawable area)
++  * 162px (``hdpi``; 1.5x scale; 99px drawable area)
++  * 216px (``xhdpi``; 2x scale; 132px drawable area)
++  * 324px (``xxhdpi``; 3x scale; 198px drawable area)
++  * 432px (``xxxhdpi``; 4x scale; 264px drawable area)
++
++The ``round`` and ``square`` icons should include their background color in the image.
++The ``adaptive`` icons should have a transparent background; the icon image should be
++centered in the overall image, and should not exceed the drawable area. The background
++color of the adaptive icon will be the value specified with ``splash_background_color``.
++
++The icon will also be used to populate the splash screen. You can specify a
++background color for the splash screen using the ``splash_background_color``
++configuration setting.
+ 
+ Android projects do not support installer images.
+ 
+diff --git a/docs/reference/platforms/iOS/xcode.rst b/docs/reference/platforms/iOS/xcode.rst
+index b3c9bbbc2..a62518314 100644
+--- a/docs/reference/platforms/iOS/xcode.rst
++++ b/docs/reference/platforms/iOS/xcode.rst
+@@ -32,22 +32,24 @@ the following sizes:
+ * 152px
+ * 167px
+ * 180px
++* 640px
+ * 1024px
++* 1280px
++* 1920px
+ 
+-Splash Image format
+-===================
++The icon will also be used to populate the splash screen. You can specify a
++background color for the splash screen using the ``splash_background_color``
++configuration setting.
+ 
+-iOS projects use ``.png`` format splash screen images. A splash screen should
+-be a square, transparent image, provided in the following sizes:
++iOS projects do not support installer images.
+ 
+-* 800px
+-* 1600px
+-* 2400px
++Colors
++======
+ 
+-You can specify a background color for the splash screen using the
+-``splash_background_color`` configuration setting.
++iOS allows for some customization of the colors used by your app:
+ 
+-iOS projects do not support installer images.
++* ``splash_background_color`` is the color of the splash background that
++  displays while an app is loading.
+ 
+ Additional options
+ ==================
+diff --git a/docs/reference/platforms/linux/appimage.rst b/docs/reference/platforms/linux/appimage.rst
+index fa94901eb..492ab8379 100644
+--- a/docs/reference/platforms/linux/appimage.rst
++++ b/docs/reference/platforms/linux/appimage.rst
+@@ -81,9 +81,6 @@ the following sizes:
+ * 256px
+ * 512px
+ 
+-Splash Image format
+-===================
+-
+ AppImages do not support splash screens or installer images.
+ 
+ Additional options
+diff --git a/docs/reference/platforms/linux/flatpak.rst b/docs/reference/platforms/linux/flatpak.rst
+index 09d30c6fb..eab3c9f42 100644
+--- a/docs/reference/platforms/linux/flatpak.rst
++++ b/docs/reference/platforms/linux/flatpak.rst
+@@ -65,9 +65,6 @@ the following sizes:
+ * 256px
+ * 512px
+ 
+-Splash Image format
+-===================
+-
+ Flatpaks do not support splash screens or installer images.
+ 
+ Application configuration
+diff --git a/docs/reference/platforms/linux/system.rst b/docs/reference/platforms/linux/system.rst
+index d91d0293e..ac1120a98 100644
+--- a/docs/reference/platforms/linux/system.rst
++++ b/docs/reference/platforms/linux/system.rst
+@@ -69,9 +69,6 @@ the following sizes:
+ * 256px
+ * 512px
+ 
+-Splash Image format
+-===================
+-
+ Linux System packages do not support splash screens or installer images.
+ 
+ Additional files
+diff --git a/docs/reference/platforms/macOS/app.rst b/docs/reference/platforms/macOS/app.rst
+index 7e4afe41a..0dbacde68 100644
+--- a/docs/reference/platforms/macOS/app.rst
++++ b/docs/reference/platforms/macOS/app.rst
+@@ -35,9 +35,6 @@ Icon format
+ 
+ macOS ``.app`` bundles use ``.icns`` format icons.
+ 
+-Splash Image format
+-===================
+-
+ macOS ``.app`` bundles do not support splash screens or installer images.
+ 
+ Additional options
+diff --git a/docs/reference/platforms/macOS/xcode.rst b/docs/reference/platforms/macOS/xcode.rst
+index 25f06edea..d00b8be04 100644
+--- a/docs/reference/platforms/macOS/xcode.rst
++++ b/docs/reference/platforms/macOS/xcode.rst
+@@ -41,9 +41,6 @@ the following sizes:
+ * 512px
+ * 1024px
+ 
+-Splash Image format
+-===================
+-
+ macOS Xcode projects do not support splash screens.
+ 
+ Additional options
+diff --git a/docs/reference/platforms/web/static.rst b/docs/reference/platforms/web/static.rst
+index d7679a43a..467262673 100644
+--- a/docs/reference/platforms/web/static.rst
++++ b/docs/reference/platforms/web/static.rst
+@@ -43,9 +43,6 @@ Icon format
+ 
+ Web projects use a single 32px ``.png`` format icon as the site icon.
+ 
+-Splash Image format
+-===================
+-
+ Web projects do not support splash screens or installer images.
+ 
+ Additional options
+diff --git a/docs/reference/platforms/windows/app.rst b/docs/reference/platforms/windows/app.rst
+index d1aee4d86..3519fa830 100644
+--- a/docs/reference/platforms/windows/app.rst
++++ b/docs/reference/platforms/windows/app.rst
+@@ -46,9 +46,6 @@ contain images in the following sizes:
+ * 64px
+ * 256px
+ 
+-Splash Image format
+-===================
+-
+ Windows Apps do not support splash screens or installer images.
+ 
+ Additional options
+diff --git a/docs/reference/platforms/windows/visualstudio.rst b/docs/reference/platforms/windows/visualstudio.rst
+index 912d51c82..0e6a16b53 100644
+--- a/docs/reference/platforms/windows/visualstudio.rst
++++ b/docs/reference/platforms/windows/visualstudio.rst
+@@ -69,9 +69,6 @@ contain images in the following sizes:
+ * 64px
+ * 256px
+ 
+-Splash Image format
+-===================
+-
+ Windows Apps do not support splash screens or installer images.
+ 
+ Additional options
+diff --git a/docs/spelling_wordlist b/docs/spelling_wordlist
+index 71c8b4347..f28636688 100644
+--- a/docs/spelling_wordlist
++++ b/docs/spelling_wordlist
+@@ -24,6 +24,7 @@ Django
+ dmg
+ Dockerfile
+ dr
++drawable
+ embeddable
+ executables
+ Flathub
+diff --git a/src/briefcase/bootstraps/pursuedpybear.py b/src/briefcase/bootstraps/pursuedpybear.py
+index efbe5a463..9f968db4b 100644
+--- a/src/briefcase/bootstraps/pursuedpybear.py
++++ b/src/briefcase/bootstraps/pursuedpybear.py
+@@ -17,11 +17,7 @@ class {{ cookiecutter.class_name }}(ppb.Scene):
+     def __init__(self, **props):
+         super().__init__(**props)
+ 
+-        self.add(
+-            ppb.Sprite(
+-                image=ppb.Image("{{ cookiecutter.module_name }}/resources/{{ cookiecutter.app_name }}.png"),
+-            )
+-        )
++        # Add sprites and details to your scene here
+ 
+ 
+ def main():
+diff --git a/src/briefcase/bootstraps/pygame.py b/src/briefcase/bootstraps/pygame.py
+index 70693a5b6..78c427d2b 100644
+--- a/src/briefcase/bootstraps/pygame.py
++++ b/src/briefcase/bootstraps/pygame.py
+@@ -35,11 +35,6 @@ def main():
+ 
+     os.environ["SDL_VIDEO_X11_WMCLASS"] = metadata["Formal-Name"]
+ 
+-    # Set the app's runtime icon
+-    pygame.display.set_icon(
+-        pygame.image.load(Path(__file__).parent / "resources/{{ cookiecutter.app_name }}.png")
+-    )
+-
+     pygame.init()
+     pygame.display.set_caption(metadata["Formal-Name"])
+     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+diff --git a/src/briefcase/commands/create.py b/src/briefcase/commands/create.py
+index 3f62a9c4c..ffe6af22e 100644
+--- a/src/briefcase/commands/create.py
++++ b/src/briefcase/commands/create.py
+@@ -121,27 +121,6 @@ def icon_targets(self, app: AppConfig):
+ 
+         return icon_targets
+ 
+-    def splash_image_targets(self, app: AppConfig):
+-        """Obtain the dictionary of splash image targets that the template requires.
+-
+-        :param app: The config object for the app
+-        :return: A dictionary of splash images that the template supports. The keys of
+-            the dictionary are the size of the splash images.
+-        """
+-        # If the template specifies no splash images, return an empty dictionary.
+-        # If the template specifies a single splash image without a size specification,
+-        #   return a dictionary with a single ``None`` key.
+-        # Otherwise, return the full size-keyed dictionary.
+-        try:
+-            splash_targets = self.path_index(app, "splash")
+-            # Convert string-specified splash images into an "unknown size" icon form
+-            if isinstance(splash_targets, str):
+-                splash_targets = {None: splash_targets}
+-        except KeyError:
+-            splash_targets = {}
+-
+-        return splash_targets
+-
+     def document_type_icon_targets(self, app: AppConfig):
+         """Obtain the dictionary of document type icon targets that the template
+         requires.
+@@ -704,27 +683,12 @@ def install_app_resources(self, app: AppConfig):
+                     target=self.bundle_path(app) / targets,
+                 )
+ 
+-        for variant_or_size, targets in self.splash_image_targets(app).items():
+-            try:
+-                # Treat the targets as a dictionary of sizes;
+-                # if there's no `items`, then it's a splash without variants
+-                for size, target in targets.items():
+-                    self.install_image(
+-                        "splash image",
+-                        source=app.splash,
+-                        variant=variant_or_size,
+-                        size=size,
+-                        target=self.bundle_path(app) / target,
+-                    )
+-            except AttributeError:
+-                # Either a single variant, or a single size.
+-                self.install_image(
+-                    "splash image",
+-                    source=app.splash,
+-                    variant=None,
+-                    size=variant_or_size,
+-                    target=self.bundle_path(app) / targets,
+-                )
++        # Briefcase v0.3.18 - splash screens deprecated.
++        if getattr(app, "splash", None):
++            self.logger.warning(
++                "Splash screens are now configured based on the icon. "
++                "The splash configuration will be ignored."
++            )
+ 
+         for extension, doctype in self.document_type_icon_targets(app).items():
+             for size, target in doctype.items():
+diff --git a/src/briefcase/config.py b/src/briefcase/config.py
+index a86f8f2ac..b675d7f92 100644
+--- a/src/briefcase/config.py
++++ b/src/briefcase/config.py
+@@ -189,7 +189,6 @@ def __init__(
+         author_email=None,
+         requires=None,
+         icon=None,
+-        splash=None,
+         document_type=None,
+         permission=None,
+         template=None,
+@@ -217,7 +216,6 @@ def __init__(
+         self.author_email = author_email
+         self.requires = requires
+         self.icon = icon
+-        self.splash = splash
+         self.document_types = {} if document_type is None else document_type
+         self.permission = {} if permission is None else permission
+         self.template = template

@@ -1,0 +1,4 @@
+[
+  "tests/sql/column/multiple_statements/test_session_metadata.py::test_do_not_register_session_metadata_for_update_statement[provider0]",
+  "tests/sql/column/multiple_statements/test_session_metadata.py::test_do_not_register_session_metadata_for_update_statement[provider1]"
+]

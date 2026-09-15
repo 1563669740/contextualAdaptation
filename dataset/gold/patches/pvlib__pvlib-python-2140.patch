@@ -1,0 +1,156 @@
+diff --git a/docs/sphinx/source/reference/effects_on_pv_system_output/spectrum.rst b/docs/sphinx/source/reference/effects_on_pv_system_output/spectrum.rst
+index 15fd1d09b8..23b5f5bb6d 100644
+--- a/docs/sphinx/source/reference/effects_on_pv_system_output/spectrum.rst
++++ b/docs/sphinx/source/reference/effects_on_pv_system_output/spectrum.rst
+@@ -18,3 +18,4 @@ Spectrum
+    spectrum.spectral_factor_jrc
+    spectrum.sr_to_qe
+    spectrum.qe_to_sr
++   spectrum.average_photon_energy
+diff --git a/docs/sphinx/source/whatsnew/v0.11.1.rst b/docs/sphinx/source/whatsnew/v0.11.1.rst
+index 2839a0ff25..beaca6c466 100644
+--- a/docs/sphinx/source/whatsnew/v0.11.1.rst
++++ b/docs/sphinx/source/whatsnew/v0.11.1.rst
+@@ -10,6 +10,9 @@ Deprecations
+ 
+ Enhancements
+ ~~~~~~~~~~~~
++* Add new function to calculate the average photon energy,
++  :py:func:`pvlib.spectrum.average_photon_energy`.
++  (:issue:`2135`, :pull:`2140`)
+ * Add new losses function that accounts for non-uniform irradiance on bifacial
+   modules, :py:func:`pvlib.bifacial.power_mismatch_deline`.
+   (:issue:`2045`, :pull:`2046`)
+diff --git a/pvlib/spectrum/__init__.py b/pvlib/spectrum/__init__.py
+index 87deb86018..e282afc01f 100644
+--- a/pvlib/spectrum/__init__.py
++++ b/pvlib/spectrum/__init__.py
+@@ -10,6 +10,7 @@
+ from pvlib.spectrum.irradiance import (  # noqa: F401
+     get_am15g,
+     get_reference_spectra,
++    average_photon_energy,
+ )
+ from pvlib.spectrum.response import (  # noqa: F401
+     get_example_spectral_response,
+diff --git a/pvlib/spectrum/irradiance.py b/pvlib/spectrum/irradiance.py
+index 45846a0046..cb3e5e1ddb 100644
+--- a/pvlib/spectrum/irradiance.py
++++ b/pvlib/spectrum/irradiance.py
+@@ -9,6 +9,8 @@
+ import pandas as pd
+ from pathlib import Path
+ from functools import partial
++from scipy import constants
++from scipy.integrate import trapezoid
+ 
+ 
+ @deprecated(
+@@ -176,3 +178,95 @@ def get_reference_spectra(wavelengths=None, standard="ASTM G173-03"):
+         )
+ 
+     return standard
++
++
++def average_photon_energy(spectra):
++    r"""
++    Calculate the average photon energy of one or more spectral irradiance
++    distributions.
++
++    Parameters
++    ----------
++    spectra : pandas.Series or pandas.DataFrame
++
++        Spectral irradiance, must be positive. [Wm⁻²nm⁻¹]
++
++        A single spectrum must be a :py:class:`pandas.Series` with wavelength
++        [nm] as the index, while multiple spectra must be rows in a
++        :py:class:`pandas.DataFrame` with column headers as wavelength [nm].
++
++    Returns
++    -------
++    ape : numeric or pandas.Series
++        Average Photon Energy [eV].
++        Note: returns ``np.nan`` in the case of all-zero spectral irradiance
++        input.
++
++    Notes
++    -----
++    The average photon energy (APE) is an index used to characterise the solar
++    spectrum. It has been used widely in the physics literature since the
++    1900s, but its application for solar spectral irradiance characterisation
++    in the context of PV performance modelling was proposed in 2002 [1]_. The
++    APE is calculated based on the principle that a photon's energy is
++    inversely proportional to its wavelength:
++
++    .. math::
++
++        E_\gamma = \frac{hc}{\lambda},
++
++    where :math:`E_\gamma` is the energy of a photon with wavelength
++    :math:`\lambda`, :math:`h` is the Planck constant, and :math:`c` is the
++    speed of light. Therefore, the average energy of all photons within a
++    single spectral irradiance distribution provides an indication of the
++    general shape of the spectrum. A higher average photon energy
++    (shorter wavelength) indicates a blue-shifted spectrum, while a lower
++    average photon energy (longer wavelength) would indicate a red-shifted
++    spectrum. This value of the average photon energy can be calculated by
++    dividing the total energy in the spectrum by the total number of photons
++    in the spectrum as follows [1]_:
++
++    .. math::
++
++        \overline{E_\gamma} = \frac{1}{q} \cdot \frac{\int G(\lambda) \,
++                                                       d\lambda}
++        {\int \Phi(\lambda) \, d\lambda}.
++
++    :math:`\Phi(\lambda)` is the photon flux density as a function of
++    wavelength, :math:`G(\lambda)` is the spectral irradiance, :math:`q` is the
++    elementary charge used here so that the average photon energy,
++    :math:`\overline{E_\gamma}`, is expressed in electronvolts (eV). The
++    integrals are computed over the full wavelength range of the ``spectra``
++    parameter.
++
++    References
++    ----------
++    .. [1] Jardine, C., et al., 2002, January. Influence of spectral effects on
++       the performance of multijunction amorphous silicon cells. In Proc.
++       Photovoltaic in Europe Conference (pp. 1756-1759).
++    """
++
++    if not isinstance(spectra, (pd.Series, pd.DataFrame)):
++        raise TypeError('`spectra` must be either a'
++                        ' pandas Series or DataFrame')
++
++    if (spectra < 0).any().any():
++        raise ValueError('Spectral irradiance data must be positive')
++
++    hclambda = pd.Series((constants.h*constants.c)/(spectra.T.index*1e-9))
++    hclambda.index = spectra.T.index
++    pfd = spectra.div(hclambda)
++
++    def integrate(e):
++        return trapezoid(e, x=e.T.index, axis=-1)
++
++    int_spectra = integrate(spectra)
++    int_pfd = integrate(pfd)
++
++    with np.errstate(invalid='ignore'):
++        ape = (1/constants.elementary_charge)*int_spectra/int_pfd
++
++    if isinstance(spectra, pd.DataFrame):
++        ape = pd.Series(ape, index=spectra.index)
++
++    return ape
+diff --git a/pvlib/spectrum/mismatch.py b/pvlib/spectrum/mismatch.py
+index ab805130d0..3afc210e73 100644
+--- a/pvlib/spectrum/mismatch.py
++++ b/pvlib/spectrum/mismatch.py
+@@ -8,6 +8,7 @@
+ import numpy as np
+ import pandas as pd
+ from scipy.integrate import trapezoid
++
+ from warnings import warn
+ 
+ 

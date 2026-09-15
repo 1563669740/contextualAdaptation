@@ -1,0 +1,41 @@
+{
+  "task_id": "python-babel__babel-1075",
+  "repo": "python-babel/babel",
+  "pull_number": "1075",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "issue-template sections present (n=4)",
+  "task_type_confidence": 0.8,
+  "base_commit": "1a03526e2dda9818424c400530163464a2e74b9b",
+  "repo_commit": "1a03526e2dda9818424c400530163464a2e74b9b",
+  "gold_commit": "4fa426397fd9fe29f3ad70d2fad386750a106fd4",
+  "gold_commit_count": 1,
+  "estimated_difficulty": "Easy",
+  "estimated_completion_time_min": 25,
+  "gold_files_changed": 1,
+  "gold_loc_added": 10,
+  "gold_loc_deleted": 2,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 7043,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

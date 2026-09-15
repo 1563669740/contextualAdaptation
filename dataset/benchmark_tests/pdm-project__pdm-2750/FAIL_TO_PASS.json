@@ -1,0 +1,6 @@
+[
+  "tests/models/test_candidates.py::test_sdist_candidate_with_wheel_cache",
+  "tests/models/test_candidates.py::test_cache_vcs_immutable_revision",
+  "tests/models/test_candidates.py::test_cache_egg_info_sdist",
+  "tests/models/test_candidates.py::test_invalidate_incompatible_wheel_link"
+]

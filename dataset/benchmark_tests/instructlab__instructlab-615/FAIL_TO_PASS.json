@@ -1,0 +1,3 @@
+[
+  "tests/test_lab_init.py::TestLabInit::test_init_interactive_git_error"
+]

@@ -1,0 +1,366 @@
+diff --git a/news/2398.feature.md b/news/2398.feature.md
+new file mode 100644
+index 0000000000..9a248a71e1
+--- /dev/null
++++ b/news/2398.feature.md
+@@ -0,0 +1,1 @@
++Default to log to user home and make logs directory configurable.
+diff --git a/pyproject.toml b/pyproject.toml
+index 9705607a87..6120d17d05 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -212,8 +212,3 @@ addopts = "-r aR"
+ testpaths = [
+     "tests/",
+ ]
+-
+-[tool.pyright]
+-venvPath = "."
+-venv = ".venv"
+-pythonVersion = "3.8"
+diff --git a/src/pdm/builders/base.py b/src/pdm/builders/base.py
+index f5275e117b..901bf5348c 100644
+--- a/src/pdm/builders/base.py
++++ b/src/pdm/builders/base.py
+@@ -19,7 +19,6 @@
+ from pdm.models.requirements import Requirement, parse_requirement
+ from pdm.models.working_set import WorkingSet
+ from pdm.termui import logger
+-from pdm.utils import create_tracked_tempdir
+ 
+ if TYPE_CHECKING:
+     from pdm.environments import BaseEnvironment
+@@ -162,20 +161,18 @@ class EnvBuilder:
+         _requires: list[str]
+         _prefix: _Prefix
+ 
+-    @classmethod
+-    def get_shared_env(cls, key: int) -> str:
+-        if key in cls._shared_envs:
+-            logger.debug("Reusing shared build env: %s", cls._shared_envs[key])
+-            return cls._shared_envs[key]
++    def get_shared_env(self, key: int) -> str:
++        if key in self._shared_envs:
++            logger.debug("Reusing shared build env: %s", self._shared_envs[key])
++            return self._shared_envs[key]
+         # We don't save the cache here, instead it will be done after the installation
+         # finished.
+-        return create_tracked_tempdir("-shared", "pdm-build-env-")
++        return self._env.project.core.create_temp_dir("-shared", "pdm-build-env-")
+ 
+-    @classmethod
+-    def get_overlay_env(cls, key: str) -> str:
+-        if key not in cls._overlay_envs:
+-            cls._overlay_envs[key] = create_tracked_tempdir("-overlay", "pdm-build-env-")
+-        return cls._overlay_envs[key]
++    def get_overlay_env(self, key: str) -> str:
++        if key not in self._overlay_envs:
++            self._overlay_envs[key] = self._env.project.core.create_temp_dir("-overlay", "pdm-build-env-")
++        return self._overlay_envs[key]
+ 
+     def __init__(self, src_dir: str | Path, environment: BaseEnvironment) -> None:
+         """If isolated is True(default), the builder will set up a *clean* environment.
+diff --git a/src/pdm/core.py b/src/pdm/core.py
+index 1261318772..63dae51120 100644
+--- a/src/pdm/core.py
++++ b/src/pdm/core.py
+@@ -5,15 +5,18 @@
+  / ____/ /_/ / /  / /
+ /_/   /_____/_/  /_/
+ """
++
+ from __future__ import annotations
+ 
+ import argparse
++import contextlib
+ import importlib
+ import itertools
+ import os
+ import pkgutil
+ import sys
+ from pathlib import Path
++from tempfile import TemporaryDirectory
+ from typing import TYPE_CHECKING, cast
+ 
+ from resolvelib import Resolver
+@@ -53,10 +56,14 @@ class Core:
+ 
+     def __init__(self) -> None:
+         self.version = __version__
+-        self.ui = termui.UI()
++        self.exit_stack = contextlib.ExitStack()
++        self.ui = termui.UI(exit_stack=self.exit_stack)
+         self.init_parser()
+         self.load_plugins()
+ 
++    def create_temp_dir(self, *args: Any, **kwargs: Any) -> str:
++        return self.exit_stack.enter_context(TemporaryDirectory(*args, **kwargs))
++
+     def init_parser(self) -> None:
+         self.parser = ErrorArgumentParser(
+             prog="pdm",
+@@ -134,6 +141,8 @@ def handle(self, project: Project, options: argparse.Namespace) -> None:
+ 
+         self.ui.set_verbosity(options.verbose)
+         self.ui.set_theme(project.global_config.load_theme())
++        self.ui.log_dir = os.path.expanduser(cast(str, project.config["log_dir"]))
++        os.makedirs(self.ui.log_dir, exist_ok=True)
+ 
+         command = cast("BaseCommand | None", getattr(options, "command", None))
+         hooks = HookManager(project, getattr(options, "skip", None))
+@@ -175,49 +184,49 @@ def main(
+         **extra: Any,
+     ) -> None:
+         """The main entry function"""
+-
+-        if args is None:
+-            args = []
+-        args = self._get_cli_args(args, obj)
+-        # Keep it for after project parsing to check if its a defined script
+-        root_script = None
+-        try:
+-            options = self.parser.parse_args(args)
+-        except PdmArgumentError as e:
+-            # Failed to parse, try to give all to `run` command as shortcut
+-            # and keep to root script (first non-dashed param) to check existence
+-            # as soon as the project is parsed
+-            root_script = next((arg for arg in args if not arg.startswith("-")), None)
+-            if not root_script:
+-                self.parser.error(str(e.__cause__))
++        with self.exit_stack:
++            if args is None:
++                args = []
++            args = self._get_cli_args(args, obj)
++            # Keep it for after project parsing to check if its a defined script
++            root_script = None
+             try:
+-                options = self.parser.parse_args(["run", *args])
++                options = self.parser.parse_args(args)
+             except PdmArgumentError as e:
+-                self.parser.error(str(e.__cause__))
+-
+-        project = self.ensure_project(options, obj)
+-        if root_script and root_script not in project.scripts:
+-            self.parser.error(f"Script unknown: {root_script}")
+-
+-        try:
+-            self.handle(project, options)
+-        except Exception:
+-            etype, err, traceback = sys.exc_info()
+-            should_show_tb = not isinstance(err, PdmUsageError)
+-            if self.ui.verbosity > termui.Verbosity.NORMAL and should_show_tb:
+-                raise cast(Exception, err).with_traceback(traceback) from None
+-            self.ui.echo(
+-                rf"[error]\[{etype.__name__}][/]: {err}",  # type: ignore[union-attr]
+-                err=True,
+-            )
+-            if should_show_tb:
+-                self.ui.warn("Add '-v' to see the detailed traceback", verbosity=termui.Verbosity.NORMAL)
+-            sys.exit(1)
+-        else:
+-            if project.config["check_update"] and not is_in_zipapp():
+-                from pdm.cli.actions import check_update
++                # Failed to parse, try to give all to `run` command as shortcut
++                # and keep to root script (first non-dashed param) to check existence
++                # as soon as the project is parsed
++                root_script = next((arg for arg in args if not arg.startswith("-")), None)
++                if not root_script:
++                    self.parser.error(str(e.__cause__))
++                try:
++                    options = self.parser.parse_args(["run", *args])
++                except PdmArgumentError as e:
++                    self.parser.error(str(e.__cause__))
++
++            project = self.ensure_project(options, obj)
++            if root_script and root_script not in project.scripts:
++                self.parser.error(f"Script unknown: {root_script}")
+ 
+-                check_update(project)
++            try:
++                self.handle(project, options)
++            except Exception:
++                etype, err, traceback = sys.exc_info()
++                should_show_tb = not isinstance(err, PdmUsageError)
++                if self.ui.verbosity > termui.Verbosity.NORMAL and should_show_tb:
++                    raise cast(Exception, err).with_traceback(traceback) from None
++                self.ui.echo(
++                    rf"[error]\[{etype.__name__}][/]: {err}",  # type: ignore[union-attr]
++                    err=True,
++                )
++                if should_show_tb:
++                    self.ui.warn("Add '-v' to see the detailed traceback", verbosity=termui.Verbosity.NORMAL)
++                sys.exit(1)
++            else:
++                if project.config["check_update"] and not is_in_zipapp():
++                    from pdm.cli.actions import check_update
++
++                    check_update(project)
+ 
+     def register_command(self, command: type[BaseCommand], name: str | None = None) -> None:
+         """Register a subcommand to the subparsers,
+diff --git a/src/pdm/installers/synchronizers.py b/src/pdm/installers/synchronizers.py
+index f0ee622dbb..bf2ee5a810 100644
+--- a/src/pdm/installers/synchronizers.py
++++ b/src/pdm/installers/synchronizers.py
+@@ -268,9 +268,7 @@ def synchronize(self) -> None:
+ 
+ 
+ class Synchronizer(BaseSynchronizer):
+-    def create_executor(
+-        self,
+-    ) -> ThreadPoolExecutor | DummyExecutor:
++    def create_executor(self) -> ThreadPoolExecutor | DummyExecutor:
+         if self.parallel:
+             return ThreadPoolExecutor(max_workers=min(multiprocessing.cpu_count(), 8))
+         else:
+diff --git a/src/pdm/models/caches.py b/src/pdm/models/caches.py
+index 9eb5421f5d..14640c508c 100644
+--- a/src/pdm/models/caches.py
++++ b/src/pdm/models/caches.py
+@@ -111,7 +111,6 @@ def _get_key(cls, obj: Candidate) -> str:
+ 
+ 
+ class HashCache:
+-
+     """Caches hashes of PyPI artifacts so we do not need to re-download them.
+ 
+     Hashes are only cached when the URL appears to contain a hash in it and the
+@@ -324,7 +323,7 @@ def delete(self, key: str) -> None:
+             os.remove(path)
+ 
+ 
+-@lru_cache(maxsize=128)
++@lru_cache(maxsize=None)
+ def get_wheel_cache(directory: Path | str) -> WheelCache:
+     return WheelCache(directory)
+ 
+diff --git a/src/pdm/models/candidates.py b/src/pdm/models/candidates.py
+index fc45f49d8b..a4c88b978f 100644
+--- a/src/pdm/models/candidates.py
++++ b/src/pdm/models/candidates.py
+@@ -33,7 +33,6 @@
+     cd,
+     comparable_version,
+     convert_hashes,
+-    create_tracked_tempdir,
+     filtered_sources,
+     get_file_hash,
+     get_rev_from_url,
+@@ -519,7 +518,7 @@ def prepare_metadata(self, force_build: bool = False) -> im.Distribution:
+                 return dist
+ 
+         # If all fail, try building the source to get the metadata
+-        metadata_parent = create_tracked_tempdir(prefix="pdm-meta-")
++        metadata_parent = self.environment.project.core.create_temp_dir(prefix="pdm-meta-")
+         return self._get_metadata_from_build(self._unpacked_dir, metadata_parent)
+ 
+     def _get_metadata_from_metadata_link(
+@@ -691,7 +690,7 @@ def _get_build_dir(self) -> str:
+                 dirname, _ = os.path.splitext(original_link.filename)
+             return str(src_dir / str(dirname))
+         # Otherwise, for source dists, they will be unpacked into a *temp* directory.
+-        return create_tracked_tempdir(prefix="pdm-build-")
++        return self.environment.project.core.create_temp_dir(prefix="pdm-build-")
+ 
+     def _wheel_compatible(self, wheel_file: str, allow_all: bool = False) -> bool:
+         if allow_all:
+diff --git a/src/pdm/project/config.py b/src/pdm/project/config.py
+index bc32f9b48a..d27e480e6c 100644
+--- a/src/pdm/project/config.py
++++ b/src/pdm/project/config.py
+@@ -101,6 +101,12 @@ class Config(MutableMapping[str, str]):
+             True,
+             env_var="PDM_CACHE_DIR",
+         ),
++        "log_dir": ConfigItem(
++            "The root directory of log files",
++            platformdirs.user_log_dir("pdm"),
++            True,
++            env_var="PDM_LOG_DIR",
++        ),
+         "check_update": ConfigItem(
+             "Check if there is any newer version available",
+             True,
+diff --git a/src/pdm/termui.py b/src/pdm/termui.py
+index 92c25fa147..22eee13c9e 100644
+--- a/src/pdm/termui.py
++++ b/src/pdm/termui.py
+@@ -1,12 +1,11 @@
+ from __future__ import annotations
+ 
+-import atexit
+ import contextlib
+ import enum
+ import logging
+ import os
++import tempfile
+ import warnings
+-from tempfile import mktemp
+ from typing import TYPE_CHECKING
+ 
+ from rich.box import ROUNDED
+@@ -158,12 +157,17 @@ def _show(self) -> None:
+ class UI:
+     """Terminal UI object"""
+ 
+-    def __init__(self, verbosity: Verbosity = Verbosity.NORMAL) -> None:
++    def __init__(
++        self, verbosity: Verbosity = Verbosity.NORMAL, *, exit_stack: contextlib.ExitStack | None = None
++    ) -> None:
+         self.verbosity = verbosity
++        self.exit_stack = exit_stack or contextlib.ExitStack()
++        self.log_dir: str | None = None
+ 
+     def set_verbosity(self, verbosity: int) -> None:
+         self.verbosity = Verbosity(verbosity)
+         if self.verbosity == Verbosity.QUIET:
++            self.exit_stack.enter_context(warnings.catch_warnings())
+             warnings.simplefilter("ignore", PDMWarning, append=True)
+             warnings.simplefilter("ignore", FutureWarning, append=True)
+ 
+@@ -226,23 +230,24 @@ def logging(self, type_: str = "install") -> Iterator[logging.Logger]:
+         """A context manager that opens a file for logging when verbosity is NORMAL or
+         print to the stdout otherwise.
+         """
+-        file_name: str | None = None
++        log_file: str | None = None
+         if self.verbosity >= Verbosity.DETAIL:
+             handler: logging.Handler = logging.StreamHandler()
+             handler.setLevel(LOG_LEVELS[self.verbosity])
+         else:
+-            file_name = mktemp(".log", f"pdm-{type_}-")
+-            handler = logging.FileHandler(file_name, encoding="utf-8")
++            log_file = tempfile.mktemp(".log", f"pdm-{type_}-", self.log_dir)
++            handler = logging.FileHandler(log_file, encoding="utf-8")
+             handler.setLevel(logging.DEBUG)
++
+         handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+         logger.addHandler(handler)
+         unearth_logger.addHandler(handler)
+ 
+         def cleanup() -> None:
+-            if not file_name:
++            if not log_file:
+                 return
+             with contextlib.suppress(OSError):
+-                os.unlink(file_name)
++                os.unlink(log_file)
+ 
+         try:
+             yield logger
+@@ -250,13 +255,13 @@ def cleanup() -> None:
+             if self.verbosity < Verbosity.DETAIL:
+                 logger.exception("Error occurs")
+                 self.echo(
+-                    f"See [warning]{file_name}[/] for detailed debug log.",
++                    f"See [warning]{log_file}[/] for detailed debug log.",
+                     style="error",
+                     err=True,
+                 )
+             raise
+         else:
+-            atexit.register(cleanup)
++            self.exit_stack.callback(cleanup)
+         finally:
+             logger.removeHandler(handler)
+             unearth_logger.removeHandler(handler)

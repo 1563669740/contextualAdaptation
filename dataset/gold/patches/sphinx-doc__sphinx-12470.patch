@@ -1,0 +1,42 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 0a31a6746bd..be3293da1e6 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -58,6 +58,9 @@ Bugs fixed
+   Patch by Bénédikt Tran.
+ * #12220: Fix loading custom template translations for ``en`` locale.
+   Patch by Nicolas Peugnet.
++* #12459: Add valid-type arguments to the ``linkcheck_rate_limit_timeout``
++  configuration setting.
++  Patch by James Addison.
+ 
+ Improvements
+ ------------
+diff --git a/doc/usage/configuration.rst b/doc/usage/configuration.rst
+index a27107f86cc..795dc42b151 100644
+--- a/doc/usage/configuration.rst
++++ b/doc/usage/configuration.rst
+@@ -2950,8 +2950,8 @@ Options for the linkcheck builder
+ 
+    Otherwise, ``linkcheck`` waits for a minute before to retry and keeps
+    doubling the wait time between attempts until it succeeds or exceeds the
+-   ``linkcheck_rate_limit_timeout``. By default, the timeout is 300 seconds
+-   and custom timeouts should be given in seconds.
++   ``linkcheck_rate_limit_timeout``. By default, the timeout is 300 seconds.
++   Custom timeouts should be given as a number of seconds.
+ 
+    .. _Retry-After: https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.3
+ 
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index 42be5897475..266c964ae36 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -708,7 +708,7 @@ def setup(app: Sphinx) -> ExtensionMetadata:
+     # commonly used for dynamic pages
+     app.add_config_value('linkcheck_anchors_ignore', ['^!'], '')
+     app.add_config_value('linkcheck_anchors_ignore_for_url', (), '', (tuple, list))
+-    app.add_config_value('linkcheck_rate_limit_timeout', 300.0, '')
++    app.add_config_value('linkcheck_rate_limit_timeout', 300.0, '', (int, float))
+     app.add_config_value('linkcheck_allow_unauthorized', True, '')
+     app.add_config_value('linkcheck_report_timeouts_as_broken', True, '', bool)
+ 

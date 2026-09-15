@@ -1,0 +1,4 @@
+[
+  "lib/matplotlib/tests/test_determinism.py::test_determinism_check[p-svg-False]",
+  "lib/matplotlib/tests/test_determinism.py::test_determinism_check[mhip-svg-False]"
+]

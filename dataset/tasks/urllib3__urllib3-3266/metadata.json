@@ -1,0 +1,41 @@
+{
+  "task_id": "urllib3__urllib3-3266",
+  "repo": "urllib3/urllib3",
+  "pull_number": "3266",
+  "split": "held_out",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "issue-template sections present (n=4)",
+  "task_type_confidence": 0.8,
+  "base_commit": "2ac4efacfef5182aaef3e26a4f1e066ab228dfdd",
+  "repo_commit": "2ac4efacfef5182aaef3e26a4f1e066ab228dfdd",
+  "gold_commit": "0e0256a6b7ec1fe5b0e9937499367fc6e3353c6b",
+  "gold_commit_count": 5,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 2,
+  "gold_loc_added": 19,
+  "gold_loc_deleted": 0,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 2,
+  "pass_to_pass_count": 1712,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

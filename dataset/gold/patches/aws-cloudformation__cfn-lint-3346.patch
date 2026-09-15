@@ -1,0 +1,25 @@
+diff --git a/src/cfnlint/rules/functions/GetAttFormat.py b/src/cfnlint/rules/functions/GetAttFormat.py
+index b7c1a382a6..a7fd660855 100644
+--- a/src/cfnlint/rules/functions/GetAttFormat.py
++++ b/src/cfnlint/rules/functions/GetAttFormat.py
+@@ -27,6 +27,10 @@ def __init__(self):
+             "AWS::EC2::SecurityGroup.GroupId",
+             "AWS::EC2::SecurityGroup.GroupIds",
+         ]
++        self._resource_type_exceptions = [
++            "AWS::CloudFormation::CustomResource",
++            "AWS::CloudFormation::Stack",
++        ]
+ 
+     def validate(
+         self, validator: Validator, _, instance: Any, schema: Any
+@@ -40,6 +44,9 @@ def validate(
+         getatt_ptr = validator.context.resources[resource].get_atts[attr]
+         t = validator.context.resources[resource].type
+ 
++        if t in self._resource_type_exceptions:
++            return
++
+         for (
+             _,
+             resource_schema,

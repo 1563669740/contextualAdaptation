@@ -1,0 +1,45 @@
+diff --git a/docs/sphinx/source/whatsnew/v0.10.4.rst b/docs/sphinx/source/whatsnew/v0.10.4.rst
+index 5c529f6383..5d07b3d279 100644
+--- a/docs/sphinx/source/whatsnew/v0.10.4.rst
++++ b/docs/sphinx/source/whatsnew/v0.10.4.rst
+@@ -16,6 +16,8 @@ Bug fixes
+   ``temperature_model_parameters`` are specified on the passed ``system`` instead of on its ``arrays``. (:issue:`1759`).
+ * :py:func:`pvlib.irradiance.ghi_from_poa_driesse_2023` now correctly makes use
+   of the ``xtol`` argument. Previously, it was ignored. (:issue:`1970`, :pull:`1971`)
++* :py:class:`~pvlib.modelchain.ModelChain.infer_temperature_model` now raises a more useful error when
++  the temperature model cannot be inferred (:issue:`1946`)
+ 
+ Testing
+ ~~~~~~~
+@@ -33,5 +35,5 @@ Requirements
+ Contributors
+ ~~~~~~~~~~~~
+ * Cliff Hansen (:ghuser:`cwhanse`)
+-* :ghuser:`matsuobasho`
++* Roma Koulikov (:ghuser:`matsuobasho`)
+ * Adam R. Jensen (:ghuser:`AdamRJensen`)
+diff --git a/pvlib/modelchain.py b/pvlib/modelchain.py
+index d65f262c23..95bbad4531 100644
+--- a/pvlib/modelchain.py
++++ b/pvlib/modelchain.py
+@@ -1128,11 +1128,15 @@ def infer_temperature_model(self):
+         elif {'noct', 'module_efficiency'} <= params:
+             return self.noct_sam_temp
+         else:
+-            raise ValueError(f'could not infer temperature model from '
+-                             f'system.temperature_model_parameters. Check '
+-                             f'that all Arrays in system.arrays have '
+-                             f'parameters for the same temperature model. '
+-                             f'Common temperature model parameters: {params}.')
++            raise ValueError('Could not infer temperature model from '
++                             'ModelChain.system.  '
++                             'If Arrays are used to construct the PVSystem, '
++                             'check that all Arrays in '
++                             'ModelChain.system.arrays '
++                             'have parameters for the same temperature model. '
++                             'If Arrays are not used, check that the PVSystem '
++                             'attributes `racking_model` and `module_type` '
++                             'are valid.')
+ 
+     def _set_celltemp(self, model):
+         """Set self.results.cell_temperature using the given cell

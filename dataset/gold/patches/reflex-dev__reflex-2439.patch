@@ -1,0 +1,318 @@
+diff --git a/reflex/components/component.py b/reflex/components/component.py
+index 20f5a454c09..6fc6e047f55 100644
+--- a/reflex/components/component.py
++++ b/reflex/components/component.py
+@@ -723,7 +723,7 @@ def _get_vars(self) -> list[Var]:
+                 vars.append(prop_var)
+ 
+         # Style keeps track of its own VarData instance, so embed in a temp Var that is yielded.
+-        if isinstance(self.style, dict) and self.style or isinstance(self.style, Var):
++        if self.style:
+             vars.append(
+                 BaseVar(
+                     _var_name="style",
+diff --git a/reflex/components/core/match.py b/reflex/components/core/match.py
+index ce7b23e5ba5..20d55bd041e 100644
+--- a/reflex/components/core/match.py
++++ b/reflex/components/core/match.py
+@@ -5,6 +5,7 @@
+ from reflex.components.base import Fragment
+ from reflex.components.component import BaseComponent, Component, MemoizationLeaf
+ from reflex.components.tags import MatchTag, Tag
++from reflex.style import Style
+ from reflex.utils import format, imports, types
+ from reflex.utils.exceptions import MatchTypeError
+ from reflex.vars import BaseVar, Var, VarData
+@@ -94,13 +95,33 @@ def _process_cases(
+         if not isinstance(cases[-1], tuple):
+             default = cases.pop()
+             default = (
+-                Var.create(default, _var_is_string=type(default) is str)
++                cls._create_case_var_with_var_data(default)
+                 if not isinstance(default, BaseComponent)
+                 else default
+             )
+ 
+         return cases, default  # type: ignore
+ 
++    @classmethod
++    def _create_case_var_with_var_data(cls, case_element):
++        """Convert a case element into a Var.If the case
++        is a Style type, we extract the var data and merge it with the
++        newly created Var.
++
++        Args:
++            case_element: The case element.
++
++        Returns:
++            The case element Var.
++        """
++        _var_data = case_element._var_data if isinstance(case_element, Style) else None  # type: ignore
++        case_element = Var.create(
++            case_element, _var_is_string=type(case_element) is str
++        )
++        if _var_data is not None:
++            case_element._var_data = VarData.merge(case_element._var_data, _var_data)  # type: ignore
++        return case_element
++
+     @classmethod
+     def _process_match_cases(cls, cases: List) -> List[List[BaseVar]]:
+         """Process the individual match cases.
+@@ -130,7 +151,7 @@ def _process_match_cases(cls, cases: List) -> List[List[BaseVar]]:
+             for element in case:
+                 # convert all non component element to vars.
+                 el = (
+-                    Var.create(element, _var_is_string=type(element) is str)
++                    cls._create_case_var_with_var_data(element)
+                     if not isinstance(element, BaseComponent)
+                     else element
+                 )
+@@ -199,6 +220,7 @@ def _create_match_cond_var_or_component(
+                     cond=match_cond_var,
+                     match_cases=match_cases,
+                     default=default,
++                    children=[case[-1] for case in match_cases] + [default],  # type: ignore
+                 )
+             )
+ 
+@@ -243,19 +265,8 @@ def render(self) -> Dict:
+         tag.name = "match"
+         return dict(tag)
+ 
+-    def _get_imports(self):
+-        merged_imports = super()._get_imports()
+-        # Obtain the imports of all components the in match case.
+-        for case in self.match_cases:
+-            if isinstance(case[-1], BaseComponent):
+-                merged_imports = imports.merge_imports(
+-                    merged_imports,
+-                    case[-1].get_imports(),
+-                )
+-        # Get the import of the default case component.
+-        if isinstance(self.default, BaseComponent):
+-            merged_imports = imports.merge_imports(
+-                merged_imports,
+-                self.default.get_imports(),
+-            )
+-        return merged_imports
++    def _get_imports(self) -> imports.ImportDict:
++        return imports.merge_imports(
++            super()._get_imports(),
++            getattr(self.cond._var_data, "imports", {}),
++        )
+diff --git a/reflex/components/radix/primitives/accordion.py b/reflex/components/radix/primitives/accordion.py
+index 5709ef06739..cdb019807d1 100644
+--- a/reflex/components/radix/primitives/accordion.py
++++ b/reflex/components/radix/primitives/accordion.py
+@@ -4,7 +4,6 @@
+ 
+ from typing import Any, Dict, Literal
+ 
+-from reflex.components.base.fragment import Fragment
+ from reflex.components.component import Component
+ from reflex.components.core import cond, match
+ from reflex.components.radix.primitives.base import RadixPrimitiveComponent
+@@ -15,7 +14,7 @@
+     format_as_emotion,
+ )
+ from reflex.utils import imports
+-from reflex.vars import BaseVar, Var
++from reflex.vars import BaseVar, Var, VarData
+ 
+ LiteralAccordionType = Literal["single", "multiple"]
+ LiteralAccordionDir = Literal["ltr", "rtl"]
+@@ -414,6 +413,9 @@ class AccordionRoot(AccordionComponent):
+     # dynamic themes of the accordion generated at compile time.
+     _dynamic_themes: Var[dict]
+ 
++    # The var_data associated with the component.
++    _var_data: VarData = VarData()  # type: ignore
++
+     @classmethod
+     def create(cls, *children, **props) -> Component:
+         """Create the Accordion root component.
+@@ -435,8 +437,7 @@ def create(cls, *children, **props) -> Component:
+             # mark the vars of variant string literals as strings so they are formatted properly in the match condition.
+             comp.variant._var_is_string = True  # type: ignore
+ 
+-        # remove Fragment and cond wrap workaround when https://github.com/reflex-dev/reflex/issues/2393 is resolved.
+-        return Fragment.create(comp, cond(True, Fragment.create()))
++        return comp
+ 
+     def _get_style(self) -> dict:
+         """Get the style for the component.
+@@ -447,25 +448,39 @@ def _get_style(self) -> dict:
+         return {"css": self._dynamic_themes._merge(format_as_emotion(self.style))}  # type: ignore
+ 
+     def _apply_theme(self, theme: Component):
++        accordion_theme_root = get_theme_accordion_root(
++            variant=self.variant, color_scheme=self.color_scheme
++        )
++        accordion_theme_content = get_theme_accordion_content(
++            variant=self.variant, color_scheme=self.color_scheme
++        )
++        accordion_theme_trigger = get_theme_accordion_trigger(
++            variant=self.variant, color_scheme=self.color_scheme
++        )
++
++        # extract var_data from dynamic themes.
++        self._var_data = self._var_data.merge(  # type: ignore
++            accordion_theme_trigger._var_data,
++            accordion_theme_content._var_data,
++            accordion_theme_root._var_data,
++        )
++
+         self._dynamic_themes = Var.create(  # type: ignore
+             convert_dict_to_style_and_format_emotion(
+                 {
+                     "& .AccordionItem": get_theme_accordion_item(),
+                     "& .AccordionHeader": get_theme_accordion_header(),
+-                    "& .AccordionTrigger": get_theme_accordion_trigger(
+-                        variant=self.variant, color_scheme=self.color_scheme
+-                    ),
+-                    "& .AccordionContent": get_theme_accordion_content(
+-                        variant=self.variant, color_scheme=self.color_scheme
+-                    ),
++                    "& .AccordionTrigger": accordion_theme_trigger,
++                    "& .AccordionContent": accordion_theme_content,
+                 }
+             )
+         )._merge(  # type: ignore
+-            get_theme_accordion_root(
+-                variant=self.variant, color_scheme=self.color_scheme
+-            )
++            accordion_theme_root
+         )
+ 
++    def _get_imports(self):
++        return imports.merge_imports(super()._get_imports(), self._var_data.imports)
++
+     def get_event_triggers(self) -> Dict[str, Any]:
+         """Get the events triggers signatures for the component.
+ 
+diff --git a/reflex/components/radix/primitives/accordion.pyi b/reflex/components/radix/primitives/accordion.pyi
+index 7dc3488276d..8f845928331 100644
+--- a/reflex/components/radix/primitives/accordion.pyi
++++ b/reflex/components/radix/primitives/accordion.pyi
+@@ -8,7 +8,6 @@ from reflex.vars import Var, BaseVar, ComputedVar
+ from reflex.event import EventChain, EventHandler, EventSpec
+ from reflex.style import Style
+ from typing import Any, Dict, Literal
+-from reflex.components.base.fragment import Fragment
+ from reflex.components.component import Component
+ from reflex.components.core import cond, match
+ from reflex.components.radix.primitives.base import RadixPrimitiveComponent
+@@ -19,7 +18,7 @@ from reflex.style import (
+     format_as_emotion,
+ )
+ from reflex.utils import imports
+-from reflex.vars import BaseVar, Var
++from reflex.vars import BaseVar, Var, VarData
+ 
+ LiteralAccordionType = Literal["single", "multiple"]
+ LiteralAccordionDir = Literal["ltr", "rtl"]
+@@ -149,6 +148,7 @@ class AccordionRoot(AccordionComponent):
+             Union[Var[Literal["primary", "accent"]], Literal["primary", "accent"]]
+         ] = None,
+         _dynamic_themes: Optional[Union[Var[dict], dict]] = None,
++        _var_data: Optional[VarData] = None,
+         as_child: Optional[Union[Var[bool], bool]] = None,
+         style: Optional[Style] = None,
+         key: Optional[Any] = None,
+@@ -220,6 +220,7 @@ class AccordionRoot(AccordionComponent):
+             variant: The variant of the accordion.
+             color_scheme: The color scheme of the accordion.
+             _dynamic_themes: dynamic themes of the accordion generated at compile time.
++            _var_data: The var_data associated with the component.
+             as_child: Change the default rendered element for the one passed as a child.
+             style: The style of the component.
+             key: A unique key for the component.
+diff --git a/reflex/style.py b/reflex/style.py
+index 6ea000935bf..accd25db4ec 100644
+--- a/reflex/style.py
++++ b/reflex/style.py
+@@ -188,16 +188,19 @@ def _format_emotion_style_pseudo_selector(key: str) -> str:
+     return key
+ 
+ 
+-def format_as_emotion(style_dict: dict[str, Any]) -> dict[str, Any] | None:
++def format_as_emotion(style_dict: dict[str, Any]) -> Style | None:
+     """Convert the style to an emotion-compatible CSS-in-JS dict.
+ 
+     Args:
+         style_dict: The style dict to convert.
+ 
+     Returns:
+-        The emotion dict.
++        The emotion style dict.
+     """
+-    emotion_style = {}
++    _var_data = style_dict._var_data if isinstance(style_dict, Style) else None
++
++    emotion_style = Style()
++
+     for orig_key, value in style_dict.items():
+         key = _format_emotion_style_pseudo_selector(orig_key)
+         if isinstance(value, list):
+@@ -219,6 +222,8 @@ def format_as_emotion(style_dict: dict[str, Any]) -> dict[str, Any] | None:
+         else:
+             emotion_style[key] = value
+     if emotion_style:
++        if _var_data is not None:
++            emotion_style._var_data = VarData.merge(emotion_style._var_data, _var_data)
+         return emotion_style
+ 
+ 
+diff --git a/reflex/vars.py b/reflex/vars.py
+index 5e92c6440a6..2b8e46e8712 100644
+--- a/reflex/vars.py
++++ b/reflex/vars.py
+@@ -234,6 +234,8 @@ def _extract_var_data(value: Iterable) -> list[VarData | None]:
+     Returns:
+         The extracted VarDatas.
+     """
++    from reflex.style import Style
++
+     var_datas = []
+     with contextlib.suppress(TypeError):
+         for sub in value:
+@@ -245,10 +247,15 @@ def _extract_var_data(value: Iterable) -> list[VarData | None]:
+                     var_datas.extend(_extract_var_data(sub.values()))
+                 # Recurse into iterable values (or dict keys).
+                 var_datas.extend(_extract_var_data(sub))
+-    # Recurse when value is a dict itself.
+-    values = getattr(value, "values", None)
+-    if callable(values):
+-        var_datas.extend(_extract_var_data(values()))
++
++    # Style objects should already have _var_data.
++    if isinstance(value, Style):
++        var_datas.append(value._var_data)
++    else:
++        # Recurse when value is a dict itself.
++        values = getattr(value, "values", None)
++        if callable(values):
++            var_datas.extend(_extract_var_data(values()))
+     return var_datas
+ 
+ 
+@@ -1574,6 +1581,8 @@ def _var_name_unwrapped(self) -> str:
+         Returns:
+             The str var without the wrapped curly braces
+         """
++        from reflex.style import Style
++
+         type_ = (
+             get_origin(self._var_type)
+             if types.is_generic_alias(self._var_type)
+@@ -1583,7 +1592,9 @@ def _var_name_unwrapped(self) -> str:
+         wrapped_var = str(self)
+         return (
+             wrapped_var
+-            if not self._var_state and issubclass(type_, dict)
++            if not self._var_state
++            and issubclass(type_, dict)
++            or issubclass(type_, Style)
+             else wrapped_var.strip("{}")
+         )
+ 

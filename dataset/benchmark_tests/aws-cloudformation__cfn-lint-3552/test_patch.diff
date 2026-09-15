@@ -1,0 +1,146 @@
+diff --git a/test/unit/module/context/conditions/test_conditions.py b/test/unit/module/context/conditions/test_conditions.py
+index d5daccb2f0..57618b27c6 100644
+--- a/test/unit/module/context/conditions/test_conditions.py
++++ b/test/unit/module/context/conditions/test_conditions.py
+@@ -185,6 +185,112 @@ def test_condition_status(current_status, new_status, expected):
+         assert context.conditions.status == expected
+ 
+ 
++@pytest.mark.parametrize(
++    "current_status,instance,expected",
++    [
++        ({}, {"Foo": "Bar"}, [({"Foo": "Bar"}, {})]),
++        (
++            {},
++            {"Fn::If": ["IsUsEast1", {"Foo": "Foo"}, {"Bar": "Bar"}]},
++            [
++                ({"Foo": "Foo"}, {"IsUsEast1": True}),
++                ({"Bar": "Bar"}, {"IsUsEast1": False}),
++            ],
++        ),
++        (
++            {
++                "IsUsEast1": True,
++            },
++            {"Fn::If": ["IsUsEast1", {"Foo": "Foo"}, {"Bar": "Bar"}]},
++            [
++                ({"Foo": "Foo"}, {"IsUsEast1": True}),
++            ],
++        ),
++        (
++            {
++                "IsUsEast1": False,
++            },
++            {"Fn::If": ["IsUsEast1", {"Foo": "Foo"}, {"Bar": "Bar"}]},
++            [
++                ({"Bar": "Bar"}, {"IsUsEast1": False}),
++            ],
++        ),
++        (
++            {},
++            {"Ref": "AWS::NoValue"},
++            [
++                ({}, {}),
++            ],
++        ),
++        (
++            {},
++            [{"Foo": {"Fn::If": ["IsUsEast1", "Foo", "Bar"]}}],
++            [
++                ([{"Foo": {"Fn::If": ["IsUsEast1", "Foo", "Bar"]}}], {}),
++            ],
++        ),
++        (
++            {},
++            [{"Fn::If": ["IsUsEast1", {"Foo": "Bar"}, {"Ref": "AWS::NoValue"}]}],
++            [
++                ([{"Foo": "Bar"}], {"IsUsEast1": True}),
++                ([], {"IsUsEast1": False}),
++            ],
++        ),
++        (
++            {"IsUsEast1": True, "IsProd": True},
++            {
++                "A": {"Fn::If": ["IsUsEast1AndProd", 1, 2]},
++                "B": {"Fn::If": ["IsAi", 10, 11]},
++            },
++            [
++                (
++                    {"A": 1, "B": 10},
++                    {
++                        "IsUsEast1": True,
++                        "IsProd": True,
++                        "IsUsEast1AndProd": True,
++                        "IsAi": True,
++                    },
++                ),
++                (
++                    {"A": 1, "B": 11},
++                    {
++                        "IsUsEast1": True,
++                        "IsProd": True,
++                        "IsUsEast1AndProd": True,
++                        "IsAi": False,
++                    },
++                ),
++            ],
++        ),
++        (
++            {},
++            {
++                "A": {"Fn::If": ["IsUsEast1AndProd", 1]},
++            },
++            [
++                (
++                    {"A": {"Fn::If": ["IsUsEast1AndProd", 1]}},
++                    {},
++                ),
++            ],
++        ),
++    ],
++)
++def test_evolve_from_instance(current_status, instance, expected):
++    cfn = Template(None, template(), regions=["us-east-1"])
++    context = create_context_for_template(cfn)
++
++    context = context.evolve(conditions=context.conditions.evolve(current_status))
++
++    results = list(context.conditions.evolve_from_instance(instance))
++    assert len(results) == len(expected)
++    for result, expected_result in zip(results, expected):
++        assert result[0] == expected_result[0]
++        assert result[1].status == expected_result[1]
++
++
+ def test_condition_failures():
+     with pytest.raises(ValueError):
+         Conditions.create_from_instance([], {})
+diff --git a/test/unit/module/jsonschema/test_filter.py b/test/unit/module/jsonschema/test_filter.py
+index 9d399e845b..81a7f91e28 100644
+--- a/test/unit/module/jsonschema/test_filter.py
++++ b/test/unit/module/jsonschema/test_filter.py
+@@ -86,4 +86,8 @@ def test_filter(name, instance, schema, path, functions, expected, filter):
+     )
+     results = list(filter.filter(validator, instance, schema))
+ 
+-    assert results == expected, f"For test {name} got {results!r}"
++    assert len(results) == len(expected), f"For test {name} got {len(results)} results"
++
++    for result, (exp_instance, exp_schema) in zip(results, expected):
++        assert result[0] == exp_instance, f"For test {name} got {result.instance!r}"
++        assert result[1] == exp_schema, f"For test {name} got {result.schema!r}"
+diff --git a/test/unit/rules/resources/ec2/test_instance_image_id.py b/test/unit/rules/resources/ec2/test_instance_image_id.py
+index 2db06f443e..53a0883ea1 100644
+--- a/test/unit/rules/resources/ec2/test_instance_image_id.py
++++ b/test/unit/rules/resources/ec2/test_instance_image_id.py
+@@ -280,10 +280,6 @@ def rule():
+ def test_validate(name, instance, expected, rule, validator):
+     errs = list(rule.validate(validator, "", instance, {}))
+ 
+-    for err in errs:
+-        print(err.path)
+-        print(err.validator)
+-        print(err.rule)
+     assert (
+         errs == expected
+     ), f"Expected test {name!r} to have {expected!r} but got {errs!r}"

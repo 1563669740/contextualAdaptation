@@ -1,0 +1,41 @@
+{
+  "task_id": "mikedh__trimesh-2126",
+  "repo": "mikedh/trimesh",
+  "pull_number": "2126",
+  "split": "held_out",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "title prefix matches ^\\s*(bug|fix|bugfix)\\s*[:\\-]",
+  "task_type_confidence": 0.85,
+  "base_commit": "80a6c1f3300f360b318acfde1fdd1bb2e49942d4",
+  "repo_commit": "80a6c1f3300f360b318acfde1fdd1bb2e49942d4",
+  "gold_commit": "b69411f70876b0f3abd17c8a5ae0638ab7d151f2",
+  "gold_commit_count": 20,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 10,
+  "gold_loc_added": 347,
+  "gold_loc_deleted": 111,
+  "gold_modules_changed": 4,
+  "fail_to_pass_count": 3,
+  "pass_to_pass_count": 597,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

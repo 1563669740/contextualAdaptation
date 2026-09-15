@@ -1,0 +1,13 @@
+{
+  "task_id": "keras-team__keras-19883",
+  "repo": "keras-team/keras",
+  "issue_number": "19877",
+  "issue_url": "https://github.com/keras-team/keras/issues/19877",
+  "issue_created_at": "1970-01-01 00:28:38.817739+00:00",
+  "issue_title": "Keras 3 error with keras.ops.tile",
+  "issue_body": "I was working in Keras 3 on the Jax backend, and switched to the Torch backend. I received this error\r\n`TypeError: tile(): argument 'dims' must be tuple of ints, not int`\r\n\r\nThe call site of tile() looks like:\r\n`keras.ops.tile(tensor, n)`\r\nwhere is a scalar integer, which according to the documentation is a valid input. This works on the jax backend, but fails on the torch backend specifically.\r\n\r\nI believe this is an error with the torch backend of Keras 3, and converting the scalar to a tuple solves the issue.",
+  "problem_statement": "Keras 3 error with keras.ops.tile\nI was working in Keras 3 on the Jax backend, and switched to the Torch backend. I received this error\r\n`TypeError: tile(): argument 'dims' must be tuple of ints, not int`\r\n\r\nThe call site of tile() looks like:\r\n`keras.ops.tile(tensor, n)`\r\nwhere is a scalar integer, which according to the documentation is a valid input. This works on the jax backend, but fails on the torch backend specifically.\r\n\r\nI believe this is an error with the torch backend of Keras 3, and converting the scalar to a tuple solves the issue. \n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

@@ -1,0 +1,5 @@
+[
+  "control/tests/statefbk_test.py::TestStatefbk::testCtrbNdim1",
+  "control/tests/statefbk_test.py::TestStatefbk::testCtrbRejectMismatch",
+  "control/tests/statefbk_test.py::TestStatefbk::testObsvRejectMismatch"
+]

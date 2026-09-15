@@ -1,0 +1,67 @@
+diff --git a/conans/client/graph/graph_binaries.py b/conans/client/graph/graph_binaries.py
+index 658687c3d5d..67e9a3d77c7 100644
+--- a/conans/client/graph/graph_binaries.py
++++ b/conans/client/graph/graph_binaries.py
+@@ -9,7 +9,7 @@
+                                        BINARY_INVALID, BINARY_EDITABLE_BUILD, RECIPE_PLATFORM,
+                                        BINARY_PLATFORM)
+ from conans.errors import NoRemoteAvailable, NotFoundException, \
+-    PackageNotFoundException, conanfile_exception_formatter
++    PackageNotFoundException, conanfile_exception_formatter, ConanConnectionError
+ 
+ 
+ class GraphBinariesAnalyzer(object):
+@@ -64,7 +64,10 @@ def _get_package_from_remotes(self, node, remotes, update):
+                     break
+             except NotFoundException:
+                 pass
+-
++            except ConanConnectionError:
++                ConanOutput().error(f"Failed checking for binary '{pref}' in remote '{r.name}': "
++                                    "remote not available")
++                raise
+         if not remotes and update:
+             node.conanfile.output.warning("Can't update, there are no remotes defined")
+ 
+diff --git a/conans/client/remote_manager.py b/conans/client/remote_manager.py
+index 30c0ab72029..226df269537 100644
+--- a/conans/client/remote_manager.py
++++ b/conans/client/remote_manager.py
+@@ -237,9 +237,10 @@ def _call_remote(self, remote, method, *args, **kwargs):
+         try:
+             return self._auth_manager.call_rest_api_method(remote, method, *args, **kwargs)
+         except ConnectionError as exc:
+-            raise ConanConnectionError(("%s\n\nUnable to connect to %s=%s\n" +
+-                                        "1. Make sure the remote is reachable or,\n" +
+-                                        "2. Disable it by using conan remote disable,\n" +
++            raise ConanConnectionError(("%s\n\nUnable to connect to remote %s=%s\n"
++                                        "1. Make sure the remote is reachable or,\n"
++                                        "2. Disable it with 'conan remote disable <remote>' or,\n"
++                                        "3. Use the '-nr/--no-remote' argument\n"
+                                         "Then try again."
+                                         ) % (str(exc), remote.name, remote.url))
+         except ConanException as exc:
+diff --git a/conans/errors.py b/conans/errors.py
+index 86e27193368..a1609f3864f 100644
+--- a/conans/errors.py
++++ b/conans/errors.py
+@@ -224,18 +224,10 @@ def __str__(self):
+                                                          self.remote_message())
+ 
+ 
+-class UserInterfaceErrorException(RequestErrorException):
+-    """
+-        420 error
+-    """
+-    pass
+-
+-
+ EXCEPTION_CODE_MAPPING = {InternalErrorException: 500,
+                           RequestErrorException: 400,
+                           AuthenticationException: 401,
+                           ForbiddenException: 403,
+                           NotFoundException: 404,
+                           RecipeNotFoundException: 404,
+-                          PackageNotFoundException: 404,
+-                          UserInterfaceErrorException: 420}
++                          PackageNotFoundException: 404}

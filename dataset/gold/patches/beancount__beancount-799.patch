@@ -1,0 +1,20 @@
+diff --git a/beancount/loader.py b/beancount/loader.py
+index a4b1ec35f..01ccbba61 100644
+--- a/beancount/loader.py
++++ b/beancount/loader.py
+@@ -42,7 +42,6 @@
+ 
+ # List of default plugins to run.
+ PLUGINS_PRE = [
+-    ("beancount.ops.pad", None),
+     ("beancount.ops.documents", None),
+     ]
+ 
+@@ -54,6 +53,7 @@
+ PLUGINS_AUTO = []
+ 
+ PLUGINS_POST = [
++    ("beancount.ops.pad", None),
+     ("beancount.ops.balance", None),
+     ]
+ 

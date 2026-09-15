@@ -1,0 +1,128 @@
+diff --git a/src/instructlab/chat/chat.py b/src/instructlab/chat/chat.py
+index 2e0659e48a..f0da3b329e 100644
+--- a/src/instructlab/chat/chat.py
++++ b/src/instructlab/chat/chat.py
+@@ -22,7 +22,7 @@
+ import openai
+ 
+ # Local
+-from ..config import DEFAULT_CONNECTION_TIMEOUT
++from ..config import DEFAULT_CONNECTION_TIMEOUT, DEFAULT_MODEL_OLD
+ from ..utils import get_sysprompt
+ 
+ HELP_MD = """
+@@ -482,6 +482,19 @@ def chat_cli(
+         timeout=DEFAULT_CONNECTION_TIMEOUT,
+         http_client=httpx.Client(cert=cert, verify=verify),
+     )
++    # ensure the model specified exists on the server. with backends like vllm, this is crucial.
++    model_list = client.models.list().data
++    model_ids = []
++    for m in model_list:
++        model_ids.append(m.id)
++    if not any(model == m for m in model_ids):
++        if model == DEFAULT_MODEL_OLD:
++            logger.info(
++                f"Model {model} is not a full path. Try running ilab init or edit your config to have the full model path for serving, chatting, and generation."
++            )
++        raise ChatException(
++            f"Model {model} is not served by the server. These are the served models: {model_ids}"
++        )
+ 
+     # Load context/session
+     loaded = {}
+diff --git a/src/instructlab/config.py b/src/instructlab/config.py
+index a57ffdfd09..cb629b0fd9 100644
+--- a/src/instructlab/config.py
++++ b/src/instructlab/config.py
+@@ -19,8 +19,10 @@
+ 
+ DEFAULT_API_KEY = "no_api_key"
+ DEFAULT_CONFIG = "config.yaml"
+-DEFAULT_MODEL = "merlinite-7b-lab-Q4_K_M"
+-DEFAULT_MODEL_PATH = f"models/{DEFAULT_MODEL}.gguf"
++# TODO: Consolidate --model and --model-path into one --model-path flag since we always need a path now
++DEFAULT_MODEL_OLD = "merlinite-7b-lab-Q4_K_M"
++DEFAULT_MODEL = "models/merlinite-7b-lab-Q4_K_M.gguf"
++DEFAULT_MODEL_PATH = "models/merlinite-7b-lab-Q4_K_M.gguf"
+ DEFAULT_TAXONOMY_REPO = "https://github.com/instructlab/taxonomy.git"
+ DEFAULT_TAXONOMY_PATH = "taxonomy"
+ DEFAULT_TAXONOMY_BASE = "origin/main"
+diff --git a/src/instructlab/generator/utils.py b/src/instructlab/generator/utils.py
+index 0de079f3c6..2a11d075a3 100644
+--- a/src/instructlab/generator/utils.py
++++ b/src/instructlab/generator/utils.py
+@@ -16,7 +16,7 @@
+ import httpx
+ 
+ # Local
+-from ..config import DEFAULT_API_KEY
++from ..config import DEFAULT_API_KEY, DEFAULT_MODEL_OLD
+ from ..utils import get_sysprompt
+ 
+ StrOrOpenAIObject = Union[str, object]
+@@ -133,6 +133,21 @@ def openai_completion(
+             http_client=httpx.Client(cert=cert, verify=verify),
+         )
+ 
++        # ensure the model specified exists on the server. with backends like vllm, this is crucial.
++        model_list = client.models.list().data
++        model_ids = []
++        for model in model_list:
++            model_ids.append(model.id)
++        if not any(model_name == m for m in model_ids):
++            if model_name == DEFAULT_MODEL_OLD:
++                logging.info(
++                    "Model %s is not a full path. Try running ilab init or edit your config to have the full model path for serving, chatting, and generation.",
++                    model_name,
++                )
++            raise GenerateException(
++                f"Model {model_name} is not served by the server. These are the served models {model_ids}"
++            )
++
+         messages = [
+             {"role": "system", "content": get_sysprompt()},
+             {"role": "user", "content": prompt_batch[batch_id]},
+diff --git a/src/instructlab/lab.py b/src/instructlab/lab.py
+index 0697ab58f1..30dee88061 100644
+--- a/src/instructlab/lab.py
++++ b/src/instructlab/lab.py
+@@ -4,7 +4,7 @@
+ 
+ # Standard
+ from glob import glob
+-from os.path import basename, dirname, exists, splitext
++from os.path import basename, dirname, exists
+ import json
+ import logging
+ import multiprocessing
+@@ -215,9 +215,8 @@ def init(
+         )
+     click.echo(f"Generating `{config.DEFAULT_CONFIG}` in the current directory...")
+     cfg = config.get_default_config()
+-    model = splitext(basename(model_path))[0]
+-    cfg.chat.model = model
+-    cfg.generate.model = model
++    cfg.chat.model = model_path
++    cfg.generate.model = model_path
+     cfg.serve.model_path = model_path
+     cfg.generate.taxonomy_path = taxonomy_path
+     cfg.generate.taxonomy_base = taxonomy_base
+@@ -308,6 +307,8 @@ def diff(ctx, taxonomy_path, taxonomy_base, yaml_rules, quiet):
+ @click.option(
+     "--model-path",
+     type=click.Path(),
++    default=config.DEFAULT_MODEL_PATH,
++    show_default=True,
+     help="Path to the model used during generation.",
+ )
+ @click.option(
+@@ -586,6 +587,8 @@ def generate(
+ @click.option(
+     "-m",
+     "--model",
++    default=config.DEFAULT_MODEL,
++    show_default=True,
+     help="Model name to print in chat process",
+ )
+ @click.option(

@@ -1,0 +1,34 @@
+diff --git a/checkov/terraform/checks/graph_checks/ibm/IBM_LoadBalancerforVPCisPrivate.yaml b/checkov/terraform/checks/graph_checks/ibm/IBM_LoadBalancerforVPCisPrivate.yaml
+index ec78b31a90..d8543145e6 100644
+--- a/checkov/terraform/checks/graph_checks/ibm/IBM_LoadBalancerforVPCisPrivate.yaml
++++ b/checkov/terraform/checks/graph_checks/ibm/IBM_LoadBalancerforVPCisPrivate.yaml
+@@ -2,17 +2,20 @@ metadata:
+   id: "CKV2_IBM_1"
+   name: "Ensure load balancer for VPC is private (disable public access)"
+   category: "GENERAL_SECURITY"
+-
+ definition:
+   and:
+-
+     - cond_type: "attribute"
+       resource_types: "ibm_is_lb"
+       attribute: "type"
+       operator: "exists"
+-
+-    - cond_type: "attribute"
+-      resource_types: "ibm_is_lb"
+-      attribute: "type"
+-      operator: "equals_ignore_case"
+-      value: "private"
+\ No newline at end of file
++    - or:
++      - cond_type: "attribute"
++        resource_types: "ibm_is_lb"
++        attribute: "type"
++        operator: "equals_ignore_case"
++        value: "private"
++      - cond_type: "attribute"
++        resource_types: "ibm_is_lb"
++        attribute: "type"
++        operator: "equals_ignore_case"
++        value: "private_path"

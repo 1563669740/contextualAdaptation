@@ -1,0 +1,5 @@
+[
+  "test/unit/rules/functions/test_getatt.py::test_validate[Invalid",
+  "test/unit/rules/functions/test_sub.py::test_validate[Invalid",
+  "test/unit/module/jsonschema/test_keywords_cfn.py::TestFnItems::test_change_type"
+]

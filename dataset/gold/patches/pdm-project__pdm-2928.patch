@@ -1,0 +1,102 @@
+diff --git a/news/2519.feature.md b/news/2519.feature.md
+new file mode 100644
+index 0000000000..fb97da181c
+--- /dev/null
++++ b/news/2519.feature.md
+@@ -0,0 +1,1 @@
++Add `--no-extras` to `pdm export` to strip extras from the requirements. Now the default behavior is to keep extras.
+diff --git a/src/pdm/cli/commands/export.py b/src/pdm/cli/commands/export.py
+index 7a8da04032..8e67b401a6 100644
+--- a/src/pdm/cli/commands/export.py
++++ b/src/pdm/cli/commands/export.py
+@@ -11,7 +11,7 @@
+ from pdm.exceptions import PdmUsageError
+ from pdm.formats import FORMATS
+ from pdm.models.candidates import Candidate
+-from pdm.models.requirements import Requirement
++from pdm.models.requirements import Requirement, strip_extras
+ from pdm.project import Project
+ 
+ 
+@@ -39,6 +39,9 @@ def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+         parser.add_argument(
+             "--no-markers", action="store_false", default=True, dest="markers", help="Don't include platform markers"
+         )
++        parser.add_argument(
++            "--no-extras", action="store_false", default=True, dest="extras", help="Strip extras from the requirements"
++        )
+         parser.add_argument(
+             "-o",
+             "--output",
+@@ -73,9 +76,18 @@ def handle(self, project: Project, options: argparse.Namespace) -> None:
+             candidates = resolve_candidates_from_lockfile(
+                 project, requirements.values(), groups=set(selection), cross_platform=options.markers
+             )
+-            # Remove candidates with [extras] because the bare candidates are already
+-            # included
+-            packages = (candidate for candidate in candidates.values() if not candidate.req.extras)
++
++            filtered_candidates: dict[str, Candidate] = {}
++            for k, candidate in candidates.items():
++                if options.extras:
++                    if candidate.req.extras:
++                        k = strip_extras(k)[0]
++                    elif k in filtered_candidates:
++                        continue
++                elif candidate.req.extras:
++                    continue
++                filtered_candidates[k] = candidate
++            packages = filtered_candidates.values()
+ 
+         content = FORMATS[options.format].export(project, packages, options)
+         if options.output:
+diff --git a/src/pdm/cli/completions/pdm.bash b/src/pdm/cli/completions/pdm.bash
+index ab470d8b0c..533b45779a 100644
+--- a/src/pdm/cli/completions/pdm.bash
++++ b/src/pdm/cli/completions/pdm.bash
+@@ -49,7 +49,7 @@ _pdm_a919b69078acdf0a_complete()
+             ;;
+ 
+             (export)
+-            opts="--dev --editable-self --expandvars --format --global --group --help --lockfile --no-default --no-markers --output --production --project --pyproject --quiet --self --verbose --without --without-hashes"
++            opts="--dev --editable-self --expandvars --format --global --group --help --lockfile --no-default --no-extras --no-markers --output --production --project --pyproject --quiet --self --verbose --without --without-hashes"
+             ;;
+ 
+             (fix)
+diff --git a/src/pdm/cli/completions/pdm.fish b/src/pdm/cli/completions/pdm.fish
+index 1a702ff8e2..3c380840f8 100644
+--- a/src/pdm/cli/completions/pdm.fish
++++ b/src/pdm/cli/completions/pdm.fish
+@@ -125,6 +125,7 @@ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l group -d 'Select g
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l help -d 'Show this help message and exit.'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l lockfile -d 'Specify another lockfile path. Default: pdm.lock. [env var: PDM_LOCKFILE]'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l no-default -d 'Don\'t include dependencies from the default group'
++complete -c pdm -A -n '__fish_seen_subcommand_from export' -l no-extras -d 'Strip extras from the requirements'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l no-markers -d 'Don\'t include platform markers'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l output -d 'Write output to the given file, or print to stdout if not given'
+ complete -c pdm -A -n '__fish_seen_subcommand_from export' -l production -d 'Unselect dev dependencies'
+diff --git a/src/pdm/cli/completions/pdm.ps1 b/src/pdm/cli/completions/pdm.ps1
+index adefd861f2..0faaee2a40 100644
+--- a/src/pdm/cli/completions/pdm.ps1
++++ b/src/pdm/cli/completions/pdm.ps1
+@@ -253,7 +253,7 @@ function TabExpansion($line, $lastWord) {
+                 $completer.AddOpts(@(
+                         [Option]::new(@(
+                             "--dev", "--output", "--global", "--no-default", "--expandvars", "--prod", "--production", "-g", "-d", "-o",
+-                            "--no-hashes", "--no-markers", "-L", "--lockfile", "--self", "--editable-self"
++                            "--no-hashes", "--no-markers", "-L", "--lockfile", "--self", "--editable-self", "--no-extras"
+                         )),
+                         $formatOption,
+                         $sectionOption,
+diff --git a/src/pdm/cli/completions/pdm.zsh b/src/pdm/cli/completions/pdm.zsh
+index 9c5e38449a..c045f4d86d 100644
+--- a/src/pdm/cli/completions/pdm.zsh
++++ b/src/pdm/cli/completions/pdm.zsh
+@@ -156,6 +156,7 @@ _pdm() {
+         {-f+,--format+}"[Only requirements.txt is supported for now.]:format:(requirements)"
+         "--no-hashes[Don't include artifact hashes]"
+         "--no-markers[Don't include platform markers]"
++        "--no-extras[Strip extras from the requirements]"
+         "--expandvars[Expand environment variables in requirements]"
+         "--self[Include the project itself]"
+         "--editable-self[Include the project itself as an editable dependency]"

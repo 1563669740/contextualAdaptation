@@ -1,0 +1,122 @@
+diff --git a/.pyenchant_pylint_custom_dict.txt b/.pyenchant_pylint_custom_dict.txt
+index fd4fed00c3..4bcff9c931 100644
+--- a/.pyenchant_pylint_custom_dict.txt
++++ b/.pyenchant_pylint_custom_dict.txt
+@@ -300,6 +300,7 @@ spammy
+ sqlalchemy
+ src
+ starargs
++stateful
+ staticmethod
+ stderr
+ stdin
+diff --git a/doc/user_guide/configuration/all-options.rst b/doc/user_guide/configuration/all-options.rst
+index 94d2c1775e..cef8e2a72b 100644
+--- a/doc/user_guide/configuration/all-options.rst
++++ b/doc/user_guide/configuration/all-options.rst
+@@ -120,7 +120,7 @@ Standard Checkers
+ 
+ --ignored-modules
+ """""""""""""""""
+-*List of module names for which member attributes should not be checked (useful for modules/projects where namespaces are manipulated during runtime and thus existing member attributes cannot be deduced by static analysis). It supports qualified module names, as well as Unix pattern matching.*
++*List of module names for which member attributes should not be checked and will not be imported (useful for modules/projects where namespaces are manipulated during runtime and thus existing member attributes cannot be deduced by static analysis). It supports qualified module names, as well as Unix pattern matching.*
+ 
+ **Default:**  ``()``
+ 
+diff --git a/doc/whatsnew/fragments/9442.other b/doc/whatsnew/fragments/9442.other
+new file mode 100644
+index 0000000000..9523aba7ff
+--- /dev/null
++++ b/doc/whatsnew/fragments/9442.other
+@@ -0,0 +1,5 @@
++Ignored modules are now not checked at all, instead of being checked and then
++ignored. This should speed up the analysis of large codebases which have
++ignored modules.
++
++Closes #9442 (`#9442 <https://github.com/pylint-dev/pylint/issues/9442>`_)
+diff --git a/examples/pylintrc b/examples/pylintrc
+index d47800516d..4685415447 100644
+--- a/examples/pylintrc
++++ b/examples/pylintrc
+@@ -59,10 +59,11 @@ ignore-paths=
+ # Emacs file locks
+ ignore-patterns=^\.#
+ 
+-# List of module names for which member attributes should not be checked
+-# (useful for modules/projects where namespaces are manipulated during runtime
+-# and thus existing member attributes cannot be deduced by static analysis). It
+-# supports qualified module names, as well as Unix pattern matching.
++# List of module names for which member attributes should not be checked and
++# will not be imported (useful for modules/projects where namespaces are
++# manipulated during runtime and thus existing member attributes cannot be
++# deduced by static analysis). It supports qualified module names, as well
++# as Unix pattern matching.
+ ignored-modules=
+ 
+ # Python code to execute, usually for sys.path manipulation such as
+diff --git a/examples/pyproject.toml b/examples/pyproject.toml
+index a8ec9a7ecb..7d9ffe8260 100644
+--- a/examples/pyproject.toml
++++ b/examples/pyproject.toml
+@@ -49,10 +49,11 @@ ignore = ["CVS"]
+ # file locks
+ ignore-patterns = ["^\\.#"]
+ 
+-# List of module names for which member attributes should not be checked (useful
+-# for modules/projects where namespaces are manipulated during runtime and thus
+-# existing member attributes cannot be deduced by static analysis). It supports
+-# qualified module names, as well as Unix pattern matching.
++# List of module names for which member attributes should not be checked and
++# will not be imported (useful for modules/projects where namespaces are
++# manipulated during runtime and thus existing member attributes cannot be
++# deduced by static analysis). It supports qualified module names, as well
++# as Unix pattern matching.
+ # ignored-modules =
+ 
+ # Python code to execute, usually for sys.path manipulation such as
+diff --git a/pylint/lint/base_options.py b/pylint/lint/base_options.py
+index 3d5ba5d0db..cd354c49db 100644
+--- a/pylint/lint/base_options.py
++++ b/pylint/lint/base_options.py
+@@ -384,7 +384,8 @@ def _make_linter_options(linter: PyLinter) -> Options:
+                 "type": "csv",
+                 "metavar": "<module names>",
+                 "help": "List of module names for which member attributes "
+-                "should not be checked (useful for modules/projects "
++                "should not be checked and will not be imported "
++                "(useful for modules/projects "
+                 "where namespaces are manipulated during runtime and "
+                 "thus existing member attributes cannot be "
+                 "deduced by static analysis). It supports qualified "
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index 30250154e6..f1aca76a4e 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -1073,6 +1073,7 @@ def open(self) -> None:
+         MANAGER.always_load_extensions = self.config.unsafe_load_any_extension
+         MANAGER.max_inferable_values = self.config.limit_inference_results
+         MANAGER.extension_package_whitelist.update(self.config.extension_pkg_allow_list)
++        MANAGER.module_denylist.update(self.config.ignored_modules)
+         if self.config.extension_pkg_whitelist:
+             MANAGER.extension_package_whitelist.update(
+                 self.config.extension_pkg_whitelist
+diff --git a/pylintrc b/pylintrc
+index 434fa23836..a943b1cfd3 100644
+--- a/pylintrc
++++ b/pylintrc
+@@ -342,10 +342,11 @@ property-classes=abc.abstractproperty
+ # members is set to 'yes'
+ mixin-class-rgx=.*MixIn
+ 
+-# List of module names for which member attributes should not be checked
+-# (useful for modules/projects where namespaces are manipulated during runtime
+-# and thus existing member attributes cannot be deduced by static analysis). It
+-# supports qualified module names, as well as Unix pattern matching.
++# List of module names for which member attributes should not be checked and
++# will not be imported (useful for modules/projects where namespaces are
++# manipulated during runtime and thus existing member attributes cannot be
++# deduced by static analysis). It supports qualified module names, as well
++# as Unix pattern matching.
+ ignored-modules=
+ 
+ # List of class names for which member attributes should not be checked (useful

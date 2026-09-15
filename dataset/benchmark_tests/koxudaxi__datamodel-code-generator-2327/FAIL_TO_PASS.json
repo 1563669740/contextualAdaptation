@@ -1,0 +1,13 @@
+[
+  "tests/main/jsonschema/test_main_jsonschema.py::test_main_jsonschema_ids",
+  "tests/main/jsonschema/test_main_jsonschema.py::test_main_nested_directory",
+  "tests/main/jsonschema/test_main_jsonschema.py::test_main_generate_from_directory",
+  "tests/main/jsonschema/test_main_jsonschema.py::test_main_use_union_operator",
+  "tests/main/openapi/test_main_openapi.py::test_main_modular",
+  "tests/main/openapi/test_main_openapi.py::test_main_modular_reuse_model",
+  "tests/main/openapi/test_main_openapi.py::test_main_use_standard_collections",
+  "tests/main/openapi/test_main_openapi.py::test_main_generate_custom_class_name_generator_modular",
+  "tests/main/openapi/test_main_openapi.py::test_main_modular_typed_dict",
+  "tests/parser/test_openapi.py::test_openapi_parser_parse_modular",
+  "tests/test_main_kr.py::test_main_modular"
+]

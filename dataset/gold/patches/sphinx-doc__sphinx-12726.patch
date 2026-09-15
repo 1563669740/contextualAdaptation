@@ -1,0 +1,50 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 4b920ca3911..c7bc72390cd 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -13,6 +13,9 @@ Deprecated
+ Features added
+ --------------
+ 
++* #11328: Mention evaluation of templated content during production of static
++  output files.
++
+ Bugs fixed
+ ----------
+ 
+diff --git a/sphinx/builders/html/__init__.py b/sphinx/builders/html/__init__.py
+index 06917232f6b..23e19ed4733 100644
+--- a/sphinx/builders/html/__init__.py
++++ b/sphinx/builders/html/__init__.py
+@@ -887,7 +887,7 @@ def copy_html_favicon(self) -> None:
+ 
+     def copy_static_files(self) -> None:
+         try:
+-            with progress_message(__('copying static files')):
++            with progress_message(__('copying static files'), nonl=False):
+                 ensuredir(self.outdir / '_static')
+ 
+                 # prepare context for templates
+@@ -908,7 +908,7 @@ def copy_static_files(self) -> None:
+     def copy_extra_files(self) -> None:
+         """Copy html_extra_path files."""
+         try:
+-            with progress_message(__('copying extra files')):
++            with progress_message(__('copying extra files'), nonl=False):
+                 excluded = Matcher(self.config.exclude_patterns)
+                 for extra_path in self.config.html_extra_path:
+                     copy_asset(
+diff --git a/sphinx/util/fileutil.py b/sphinx/util/fileutil.py
+index 1996a7af846..259a2af1952 100644
+--- a/sphinx/util/fileutil.py
++++ b/sphinx/util/fileutil.py
+@@ -81,6 +81,9 @@ def copy_asset_file(source: str | os.PathLike[str], destination: str | os.PathLi
+ 
+         destination = _template_basename(destination) or destination
+         with open(destination, 'w', encoding='utf-8') as fdst:
++            msg = __('Writing evaluated template result to %s')
++            logger.info(msg, os.fsdecode(destination), type='misc',
++                        subtype='template_evaluation')
+             fdst.write(rendered_template)
+     else:
+         copyfile(source, destination, force=force)

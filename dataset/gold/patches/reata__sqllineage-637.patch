@@ -1,0 +1,118 @@
+diff --git a/sqllineage/cli.py b/sqllineage/cli.py
+index 857de5cf..e4630a0d 100644
+--- a/sqllineage/cli.py
++++ b/sqllineage/cli.py
+@@ -16,7 +16,7 @@
+ from sqllineage.drawing import draw_lineage_graph
+ from sqllineage.runner import LineageRunner
+ from sqllineage.utils.constant import LineageLevel
+-from sqllineage.utils.helpers import extract_sql_from_args
++from sqllineage.utils.helpers import extract_file_path_from_args, extract_sql_from_args
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -108,8 +108,10 @@ def main(args=None) -> None:
+         warnings.warn("Both -e and -f options are specified. -e option will be ignored")
+     if args.f or args.e:
+         sql = extract_sql_from_args(args)
++        file_path = extract_file_path_from_args(args)
+         runner = LineageRunner(
+             sql,
++            file_path=file_path,
+             dialect=args.dialect,
+             metadata_provider=metadata_provider,
+             verbose=args.verbose,
+diff --git a/sqllineage/core/parser/sqlfluff/analyzer.py b/sqllineage/core/parser/sqlfluff/analyzer.py
+index 74e0ace8..9fd3b100 100644
+--- a/sqllineage/core/parser/sqlfluff/analyzer.py
++++ b/sqllineage/core/parser/sqlfluff/analyzer.py
+@@ -27,8 +27,10 @@ class SqlFluffLineageAnalyzer(LineageAnalyzer):
+     PARSER_NAME = "sqlfluff"
+     SUPPORTED_DIALECTS = list(dialect.label for dialect in dialect_readout())
+ 
+-    def __init__(self, dialect: str, silent_mode: bool = False):
+-        self._dialect = dialect
++    def __init__(self, file_path: str, dialect: str, silent_mode: bool = False):
++        self._sqlfluff_config = FluffConfig.from_path(
++            path=file_path, overrides={"dialect": dialect}
++        )
+         self._silent_mode = silent_mode
+         self.tsql_split_cache: Dict[str, BaseSegment] = {}
+ 
+@@ -57,7 +59,7 @@ def analyze(
+         else:
+             statement_segment = statement_segments[0]
+             for extractor in [
+-                extractor_cls(self._dialect, metadata_provider)
++                extractor_cls(self._sqlfluff_config.get("dialect"), metadata_provider)
+                 for extractor_cls in BaseExtractor.__subclasses__()
+             ]:
+                 if extractor.can_extract(statement_segment.type):
+@@ -79,9 +81,7 @@ def analyze(
+                     )
+ 
+     def _list_specific_statement_segment(self, sql: str):
+-        parsed = Linter(
+-            config=FluffConfig.from_root(overrides={"dialect": self._dialect})
+-        ).parse_string(sql)
++        parsed = Linter(config=self._sqlfluff_config).parse_string(sql)
+         violations = [
+             str(e)
+             for e in parsed.violations
+diff --git a/sqllineage/runner.py b/sqllineage/runner.py
+index 9d666b53..113d0360 100644
+--- a/sqllineage/runner.py
++++ b/sqllineage/runner.py
+@@ -42,6 +42,7 @@ def __init__(
+         verbose: bool = False,
+         silent_mode: bool = False,
+         draw_options: Optional[Dict[str, Any]] = None,
++        file_path: str = ".",
+     ):
+         """
+         The entry point of SQLLineage after command line options are parsed.
+@@ -51,6 +52,7 @@ def __init__(
+         :param metadata_provider: metadata service object providing table schema
+         :param verbose: verbose flag indicating whether statement-wise lineage result will be shown
+         :param silent_mode: boolean flag indicating whether to skip lineage analysis for unknown statement types
++        :param file_path: path of the SQL file.
+         """
+         if dialect == SQLPARSE_DIALECT:
+             warnings.warn(
+@@ -60,6 +62,7 @@ def __init__(
+                 stacklevel=2,
+             )
+         self._sql = sql
++        self._file_path = file_path
+         self._verbose = verbose
+         self._draw_options = draw_options if draw_options else {}
+         self._evaluated = False
+@@ -183,7 +186,9 @@ def _eval(self):
+         analyzer = (
+             SqlParseLineageAnalyzer()
+             if self._dialect == SQLPARSE_DIALECT
+-            else SqlFluffLineageAnalyzer(self._dialect, self._silent_mode)
++            else SqlFluffLineageAnalyzer(
++                self._file_path, self._dialect, self._silent_mode
++            )
+         )
+         if SQLLineageConfig.TSQL_NO_SEMICOLON and self._dialect == "tsql":
+             self._stmt = analyzer.split_tsql(self._sql.strip())
+diff --git a/sqllineage/utils/helpers.py b/sqllineage/utils/helpers.py
+index df9c3ede..86fbbdab 100644
+--- a/sqllineage/utils/helpers.py
++++ b/sqllineage/utils/helpers.py
+@@ -46,6 +46,13 @@ def extract_sql_from_args(args: Namespace) -> str:
+     return sql
+ 
+ 
++def extract_file_path_from_args(args: Namespace) -> str:
++    file_path = "."
++    if getattr(args, "f", None):
++        file_path = args.f
++    return file_path
++
++
+ def split(sql: str) -> List[str]:
+     # TODO: we need a parser independent split function
+     import sqlparse

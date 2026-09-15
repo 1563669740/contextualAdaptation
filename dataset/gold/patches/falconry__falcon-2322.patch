@@ -1,0 +1,56 @@
+diff --git a/docs/_newsfragments/2293.bugfix.rst b/docs/_newsfragments/2293.bugfix.rst
+new file mode 100644
+index 000000000..de4c6ba44
+--- /dev/null
++++ b/docs/_newsfragments/2293.bugfix.rst
+@@ -0,0 +1,10 @@
++Customizing
++:attr:`MultipartParseOptions.media_handlers
++<falcon.media.multipart.MultipartParseOptions.media_handlers>` could previously
++lead to unintentionally modifying a shared class variable.
++This has been fixed, and the
++:attr:`~falcon.media.multipart.MultipartParseOptions.media_handlers` attribute
++is now initialized to a fresh copy of handlers for every instance of
++:class:`~falcon.media.multipart.MultipartParseOptions`. To that end, a proper
++:meth:`~falcon.media.Handlers.copy` method has been implemented for the media
++:class:`~falcon.media.Handlers` class.
+diff --git a/falcon/media/handlers.py b/falcon/media/handlers.py
+index e37d5e3b8..4eeaf4f7f 100644
+--- a/falcon/media/handlers.py
++++ b/falcon/media/handlers.py
+@@ -164,6 +164,22 @@ def resolve(
+ 
+         return cast(ResolverMethod, resolve)
+ 
++    def copy(self) -> Handlers:
++        """Create a shallow copy of this instance of handlers.
++
++        The resulting copy contains the same keys and values, but it can be
++        customized separately without affecting the original object.
++
++        Returns:
++            A shallow copy of handlers.
++
++        .. versionadded:: 4.0
++        """
++        # NOTE(vytas): In the unlikely case we are dealing with a subclass,
++        #   return the matching type.
++        handlers_cls = type(self)
++        return handlers_cls(self.data)
++
+     @deprecation.deprecated(
+         'This undocumented method is no longer supported as part of the public '
+         'interface and will be removed in a future release.'
+diff --git a/falcon/media/multipart.py b/falcon/media/multipart.py
+index 17a990265..340a5aea6 100644
+--- a/falcon/media/multipart.py
++++ b/falcon/media/multipart.py
+@@ -610,4 +610,7 @@ def __init__(self) -> None:
+         self.max_body_part_buffer_size = 1024 * 1024
+         self.max_body_part_count = 64
+         self.max_body_part_headers_size = 8192
+-        self.media_handlers = self._DEFAULT_HANDLERS
++        # NOTE(myusko,vytas): Here we create a copy of _DEFAULT_HANDLERS in
++        #   order to prevent the modification of the class variable whenever
++        #   parse_options.media_handlers are customized.
++        self.media_handlers = self._DEFAULT_HANDLERS.copy()

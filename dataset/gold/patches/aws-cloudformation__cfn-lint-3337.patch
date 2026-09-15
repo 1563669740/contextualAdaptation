@@ -1,0 +1,20 @@
+diff --git a/src/cfnlint/rules/resources/iam/Permissions.py b/src/cfnlint/rules/resources/iam/Permissions.py
+index 8be5cf81ad..d988292a77 100644
+--- a/src/cfnlint/rules/resources/iam/Permissions.py
++++ b/src/cfnlint/rules/resources/iam/Permissions.py
+@@ -38,6 +38,15 @@ def validate(
+         for action in actions:
+             if action == "*":
+                 continue
++            if ":" not in action:
++                yield ValidationError(
++                    (
++                        f"{action!r} is not a valid action."
++                        "Must be of the form service:action or '*'"
++                    ),
++                    rule=self,
++                )
++                return
+             service, permission = action.split(":", 1)
+             service = service.lower()
+             permission = permission.lower()

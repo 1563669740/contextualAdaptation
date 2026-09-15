@@ -1,0 +1,32 @@
+diff --git a/src/cfnlint/rules/outputs/Value.py b/src/cfnlint/rules/outputs/Value.py
+index 4d86d9fb87..7d6ec9739f 100644
+--- a/src/cfnlint/rules/outputs/Value.py
++++ b/src/cfnlint/rules/outputs/Value.py
+@@ -28,7 +28,8 @@ def __init__(self):
+         )
+ 
+     def validate(self, validator: Validator, _: Any, instance: Any, schema: Any):
+-        value = instance.get("Value")
++        key = "Value"
++        value = instance.get(key)
+         if not value:
+             return
+ 
+@@ -42,6 +43,10 @@ def validate(self, validator: Validator, _: Any, instance: Any, schema: Any):
+                 conditions=validator.context.conditions.evolve(
+                     conditions,
+                 ),
++                path=validator.context.path.descend(
++                    path=key,
++                    cfn_path=key,
++                ),
+             ),
+             schema={
+                 "type": ["array", "string"],
+@@ -52,5 +57,5 @@ def validate(self, validator: Validator, _: Any, instance: Any, schema: Any):
+         )
+ 
+         for err in self._iter_errors(validator, value):
+-            err.path.appendleft("Value")
++            err.path.appendleft(key)
+             yield err

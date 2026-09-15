@@ -1,0 +1,4 @@
+[
+  "tests/test_lab_diff.py::TestLabDiff::test_diff_invalid_yaml",
+  "tests/test_lab_diff.py::TestLabDiff::test_diff_valid_yaml"
+]

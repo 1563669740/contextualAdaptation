@@ -1,0 +1,69 @@
+diff --git a/conans/client/graph/graph_builder.py b/conans/client/graph/graph_builder.py
+index 4c644e395f1..c0b9021eb17 100644
+--- a/conans/client/graph/graph_builder.py
++++ b/conans/client/graph/graph_builder.py
+@@ -222,8 +222,16 @@ def _resolve_recipe(self, ref, graph_lock):
+     @staticmethod
+     def _resolved_system(node, require, profile_build, profile_host, resolve_prereleases):
+         profile = profile_build if node.context == CONTEXT_BUILD else profile_host
+-        dep_type = "platform_tool_requires" if require.build else "platform_requires"
+-        system_reqs = getattr(profile, dep_type)
++        if node.context == CONTEXT_BUILD:
++            # If we are in the build context, the platform_tool_requires ALSO applies to the
++            # regular requires. It is not possible in the build context to have tool-requires
++            # and regular requires to the same package from Conan and from Platform
++            system_reqs = profile.platform_tool_requires
++            if not require.build:
++                system_reqs = system_reqs + profile.platform_requires
++        else:
++            system_reqs = profile.platform_tool_requires if require.build \
++                else profile.platform_requires
+         if system_reqs:
+             version_range = require.version_range
+             for d in system_reqs:
+diff --git a/conans/client/graph/install_graph.py b/conans/client/graph/install_graph.py
+index c044f4fb176..107e20dc033 100644
+--- a/conans/client/graph/install_graph.py
++++ b/conans/client/graph/install_graph.py
+@@ -4,7 +4,7 @@
+ 
+ from conan.api.output import ConanOutput
+ from conans.client.graph.graph import RECIPE_CONSUMER, RECIPE_VIRTUAL, BINARY_SKIP, \
+-    BINARY_MISSING, BINARY_INVALID, Overrides, BINARY_BUILD, BINARY_EDITABLE_BUILD
++    BINARY_MISSING, BINARY_INVALID, Overrides, BINARY_BUILD, BINARY_EDITABLE_BUILD, BINARY_PLATFORM
+ from conans.errors import ConanInvalidConfiguration, ConanException
+ from conans.model.package_ref import PkgReference
+ from conans.model.recipe_ref import RecipeReference
+@@ -370,7 +370,8 @@ def deserialize(data, filename):
+ 
+     def _initialize_deps_graph(self, deps_graph):
+         for node in deps_graph.ordered_iterate():
+-            if node.recipe in (RECIPE_CONSUMER, RECIPE_VIRTUAL) or node.binary == BINARY_SKIP:
++            if node.recipe in (RECIPE_CONSUMER, RECIPE_VIRTUAL) \
++                    or node.binary in (BINARY_SKIP, BINARY_PLATFORM):
+                 continue
+ 
+             key = node.ref if self._order == "recipe" else node.pref
+diff --git a/conans/client/installer.py b/conans/client/installer.py
+index 551cf822681..8fc7ea56a21 100644
+--- a/conans/client/installer.py
++++ b/conans/client/installer.py
+@@ -7,7 +7,7 @@
+ from conans.client.conanfile.package import run_package_method
+ from conans.client.generators import write_generators
+ from conans.client.graph.graph import BINARY_BUILD, BINARY_CACHE, BINARY_DOWNLOAD, BINARY_EDITABLE, \
+-    BINARY_PLATFORM, BINARY_UPDATE, BINARY_EDITABLE_BUILD, BINARY_SKIP
++    BINARY_UPDATE, BINARY_EDITABLE_BUILD, BINARY_SKIP
+ from conans.client.graph.install_graph import InstallGraph
+ from conans.client.source import retrieve_exports_sources, config_source
+ from conans.errors import (ConanException, conanfile_exception_formatter, conanfile_remove_attr)
+@@ -295,9 +295,6 @@ def _download_pkg(self, package):
+         self._remote_manager.get_package(node.pref, node.binary_remote)
+ 
+     def _handle_package(self, package, install_reference, handled_count, total_count):
+-        if package.binary == BINARY_PLATFORM:
+-            return
+-
+         if package.binary in (BINARY_EDITABLE, BINARY_EDITABLE_BUILD):
+             self._handle_node_editable(package)
+             return

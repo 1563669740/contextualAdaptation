@@ -1,0 +1,28 @@
+diff --git a/conan/cli/commands/version.py b/conan/cli/commands/version.py
+index 507f0f7d16e..b2509afefdf 100644
+--- a/conan/cli/commands/version.py
++++ b/conan/cli/commands/version.py
+@@ -12,10 +12,22 @@ def version(conan_api, parser, *args):
+     Give information about the Conan client version.
+     """
+ 
+-    return {'version': str(conan_version),
++    return {
++            'version': str(conan_version),
++            'conan_path': sys.argv[0],
+             'python': {
+                 'version': platform.python_version().replace('\n', ''),
+                 'sys_version': sys.version.replace('\n', ''),
++                'sys_executable': sys.executable,
++                'is_frozen': getattr(sys, 'frozen', False),
++                'architecture': platform.machine(),
++                },
++            'system': {
++                'version': platform.version(),
++                'platform': platform.platform(),
++                'system': platform.system(),
++                'release': platform.release(),
++                'cpu': platform.processor(),
+                 }
+             }
+ 

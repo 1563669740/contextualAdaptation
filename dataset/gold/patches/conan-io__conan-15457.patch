@@ -1,0 +1,135 @@
+diff --git a/conan/tools/scm/git.py b/conan/tools/scm/git.py
+index 8ba755b8193..77d0e6dbbfd 100644
+--- a/conan/tools/scm/git.py
++++ b/conan/tools/scm/git.py
+@@ -1,7 +1,9 @@
++import fnmatch
+ import os
+ 
+ from conan.tools.files import chdir
+ from conan.errors import ConanException
++from conans.model.conf import ConfDefinition
+ from conans.util.files import mkdir
+ from conans.util.runners import check_output_runner
+ 
+@@ -10,13 +12,24 @@ class Git:
+     """
+     Git is a wrapper for several common patterns used with *git* tool.
+     """
+-    def __init__(self, conanfile, folder="."):
++    def __init__(self, conanfile, folder=".", excluded=None):
+         """
+         :param conanfile: Conanfile instance.
+         :param folder: Current directory, by default ``.``, the current working directory.
+         """
+         self._conanfile = conanfile
+         self.folder = folder
++        self._excluded = excluded
++        global_conf = conanfile._conan_helpers.global_conf
++        conf_excluded = global_conf.get("core.scm:excluded", check_type=list)
++        if conf_excluded:
++            if excluded:
++                c = ConfDefinition()
++                c.loads(f"core.scm:excluded={excluded}")
++                c.update_conf_definition(global_conf)
++                self._excluded = c.get("core.scm:excluded", check_type=list)
++            else:
++                self._excluded = conf_excluded
+ 
+     def run(self, cmd):
+         """
+@@ -107,7 +120,15 @@ def is_dirty(self):
+         :return: True, if the current folder is dirty. Otherwise, False.
+         """
+         status = self.run("status . --short --no-branch --untracked-files").strip()
+-        return bool(status)
++        self._conanfile.output.debug(f"Git status:\n{status}")
++        if not self._excluded:
++            return bool(status)
++        # Parse the status output, line by line, and match it with "_excluded"
++        lines = [line.strip() for line in status.splitlines()]
++        lines = [line.split()[1] for line in lines if line]
++        lines = [line for line in lines if not any(fnmatch.fnmatch(line, p) for p in self._excluded)]
++        self._conanfile.output.debug(f"Filtered git status: {lines}")
++        return bool(lines)
+ 
+     def get_url_and_commit(self, remote="origin", repository=False):
+         """
+diff --git a/conans/client/cmd/export.py b/conans/client/cmd/export.py
+index 660ab924668..afdbd087811 100644
+--- a/conans/client/cmd/export.py
++++ b/conans/client/cmd/export.py
+@@ -3,12 +3,12 @@
+ 
+ from conan.tools.files import copy
+ from conan.api.output import ConanOutput
++from conan.tools.scm import Git
+ from conans.errors import ConanException, conanfile_exception_formatter
+ from conans.model.manifest import FileTreeManifest
+ from conans.model.recipe_ref import RecipeReference
+ from conans.paths import DATA_YML
+ from conans.util.files import is_dirty, rmdir, set_dirty, mkdir, clean_dirty, chdir
+-from conans.util.runners import check_output_runner
+ 
+ 
+ def cmd_export(app, global_conf, conanfile_path, name, version, user, channel, graph_lock=None,
+@@ -61,7 +61,8 @@ def cmd_export(app, global_conf, conanfile_path, name, version, user, channel, g
+     revision = _calc_revision(scoped_output=conanfile.output,
+                               path=os.path.dirname(conanfile_path),
+                               manifest=manifest,
+-                              revision_mode=conanfile.revision_mode)
++                              revision_mode=conanfile.revision_mode,
++                              conanfile=conanfile)
+ 
+     ref.revision = revision
+     recipe_layout.reference = ref
+@@ -86,7 +87,7 @@ def cmd_export(app, global_conf, conanfile_path, name, version, user, channel, g
+     return ref, conanfile
+ 
+ 
+-def _calc_revision(scoped_output, path, manifest, revision_mode):
++def _calc_revision(scoped_output, path, manifest, revision_mode, conanfile):
+     if revision_mode not in ["scm", "scm_folder", "hash"]:
+         raise ConanException("Revision mode should be one of 'hash' (default) or 'scm'")
+ 
+@@ -94,19 +95,20 @@ def _calc_revision(scoped_output, path, manifest, revision_mode):
+     if revision_mode == "hash":
+         revision = manifest.summary_hash
+     else:
+-        f = '-- "."' if revision_mode == "scm_folder" else ""
++        # Exception to the rule that tools should only be used in recipes, this Git helper is ok
++        excluded = getattr(conanfile, "revision_mode_excluded", None)
++        git = Git(conanfile, folder=path, excluded=excluded)
+         try:
+-            with chdir(path):
+-                revision = check_output_runner(f'git rev-list HEAD -n 1 --full-history {f}').strip()
++            revision = git.get_commit(repository=(revision_mode == "scm"))
+         except Exception as exc:
+             error_msg = "Cannot detect revision using '{}' mode from repository at " \
+                         "'{}'".format(revision_mode, path)
+             raise ConanException("{}: {}".format(error_msg, exc))
+ 
+-        with chdir(path):
+-            if bool(check_output_runner(f'git status -s {f}').strip()):
+-                raise ConanException("Can't have a dirty repository using revision_mode='scm' and doing"
+-                                     " 'conan export', please commit the changes and run again.")
++        if git.is_dirty():
++            raise ConanException("Can't have a dirty repository using revision_mode='scm' and doing"
++                                 " 'conan export', please commit the changes and run again, or "
++                                 "use 'git_excluded = []' attribute")
+ 
+         scoped_output.info("Using git commit as the recipe revision: %s" % revision)
+ 
+diff --git a/conans/model/conf.py b/conans/model/conf.py
+index 30e1b169efd..fa34aef855b 100644
+--- a/conans/model/conf.py
++++ b/conans/model/conf.py
+@@ -48,6 +48,8 @@
+     "core.net.http:clean_system_proxy": "If defined, the proxies system env-vars will be discarded",
+     # Gzip compression
+     "core.gzip:compresslevel": "The Gzip compression level for Conan artifacts (default=9)",
++    # Excluded from revision_mode = "scm" dirty and Git().is_dirty() checks
++    "core.scm:excluded": "List of excluded patterns for builtin git dirty checks",
+     # Tools
+     "tools.android:ndk_path": "Argument for the CMAKE_ANDROID_NDK",
+     "tools.android:cmake_legacy_toolchain": "Define to explicitly pass ANDROID_USE_LEGACY_TOOLCHAIN_FILE in CMake toolchain",

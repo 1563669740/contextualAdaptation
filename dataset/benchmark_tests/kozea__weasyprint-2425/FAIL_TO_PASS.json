@@ -1,0 +1,5 @@
+[
+  "tests/layout/test_list.py::test_lists_style[circle-\\u25e6",
+  "tests/layout/test_list.py::test_lists_style[disc-\\u2022",
+  "tests/layout/test_list.py::test_lists_style[square-\\u25aa"
+]

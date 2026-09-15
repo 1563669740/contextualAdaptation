@@ -1,0 +1,829 @@
+diff --git a/.github/CONTRIBUTING.rst b/.github/CONTRIBUTING.rst
+index b5ce5921484..635cdb23ebc 100644
+--- a/.github/CONTRIBUTING.rst
++++ b/.github/CONTRIBUTING.rst
+@@ -26,7 +26,7 @@ Setting things up
+ 
+    .. code-block:: bash
+ 
+-      $ pip install -r requirements-all.txt
++      $ pip install -r requirements-dev-all.txt
+ 
+ 
+ 5. Install pre-commit hooks:
+@@ -210,13 +210,8 @@ doc strings don't have a separate documentation site they generate, instead, the
+ 
+ User facing documentation
+ -------------------------
+-We use `sphinx`_ to generate static HTML docs. To build them, first make sure you're running Python 3.9 or above and have the required dependencies:
+-
+-.. code-block:: bash
+-
+-   $ pip install -r docs/requirements-docs.txt
+-
+-then run the following from the PTB root directory:
++We use `sphinx`_ to generate static HTML docs. To build them, first make sure you're running Python 3.9 or above and have the required dependencies installed as explained above.
++Then, run the following from the PTB root directory:
+ 
+ .. code-block:: bash
+ 
+diff --git a/.github/workflows/docs.yml b/.github/workflows/docs.yml
+index ea1173d6986..73e123e17ea 100644
+--- a/.github/workflows/docs.yml
++++ b/.github/workflows/docs.yml
+@@ -28,7 +28,7 @@ jobs:
+       - name: Install dependencies
+         run: |
+           python -W ignore -m pip install --upgrade pip
+-          python -W ignore -m pip install -r requirements-all.txt
++          python -W ignore -m pip install -r requirements-dev-all.txt
+       - name: Test autogeneration of admonitions
+         run: pytest -v --tb=short tests/docs/admonition_inserter.py
+       - name: Build docs
+diff --git a/.github/workflows/pre-commit_dependencies_notifier.yml b/.github/workflows/pre-commit_dependencies_notifier.yml
+deleted file mode 100644
+index 6f6428faf36..00000000000
+--- a/.github/workflows/pre-commit_dependencies_notifier.yml
++++ /dev/null
+@@ -1,19 +0,0 @@
+-name: Warning maintainers
+-on:
+-  pull_request_target:
+-    paths:
+-      - requirements.txt
+-      - requirements-opts.txt
+-      - .pre-commit-config.yaml
+-permissions:
+- pull-requests: write
+-jobs:
+-  job:
+-    runs-on: ubuntu-latest
+-    name: about pre-commit and dependency change
+-    steps:
+-      - name: running the check
+-        uses: Poolitzer/notifier-action@master
+-        with:
+-          notify-message: Hey! Looks like you edited the (optional) requirements or the pre-commit hooks. I'm just a friendly reminder to keep the additional dependencies for the hooks in sync with the requirements :)
+-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+diff --git a/.github/workflows/readme_notifier.yml b/.github/workflows/readme_notifier.yml
+deleted file mode 100644
+index 4ec7d458760..00000000000
+--- a/.github/workflows/readme_notifier.yml
++++ /dev/null
+@@ -1,18 +0,0 @@
+-name: Warning maintainers
+-on:
+-  pull_request_target:
+-    paths:
+-      - README.rst
+-      - README_RAW.rst
+-permissions:
+- pull-requests: write
+-jobs:
+-  job:
+-    runs-on: ubuntu-latest
+-    name: about readme change
+-    steps:
+-      - name: running the check
+-        uses: Poolitzer/notifier-action@master
+-        with:
+-          notify-message: Hey! Looks like you edited README.rst or README_RAW.rst. I'm just a friendly reminder to apply relevant changes to both of those files :)
+-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+diff --git a/.github/workflows/type_completeness.yml b/.github/workflows/type_completeness.yml
+index b2ebd45e303..74087e3e8dd 100644
+--- a/.github/workflows/type_completeness.yml
++++ b/.github/workflows/type_completeness.yml
+@@ -3,8 +3,7 @@ on:
+   pull_request:
+     paths:
+       - telegram/**
+-      - requirements.txt
+-      - requirements-opts.txt
++      - pyproject.toml
+   push:
+     branches:
+       - master
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index 5760c9eac06..08c51942a0b 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -1,4 +1,4 @@
+-# Make sure that the additional_dependencies here match requirements(-opts).txt
++# Make sure that the additional_dependencies here match pyproject.toml
+ 
+ ci:
+     autofix_prs: false
+diff --git a/MANIFEST.in b/MANIFEST.in
+deleted file mode 100644
+index 0efb3c7eca4..00000000000
+--- a/MANIFEST.in
++++ /dev/null
+@@ -1,1 +0,0 @@
+-include LICENSE LICENSE.lesser requirements.txt requirements-opts.txt README_RAW.rst telegram/py.typed
+diff --git a/README.rst b/README.rst
+index c3b29aa626f..82e272c3f8b 100644
+--- a/README.rst
++++ b/README.rst
+@@ -98,7 +98,8 @@ You can also install ``python-telegram-bot`` from source, though this is usually
+ 
+     $ git clone https://github.com/python-telegram-bot/python-telegram-bot
+     $ cd python-telegram-bot
+-    $ python setup.py install
++    $ pip install build
++    $ python -m build
+ 
+ Verifying Releases
+ ------------------
+diff --git a/README_RAW.rst b/README_RAW.rst
+deleted file mode 100644
+index e82270959f1..00000000000
+--- a/README_RAW.rst
++++ /dev/null
+@@ -1,213 +0,0 @@
+-.. image:: https://github.com/python-telegram-bot/logos/blob/master/logo-text/png/ptb-raw-logo-text_768.png?raw=true
+-   :align: center
+-   :target: https://python-telegram-bot.org
+-   :alt: python-telegram-bot-raw Logo
+-
+-.. image:: https://img.shields.io/pypi/v/python-telegram-bot-raw.svg
+-   :target: https://pypi.org/project/python-telegram-bot-raw/
+-   :alt: PyPi Package Version
+-
+-.. image:: https://img.shields.io/pypi/pyversions/python-telegram-bot-raw.svg
+-   :target: https://pypi.org/project/python-telegram-bot-raw/
+-   :alt: Supported Python versions
+-
+-.. image:: https://img.shields.io/badge/Bot%20API-7.4-blue?logo=telegram
+-   :target: https://core.telegram.org/bots/api-changelog
+-   :alt: Supported Bot API version
+-
+-.. image:: https://img.shields.io/pypi/dm/python-telegram-bot-raw
+-   :target: https://pypistats.org/packages/python-telegram-bot-raw
+-   :alt: PyPi Package Monthly Download
+-
+-.. image:: https://readthedocs.org/projects/python-telegram-bot/badge/?version=stable
+-   :target: https://docs.python-telegram-bot.org/
+-   :alt: Documentation Status
+-
+-.. image:: https://img.shields.io/pypi/l/python-telegram-bot-raw.svg
+-   :target: https://www.gnu.org/licenses/lgpl-3.0.html
+-   :alt: LGPLv3 License
+-
+-.. image:: https://github.com/python-telegram-bot/python-telegram-bot/actions/workflows/unit_tests.yml/badge.svg?branch=master
+-   :target: https://github.com/python-telegram-bot/python-telegram-bot/
+-   :alt: Github Actions workflow
+-
+-.. image:: https://codecov.io/gh/python-telegram-bot/python-telegram-bot/branch/master/graph/badge.svg
+-   :target: https://app.codecov.io/gh/python-telegram-bot/python-telegram-bot
+-   :alt: Code coverage
+-
+-.. image:: https://isitmaintained.com/badge/resolution/python-telegram-bot/python-telegram-bot.svg
+-   :target: https://isitmaintained.com/project/python-telegram-bot/python-telegram-bot
+-   :alt: Median time to resolve an issue
+-
+-.. image:: https://api.codacy.com/project/badge/Grade/99d901eaa09b44b4819aec05c330c968
+-   :target: https://app.codacy.com/gh/python-telegram-bot/python-telegram-bot/dashboard
+-   :alt: Code quality: Codacy
+-
+-.. image:: https://results.pre-commit.ci/badge/github/python-telegram-bot/python-telegram-bot/master.svg
+-   :target: https://results.pre-commit.ci/latest/github/python-telegram-bot/python-telegram-bot/master
+-   :alt: pre-commit.ci status
+-
+-.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+-   :target: https://github.com/psf/black
+-   :alt: Code Style: Black
+-
+-.. image:: https://img.shields.io/badge/Telegram-Channel-blue.svg?logo=telegram
+-   :target: https://t.me/pythontelegrambotchannel
+-   :alt: Telegram Channel
+-
+-.. image:: https://img.shields.io/badge/Telegram-Group-blue.svg?logo=telegram
+-   :target: https://telegram.me/pythontelegrambotgroup
+-   :alt: Telegram Group
+-
+-⚠️ Deprecation Notice
+-=====================
+-
+-The ``python-telegram-bot-raw`` library will no longer be updated after 21.3.
+-Please instead use the ``python-telegram-bot`` `library <https://pypi.org/python-telegram-bot>`_.
+-The change requires no changes in your code and requires no additional dependencies.
+-For additional information, please see this `channel post <https://t.me/pythontelegrambotchannel/145>`_.
+-
+-----
+-
+-We have made you a wrapper you can't refuse
+-
+-We have a vibrant community of developers helping each other in our `Telegram group <https://telegram.me/pythontelegrambotgroup>`_. Join us!
+-
+-*Stay tuned for library updates and new releases on our* `Telegram Channel <https://telegram.me/pythontelegrambotchannel>`_.
+-
+-Introduction
+-============
+-
+-This library provides a pure Python, asynchronous interface for the
+-`Telegram Bot API <https://core.telegram.org/bots/api>`_.
+-It's compatible with Python versions **3.8+**.
+-
+-``python-telegram-bot-raw`` is part of the `python-telegram-bot <https://python-telegram-bot.org>`_ ecosystem and provides the pure API functionality extracted from PTB. It therefore does not have independent release schedules, changelogs or documentation.
+-
+-Note
+-----
+-
+-Installing both ``python-telegram-bot`` and ``python-telegram-bot-raw`` in conjunction will result in undesired side-effects, so only install *one* of both.
+-
+-Telegram API support
+-====================
+-
+-All types and methods of the Telegram Bot API **7.4** are supported.
+-
+-Installing
+-==========
+-
+-You can install or upgrade ``python-telegram-bot`` via
+-
+-.. code:: shell
+-
+-    $ pip install python-telegram-bot-raw --upgrade
+-
+-To install a pre-release, use the ``--pre`` `flag <https://pip.pypa.io/en/stable/cli/pip_install/#cmdoption-pre>`_ in addition.
+-
+-You can also install ``python-telegram-bot-raw`` from source, though this is usually not necessary.
+-
+-.. code:: shell
+-
+-    $ git clone https://github.com/python-telegram-bot/python-telegram-bot
+-    $ cd python-telegram-bot
+-    $ python setup_raw.py install
+-
+-Note
+-----
+-
+-Installing the ``.tar.gz`` archive available on PyPi directly via ``pip`` will *not* work as expected, as ``pip`` does not recognize that it should use ``setup_raw.py`` instead of ``setup.py``.
+-
+-Verifying Releases
+-------------------
+-
+-We sign all the releases with a GPG key.
+-The signatures are uploaded to both the `GitHub releases page <https://github.com/python-telegram-bot/python-telegram-bot/releases>`_ and the `PyPI project <https://pypi.org/project/python-telegram-bot/>`_ and end with a suffix ``.asc``.
+-Please find the public keys `here <https://github.com/python-telegram-bot/python-telegram-bot/tree/master/public_keys>`_.
+-The keys are named in the format ``<first_version>-<last_version>.gpg`` or ``<first_version>-current.gpg`` if the key is currently being used for new releases.
+-
+-In addition, the GitHub release page also contains the sha1 hashes of the release files in the files with the suffix ``.sha1``.
+-
+-This allows you to verify that a release file that you downloaded was indeed provided by the ``python-telegram-bot`` team.
+-
+-Dependencies & Their Versions
+------------------------------
+-
+-``python-telegram-bot`` tries to use as few 3rd party dependencies as possible.
+-However, for some features using a 3rd party library is more sane than implementing the functionality again.
+-As these features are *optional*, the corresponding 3rd party dependencies are not installed by default.
+-Instead, they are listed as optional dependencies.
+-This allows to avoid unnecessary dependency conflicts for users who don't need the optional features.
+-
+-The only required dependency is `httpx ~= 0.27 <https://www.python-httpx.org>`_ for
+-``telegram.request.HTTPXRequest``, the default networking backend.
+-
+-``python-telegram-bot`` is most useful when used along with additional libraries.
+-To minimize dependency conflicts, we try to be liberal in terms of version requirements on the (optional) dependencies.
+-On the other hand, we have to ensure stability of ``python-telegram-bot``, which is why we do apply version bounds.
+-If you encounter dependency conflicts due to these bounds, feel free to reach out.
+-
+-Optional Dependencies
+-#####################
+-
+-PTB can be installed with optional dependencies:
+-
+-* ``pip install "python-telegram-bot-raw[passport]"`` installs the `cryptography>=39.0.1 <https://cryptography.io/en/stable>`_ library. Use this, if you want to use Telegram Passport related functionality.
+-* ``pip install "python-telegram-bot-raw[socks]"`` installs `httpx[socks] <https://www.python-httpx.org/#dependencies>`_. Use this, if you want to work behind a Socks5 server.
+-* ``pip install "python-telegram-bot-raw[http2]"`` installs `httpx[http2] <https://www.python-httpx.org/#dependencies>`_. Use this, if you want to use HTTP/2.
+-
+-To install multiple optional dependencies, separate them by commas, e.g. ``pip install "python-telegram-bot-raw[passport,socks]"``.
+-
+-Additionally, the shortcut ``pip install "python-telegram-bot-raw[all]"`` installs all optional dependencies.
+-
+-Quick Start
+-===========
+-
+-Our Wiki contains an `Introduction to the API <https://github.com/python-telegram-bot/python-telegram-bot/wiki/Introduction-to-the-API>`_ explaining how the pure Bot API can be accessed via ``python-telegram-bot``.
+-
+-Resources
+-=========
+-
+-- The `package documentation <https://docs.python-telegram-bot.org/>`_ is the technical reference for ``python-telegram-bot``.
+-  It contains descriptions of all available classes, modules, methods and arguments as well as the `changelog <https://docs.python-telegram-bot.org/changelog.html>`_.
+-- The `wiki <https://github.com/python-telegram-bot/python-telegram-bot/wiki/>`_ is home to number of more elaborate introductions of the different features of ``python-telegram-bot`` and other useful resources that go beyond the technical documentation.
+-- Our `examples section <https://docs.python-telegram-bot.org/examples.html>`_ contains several examples that showcase the different features of both the Bot API and ``python-telegram-bot``.
+-  Even if it is not your approach for learning, please take a look at ``echobot.py``. It is the de facto base for most of the bots out there.
+-  The code for these examples is released to the public domain, so you can start by grabbing the code and building on top of it.
+-- The `official Telegram Bot API documentation <https://core.telegram.org/bots/api>`_ is of course always worth a read.
+-
+-Getting help
+-============
+-
+-If the resources mentioned above don't answer your questions or simply overwhelm you, there are several ways of getting help.
+-
+-1. We have a vibrant community of developers helping each other in our `Telegram group <https://telegram.me/pythontelegrambotgroup>`_. Join us! Asking a question here is often the quickest way to get a pointer in the right direction.
+-
+-2. Ask questions by opening `a discussion <https://github.com/python-telegram-bot/python-telegram-bot/discussions/new>`_.
+-
+-3. You can even ask for help on Stack Overflow using the `python-telegram-bot tag <https://stackoverflow.com/questions/tagged/python-telegram-bot>`_.
+-
+-Concurrency
+-===========
+-
+-Since v20.0, ``python-telegram-bot`` is built on top of Pythons ``asyncio`` module.
+-Because ``asyncio`` is in general single-threaded, ``python-telegram-bot`` does currently not aim to be thread-safe.
+-
+-Contributing
+-============
+-
+-Contributions of all sizes are welcome.
+-Please review our `contribution guidelines <https://github.com/python-telegram-bot/python-telegram-bot/blob/master/.github/CONTRIBUTING.rst>`_ to get started.
+-You can also help by `reporting bugs or feature requests <https://github.com/python-telegram-bot/python-telegram-bot/issues/new/choose>`_.
+-
+-Donating
+-========
+-Occasionally we are asked if we accept donations to support the development.
+-While we appreciate the thought, maintaining PTB is our hobby, and we have almost no running costs for it. We therefore have nothing set up to accept donations.
+-If you still want to donate, we kindly ask you to donate to another open source project/initiative of your choice instead.
+-
+-License
+-=======
+-
+-You may copy, distribute and modify the software provided that modifications are described and licensed for free under `LGPL-3 <https://www.gnu.org/licenses/lgpl-3.0.html>`_.
+-Derivatives works (including modifications or anything statically linked to the library) can only be redistributed under LGPL-3, but applications that use the library don't have to be.
+diff --git a/docs/requirements-docs.txt b/docs/requirements-docs.txt
+index 13bface7d25..08fba15d32f 100644
+--- a/docs/requirements-docs.txt
++++ b/docs/requirements-docs.txt
+@@ -4,4 +4,4 @@ furo-sphinx-search @ git+https://github.com/harshil21/furo-sphinx-search@v0.2.0.
+ sphinx-paramlinks==0.6.0
+ sphinxcontrib-mermaid==0.9.2
+ sphinx-copybutton==0.5.2
+-sphinx-inline-tabs==2023.4.21
++sphinx-inline-tabs==2023.4.21
+\ No newline at end of file
+diff --git a/pyproject.toml b/pyproject.toml
+index b02870776ca..4f40bd9100b 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,7 +1,113 @@
++# PACKAGING
++[build-system]
++requires = ["hatchling"]
++build-backend = "hatchling.build"
++
++[project]
++dynamic = ["version"]
++name = "python-telegram-bot"
++description = "We have made you a wrapper you can't refuse"
++readme = "README.rst"
++requires-python = ">=3.8"
++license = "LGPL-3.0-only"
++license-files = { paths = ["LICENSE", "LICENSE.dual", "LICENSE.lesser"] }
++authors = [
++    { name = "Leandro Toledo", email = "devs@python-telegram-bot.org" }
++]
++keywords = [
++    "python",
++    "telegram",
++    "bot",
++    "api",
++    "wrapper",
++]
++classifiers = [
++    "Development Status :: 5 - Production/Stable",
++    "Intended Audience :: Developers",
++    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
++    "Operating System :: OS Independent",
++    "Topic :: Software Development :: Libraries :: Python Modules",
++    "Topic :: Communications :: Chat",
++    "Topic :: Internet",
++    "Programming Language :: Python",
++    "Programming Language :: Python :: 3",
++    "Programming Language :: Python :: 3.8",
++    "Programming Language :: Python :: 3.9",
++    "Programming Language :: Python :: 3.10",
++    "Programming Language :: Python :: 3.11",
++    "Programming Language :: Python :: 3.12",
++]
++dependencies = [
++    "httpx ~= 0.27",
++]
++
++[project.urls]
++"Homepage" = "https://python-telegram-bot.org"
++"Documentation" = "https://docs.python-telegram-bot.org"
++"Bug Tracker" = "https://github.com/python-telegram-bot/python-telegram-bot/issues"
++"Source Code" = "https://github.com/python-telegram-bot/python-telegram-bot"
++"News" = "https://t.me/pythontelegrambotchannel"
++"Changelog" = "https://docs.python-telegram-bot.org/en/stable/changelog.html"
++"Support" = "https://t.me/pythontelegrambotgroup"
++
++[project.optional-dependencies]
++# Make sure to install those as additional_dependencies in the
++# pre-commit hooks for pylint & mypy
++# Also update the readme accordingly
++#
++# When dependencies release new versions and tests succeed, we should try to expand the allowed
++# versions and only increase the lower bound if necessary
++#
++# When adding new groups, make sure to update `ext` and `all` accordingly
++
++# Optional dependencies for production
++all = [
++    "python-telegram-bot[ext,http2,passport,socks]",
++]
++callback-data = [
++    # Cachetools doesn't have a strict stability policy. Let's be cautious for now.
++    "cachetools~=5.3.3",
++]
++ext = [
++    "python-telegram-bot[callback-data,job-queue,rate-limiter,webhooks]",
++]
++http2 = [
++    "httpx[http2]",
++]
++job-queue = [
++    # APS doesn't have a strict stability policy. Let's be cautious for now.
++    "APScheduler~=3.10.4",
++    # pytz is required by APS and just needs the lower bound due to #2120
++    "pytz>=2018.6",
++]
++passport = [
++    "cryptography!=3.4,!=3.4.1,!=3.4.2,!=3.4.3,>=39.0.1",
++]
++rate-limiter = [
++    "aiolimiter~=1.1.0",
++]
++socks = [
++    "httpx[socks]",
++]
++webhooks = [
++    # tornado is rather stable, but let's not allow the next major release without prior testing
++    "tornado~=6.4",
++]
++
++
++# HATCH
++[tool.hatch.version]
++# dynamically evaluates the `__version__` variable in that file
++source = "code"
++path = "telegram/_version.py"
++search-paths = ["telegram"]
++
++[tool.hatch.build]
++packages = ["telegram"]
++
+ # BLACK:
+ [tool.black]
+ line-length = 99
+-target-version = ['py38', 'py39', 'py310', 'py311']
+ 
+ # ISORT:
+ [tool.isort]  # black config
+@@ -11,7 +117,6 @@ line_length = 99
+ # RUFF:
+ [tool.ruff]
+ line-length = 99
+-target-version = "py38"
+ show-fixes = true
+ 
+ [tool.ruff.lint]
+diff --git a/requirements-all.txt b/requirements-all.txt
+deleted file mode 100644
+index d38ad669196..00000000000
+--- a/requirements-all.txt
++++ /dev/null
+@@ -1,4 +0,0 @@
+--r requirements.txt
+--r requirements-dev.txt
+--r requirements-opts.txt
+--r docs/requirements-docs.txt
+\ No newline at end of file
+diff --git a/requirements-dev-all.txt b/requirements-dev-all.txt
+new file mode 100644
+index 00000000000..995e067c420
+--- /dev/null
++++ b/requirements-dev-all.txt
+@@ -0,0 +1,5 @@
++-e .[all]
++# needed for pre-commit hooks in the git commit command
++pre-commit
++-r requirements-unit-tests.txt
++-r docs/requirements-docs.txt
+diff --git a/requirements-dev.txt b/requirements-dev.txt
+deleted file mode 100644
+index 63f6432ad4a..00000000000
+--- a/requirements-dev.txt
++++ /dev/null
+@@ -1,11 +0,0 @@
+-pre-commit  # needed for pre-commit hooks in the git commit command
+-
+-# For the test suite
+-setuptools  # required for test_meta
+-pytest==8.2.1
+-pytest-asyncio==0.21.2  # needed because pytest doesn't come with native support for coroutines as tests
+-pytest-xdist==3.6.1  # xdist runs tests in parallel
+-flaky  # Used for flaky tests (flaky decorator)
+-beautifulsoup4  # used in test_official for parsing tg docs
+-
+-wheel  # required for building the wheels for releases
+diff --git a/requirements-opts.txt b/requirements-opts.txt
+deleted file mode 100644
+index 05ac0d8c718..00000000000
+--- a/requirements-opts.txt
++++ /dev/null
+@@ -1,27 +0,0 @@
+-# Format:
+-# package_name==version # req-1, req-2, req-3!ext
+-# `pip install ptb-raw[req-1/2]` will install `package_name`
+-# `pip install ptb[req-1/2/3]` will also install `package_name`
+-
+-# Make sure to install those as additional_dependencies in the
+-# pre-commit hooks for pylint & mypy
+-# Also update the readme accordingly
+-
+-# When dependencies release new versions and tests succeed, we should try to expand the allowed
+-# versions and only increase the lower bound if necessary
+-
+-httpx[socks] # socks
+-httpx[http2] # http2
+-cryptography!=3.4,!=3.4.1,!=3.4.2,!=3.4.3,>=39.0.1 # passport
+-aiolimiter~=1.1.0 # rate-limiter!ext
+-
+-# tornado is rather stable, but let's not allow the next mayor release without prior testing
+-tornado~=6.4 # webhooks!ext
+-
+-# Cachetools and APS don't have a strict stability policy.
+-# Let's be cautious for now.
+-cachetools~=5.3.3 # callback-data!ext
+-APScheduler~=3.10.4 # job-queue!ext
+-
+-# pytz is required by APS and just needs the lower bound due to #2120
+-pytz>=2018.6 # job-queue!ext
+diff --git a/requirements.txt b/requirements.txt
+deleted file mode 100644
+index 90203e49733..00000000000
+--- a/requirements.txt
++++ /dev/null
+@@ -1,10 +0,0 @@
+-# Make sure to install those as additional_dependencies in the
+-# pre-commit hooks for pylint & mypy
+-# Also update the readme accordingly
+-
+-# When dependencies release new versions and tests succeed, we should try to expand the allowed
+-# versions and only increase the lower bound if necessary
+-
+-# httpx has no stable release yet, but we've had no stability problems since v20.0a0 either
+-# Since there have been requests to relax the bound a bit, we allow versions < 1.0.0
+-httpx ~= 0.27
+diff --git a/setup.cfg b/setup.cfg
+index 278056b06d2..c24e78bc4e1 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -1,8 +1,5 @@
+-[metadata]
+-license_files = LICENSE, LICENSE.dual, LICENSE.lesser
+-
+ [flake8]
+ max-line-length = 99
+ ignore = W503, W605
+ extend-ignore = E203, E704
+-exclude = setup.py, setup_raw.py docs/source/conf.py
++exclude = docs/source/conf.py
+diff --git a/setup.py b/setup.py
+deleted file mode 100644
+index d62ad39ed32..00000000000
+--- a/setup.py
++++ /dev/null
+@@ -1,131 +0,0 @@
+-#!/usr/bin/env python
+-"""The setup and build script for the python-telegram-bot library."""
+-import subprocess
+-import sys
+-from collections import defaultdict
+-from pathlib import Path
+-from typing import Any, Dict, List, Tuple
+-
+-from setuptools import find_packages, setup
+-
+-
+-def get_requirements() -> List[str]:
+-    """Build the requirements list for this project"""
+-    requirements_list = []
+-
+-    with Path("requirements.txt").open(encoding="utf-8") as reqs:
+-        for install in reqs:
+-            if install.startswith("#"):
+-                continue
+-            requirements_list.append(install.strip())
+-
+-    return requirements_list
+-
+-
+-def get_packages_requirements(raw: bool = False) -> Tuple[List[str], List[str]]:
+-    """Build the package & requirements list for this project"""
+-    reqs = get_requirements()
+-
+-    exclude = ["tests*", "docs*"]
+-    if raw:
+-        exclude.append("telegram.ext*")
+-
+-    packs = find_packages(exclude=exclude)
+-
+-    return packs, reqs
+-
+-
+-def get_optional_requirements(raw: bool = False) -> Dict[str, List[str]]:
+-    """Build the optional dependencies"""
+-    requirements = defaultdict(list)
+-
+-    with Path("requirements-opts.txt").open(encoding="utf-8") as reqs:
+-        for line in reqs:
+-            effective_line = line.strip()
+-            if not effective_line or effective_line.startswith("#"):
+-                continue
+-            dependency, names = effective_line.split("#")
+-            dependency = dependency.strip()
+-            for name in names.split(","):
+-                effective_name = name.strip()
+-                if effective_name.endswith("!ext"):
+-                    if raw:
+-                        continue
+-                    effective_name = effective_name[:-4]
+-                    requirements["ext"].append(dependency)
+-                requirements[effective_name].append(dependency)
+-                requirements["all"].append(dependency)
+-
+-    return requirements
+-
+-
+-def get_setup_kwargs(raw: bool = False) -> Dict[str, Any]:
+-    """Builds a dictionary of kwargs for the setup function"""
+-    packages, requirements = get_packages_requirements(raw=raw)
+-
+-    raw_ext = "-raw" if raw else ""
+-    readme = Path(f'README{"_RAW" if raw else ""}.rst')
+-
+-    version_file = Path("telegram/_version.py").read_text(encoding="utf-8")
+-    first_part = version_file.split("# SETUP.PY MARKER")[0]
+-    exec(first_part)  # pylint: disable=exec-used
+-
+-    return {
+-        "script_name": f"setup{raw_ext}.py",
+-        "name": f"python-telegram-bot{raw_ext}",
+-        "version": locals()["__version__"],
+-        "author": "Leandro Toledo",
+-        "author_email": "devs@python-telegram-bot.org",
+-        "license": "LGPLv3",
+-        "url": "https://python-telegram-bot.org/",
+-        # Keywords supported by PyPI can be found at
+-        # https://github.com/pypa/warehouse/blob/aafc5185e57e67d43487ce4faa95913dd4573e14/
+-        # warehouse/templates/packaging/detail.html#L20-L58
+-        "project_urls": {
+-            "Documentation": "https://docs.python-telegram-bot.org",
+-            "Bug Tracker": "https://github.com/python-telegram-bot/python-telegram-bot/issues",
+-            "Source Code": "https://github.com/python-telegram-bot/python-telegram-bot",
+-            "News": "https://t.me/pythontelegrambotchannel",
+-            "Changelog": "https://docs.python-telegram-bot.org/en/stable/changelog.html",
+-        },
+-        "download_url": f"https://pypi.org/project/python-telegram-bot{raw_ext}/",
+-        "keywords": "python telegram bot api wrapper",
+-        "description": "We have made you a wrapper you can't refuse",
+-        "long_description": readme.read_text(encoding="utf-8"),
+-        "long_description_content_type": "text/x-rst",
+-        "packages": packages,
+-        "install_requires": requirements,
+-        "extras_require": get_optional_requirements(raw=raw),
+-        "include_package_data": True,
+-        "classifiers": [
+-            "Development Status :: 5 - Production/Stable",
+-            "Intended Audience :: Developers",
+-            "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+-            "Operating System :: OS Independent",
+-            "Topic :: Software Development :: Libraries :: Python Modules",
+-            "Topic :: Communications :: Chat",
+-            "Topic :: Internet",
+-            "Programming Language :: Python",
+-            "Programming Language :: Python :: 3",
+-            "Programming Language :: Python :: 3.8",
+-            "Programming Language :: Python :: 3.9",
+-            "Programming Language :: Python :: 3.10",
+-            "Programming Language :: Python :: 3.11",
+-            "Programming Language :: Python :: 3.12",
+-        ],
+-        "python_requires": ">=3.8",
+-    }
+-
+-
+-def main() -> None:
+-    # If we're building, build ptb-raw as well
+-    if set(sys.argv[1:]) in [{"bdist_wheel"}, {"sdist"}, {"sdist", "bdist_wheel"}]:
+-        args = ["python", "setup_raw.py"]
+-        args.extend(sys.argv[1:])
+-        subprocess.run(args, check=True, capture_output=True)
+-
+-    setup(**get_setup_kwargs(raw=False))
+-
+-
+-if __name__ == "__main__":
+-    main()
+diff --git a/setup_raw.py b/setup_raw.py
+deleted file mode 100644
+index 0e99fb68559..00000000000
+--- a/setup_raw.py
++++ /dev/null
+@@ -1,8 +0,0 @@
+-#!/usr/bin/env python
+-"""The setup and build script for the python-telegram-bot-raw library."""
+-
+-from setuptools import setup
+-
+-from setup import get_setup_kwargs
+-
+-setup(**get_setup_kwargs(raw=True))
+diff --git a/telegram/__init__.py b/telegram/__init__.py
+index 6105c9780c8..675a60e9835 100644
+--- a/telegram/__init__.py
++++ b/telegram/__init__.py
+@@ -242,8 +242,6 @@
+     "warnings",
+ )
+ 
+-from pathlib import Path
+-
+ from . import _version, constants, error, helpers, request, warnings
+ from ._birthdate import Birthdate
+ from ._bot import Bot
+@@ -443,7 +441,6 @@
+ from ._update import Update
+ from ._user import User
+ from ._userprofilephotos import UserProfilePhotos
+-from ._utils.warnings import warn
+ from ._videochat import (
+     VideoChatEnded,
+     VideoChatParticipantsInvited,
+@@ -472,33 +469,8 @@
+ #:
+ #: .. versionchanged:: 20.0
+ #:    This constant was previously named ``bot_api_version``.
+-__bot_api_version__: str = _version.__bot_api_version__
++__bot_api_version__: str = constants.BOT_API_VERSION
+ #: :class:`typing.NamedTuple`: Shortcut for :const:`telegram.constants.BOT_API_VERSION_INFO`.
+ #:
+ #: .. versionadded:: 20.0
+-__bot_api_version_info__: constants._BotAPIVersion = _version.__bot_api_version_info__
+-
+-
+-if not (Path(__file__).parent.resolve().absolute() / "ext").exists():
+-    _MESSAGE = (
+-        "Hey. You seem to be using the `python-telegram-bot-raw` library. "
+-        "Please note that this libray has been deprecated and will no longer be updated. "
+-        "Please instead use the `python-telegram-bot` library. The change requires no "
+-        "changes in your code and requires no additional dependencies. For additional "
+-        "information, please see the channel post at "
+-        "https://t.me/pythontelegrambotchannel/145."
+-    )
+-
+-    # DeprecationWarning is ignored by default in Python 3.7 and later by default outside
+-    # __main__ modules. We use both warning categories to increase the chance of the user
+-    # seeing the warning.
+-
+-    warn(
+-        warnings.PTBDeprecationWarning(version="21.3", message=_MESSAGE),
+-        stacklevel=2,
+-    )
+-    warn(
+-        message=_MESSAGE,
+-        category=warnings.PTBUserWarning,
+-        stacklevel=2,
+-    )
++__bot_api_version_info__: constants._BotAPIVersion = constants.BOT_API_VERSION_INFO
+diff --git a/telegram/_version.py b/telegram/_version.py
+index 34849536283..557a1ab9022 100644
+--- a/telegram/_version.py
++++ b/telegram/_version.py
+@@ -19,7 +19,7 @@
+ # pylint: disable=missing-module-docstring
+ from typing import Final, NamedTuple
+ 
+-__all__ = ("__bot_api_version__", "__bot_api_version_info__", "__version__", "__version_info__")
++__all__ = ("__version__", "__version_info__")
+ 
+ 
+ class Version(NamedTuple):
+@@ -54,12 +54,3 @@ def __str__(self) -> str:
+     major=21, minor=3, micro=0, releaselevel="final", serial=0
+ )
+ __version__: Final[str] = str(__version_info__)
+-
+-# # SETUP.PY MARKER
+-# Lines above this line will be `exec`-cuted in setup.py. Make sure that this only contains
+-# std-lib imports!
+-
+-from telegram import constants  # noqa: E402  # pylint: disable=wrong-import-position
+-
+-__bot_api_version__: Final[str] = constants.BOT_API_VERSION
+-__bot_api_version_info__: Final[constants._BotAPIVersion] = constants.BOT_API_VERSION_INFO

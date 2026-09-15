@@ -1,0 +1,43 @@
+diff --git a/src/streamlink/stream/hls/hls.py b/src/streamlink/stream/hls/hls.py
+index c342d7e4596..6c7c1c78f61 100644
+--- a/src/streamlink/stream/hls/hls.py
++++ b/src/streamlink/stream/hls/hls.py
+@@ -243,9 +243,12 @@ def write(self, segment: HLSSegment, result: Response, *data):
+                 self.reader.pause()
+ 
+     def _write(self, segment: HLSSegment, result: Response, is_map: bool):
+-        if segment.key and segment.key.method != "NONE":
++        # TODO: Rewrite HLSSegment, HLSStreamWriter and HLSStreamWorker based on independent initialization section segments,
++        #       similar to the DASH implementation
++        key = segment.map.key if is_map and segment.map else segment.key
++        if key and key.method != "NONE":
+             try:
+-                decryptor = self.create_decryptor(segment.key, segment.num)
++                decryptor = self.create_decryptor(key, segment.num)
+             except (StreamError, ValueError) as err:
+                 log.error(f"Failed to create decryptor: {err}")
+                 self.close()
+diff --git a/src/streamlink/stream/hls/m3u8.py b/src/streamlink/stream/hls/m3u8.py
+index 0895058922f..2c22db18c60 100644
+--- a/src/streamlink/stream/hls/m3u8.py
++++ b/src/streamlink/stream/hls/m3u8.py
+@@ -353,6 +353,7 @@ def parse_tag_ext_x_map(self, value: str) -> None:  # version >= 5
+         byterange = self.parse_byterange(attr.get("BYTERANGE", ""))
+         self._map = Map(
+             uri=self.uri(uri),
++            key=self._key,
+             byterange=byterange,
+         )
+ 
+diff --git a/src/streamlink/stream/hls/segment.py b/src/streamlink/stream/hls/segment.py
+index 2c2e709103b..0e82812a6c8 100644
+--- a/src/streamlink/stream/hls/segment.py
++++ b/src/streamlink/stream/hls/segment.py
+@@ -46,6 +46,7 @@ class Key(NamedTuple):
+ # EXT-X-MAP
+ class Map(NamedTuple):
+     uri: str
++    key: Optional[Key]
+     byterange: Optional[ByteRange]
+ 
+ 

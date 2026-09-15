@@ -1,0 +1,13 @@
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index 9139b2ed262f..9f764cc2332f 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -1636,6 +1636,8 @@ def add_subfigure(self, subplotspec, **kwargs):
+         sf = SubFigure(self, subplotspec, **kwargs)
+         self.subfigs += [sf]
+         sf._remove_method = self.subfigs.remove
++        sf.stale_callback = _stale_figure_callback
++        self.stale = True
+         return sf
+ 
+     def sca(self, a):

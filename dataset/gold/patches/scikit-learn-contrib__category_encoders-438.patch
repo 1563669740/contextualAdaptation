@@ -1,0 +1,25 @@
+diff --git a/category_encoders/utils.py b/category_encoders/utils.py
+index 1671fc55..0db33552 100644
+--- a/category_encoders/utils.py
++++ b/category_encoders/utils.py
+@@ -320,6 +320,7 @@ def fit(self, X, y=None, **kwargs):
+         self._fit(X, y, **kwargs)
+ 
+         # for finding invariant columns transform without y (as is done on the test set)
++        self.feature_names_out_ = None  # Issue#437
+         X_transformed = self.transform(X, override_return_df=True)
+         self.feature_names_out_ = X_transformed.columns.tolist()
+ 
+diff --git a/requirements-dev.txt b/requirements-dev.txt
+index 8d8db879..7cda0836 100644
+--- a/requirements-dev.txt
++++ b/requirements-dev.txt
+@@ -1,4 +1,5 @@
+ sphinx
+ sphinx_rtd_theme
+ pytest
+-numpydoc
+\ No newline at end of file
++numpydoc
++packaging
+\ No newline at end of file

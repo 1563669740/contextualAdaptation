@@ -1,0 +1,3 @@
+[
+  "tests/messages/test_pofile.py::WritePoTestCase::test_wrap_with_enclosed_file_locations"
+]

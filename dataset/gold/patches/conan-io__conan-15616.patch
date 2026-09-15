@@ -1,0 +1,35 @@
+diff --git a/conan/tools/build/cross_building.py b/conan/tools/build/cross_building.py
+index b446d562e00..7d7d009d732 100644
+--- a/conan/tools/build/cross_building.py
++++ b/conan/tools/build/cross_building.py
+@@ -9,6 +9,9 @@ def cross_building(conanfile=None, skip_x64_x86=False):
+            x86_64 to x86, sparcv9 to sparc or ppc64 to ppc32
+     :return: ``True`` if we are cross building, ``False`` otherwise.
+     """
++    cross_build = conanfile.conf.get("tools.build.cross_building:cross_build", check_type=bool)
++    if cross_build is not None:
++        return cross_build
+ 
+     build_os = conanfile.settings_build.get_safe('os')
+     build_arch = conanfile.settings_build.get_safe('arch')
+@@ -32,7 +35,7 @@ def cross_building(conanfile=None, skip_x64_x86=False):
+ def can_run(conanfile):
+     """
+     Validates whether is possible to run a non-native app on the same architecture.
+-    It’s an useful feature for the case your architecture can run more than one target.
++    It’s a useful feature for the case your architecture can run more than one target.
+     For instance, Mac M1 machines can run both `armv8` and `x86_64`.
+ 
+     :param conanfile: The current recipe object. Always use ``self``.
+diff --git a/conans/model/conf.py b/conans/model/conf.py
+index 0f76a9e20c7..854f6caa76a 100644
+--- a/conans/model/conf.py
++++ b/conans/model/conf.py
+@@ -108,6 +108,7 @@
+     "tools.apple:enable_visibility": "(boolean) Enable/Disable Visibility Apple Clang flags",
+     "tools.env.virtualenv:powershell": "If it is set to True it will generate powershell launchers if os=Windows",
+     # Compilers/Flags configurations
++    "tools.build.cross_building:cross_build": "Decides whether cross-building or not regardless of arch/OS settings. Used by 'conan.tools.build.cross_building' function.",
+     "tools.build:compiler_executables": "Defines a Python dict-like with the compilers path to be used. Allowed keys {'c', 'cpp', 'cuda', 'objc', 'objcxx', 'rc', 'fortran', 'asm', 'hip', 'ispc'}",
+     "tools.build:cxxflags": "List of extra CXX flags used by different toolchains like CMakeToolchain, AutotoolsToolchain and MesonToolchain",
+     "tools.build:cflags": "List of extra C flags used by different toolchains like CMakeToolchain, AutotoolsToolchain and MesonToolchain",

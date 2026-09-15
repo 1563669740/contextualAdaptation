@@ -1,0 +1,69 @@
+diff --git a/README.rst b/README.rst
+index 2b1775ce..c7060131 100644
+--- a/README.rst
++++ b/README.rst
+@@ -411,6 +411,8 @@ GCS Advanced Usage
+ 
+ Additional keyword arguments can be propagated to the GCS open method (`docs <https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.blob.Blob#google_cloud_storage_blob_Blob_open>`__), which is used by ``smart_open`` under the hood, using the ``blob_open_kwargs`` transport parameter.
+ 
++Additionally keyword arguments can be propagated to the GCS ``get_blob`` method (`docs <https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_get_blob>`__) when in a read-mode, using the ``get_blob_kwargs`` transport parameter.
++
+ Additional blob properties (`docs <https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.blob.Blob#properties>`__) can be set before an upload, as long as they are not read-only, using the ``blob_properties`` transport parameter.
+ 
+ .. code-block:: python
+@@ -507,4 +509,3 @@ issues or pull requests there. Suggestions, pull requests and improvements welco
+ 
+ ``smart_open`` is open source software released under the `MIT license <https://github.com/piskvorky/smart_open/blob/master/LICENSE>`_.
+ Copyright (c) 2015-now `Radim Řehůřek <https://radimrehurek.com>`_.
+-
+diff --git a/smart_open/gcs.py b/smart_open/gcs.py
+index c5ab29be..0ae34307 100644
+--- a/smart_open/gcs.py
++++ b/smart_open/gcs.py
+@@ -59,6 +59,7 @@ def open(
+     buffer_size=None,
+     min_part_size=_DEFAULT_MIN_PART_SIZE,
+     client=None,  # type: google.cloud.storage.Client
++    get_blob_kwargs=None,
+     blob_properties=None,
+     blob_open_kwargs=None,
+ ):
+@@ -78,6 +79,9 @@ def open(
+         The minimum part size for multipart uploads. For writing only.
+     client: google.cloud.storage.Client, optional
+         The GCS client to use when working with google-cloud-storage.
++    get_blob_kwargs: dict, optional
++        Additional keyword arguments to propagate to the bucket.get_blob
++        method of the google-cloud-storage library. For reading only.
+     blob_properties: dict, optional
+         Set properties on blob before writing. For writing only.
+     blob_open_kwargs: dict, optional
+@@ -95,6 +99,7 @@ def open(
+         _blob = Reader(bucket=bucket_id,
+                        key=blob_id,
+                        client=client,
++                       get_blob_kwargs=get_blob_kwargs,
+                        blob_open_kwargs=blob_open_kwargs)
+ 
+     elif mode in (constants.WRITE_BINARY, 'w', 'wt'):
+@@ -116,8 +121,11 @@ def Reader(bucket,
+            buffer_size=None,
+            line_terminator=None,
+            client=None,
++           get_blob_kwargs=None,
+            blob_open_kwargs=None):
+ 
++    if get_blob_kwargs is None:
++        get_blob_kwargs = {}
+     if blob_open_kwargs is None:
+         blob_open_kwargs = {}
+     if client is None:
+@@ -128,7 +136,7 @@ def Reader(bucket,
+         warn_deprecated('line_terminator')
+ 
+     bkt = client.bucket(bucket)
+-    blob = bkt.get_blob(key)
++    blob = bkt.get_blob(key, **get_blob_kwargs)
+ 
+     if blob is None:
+         raise google.cloud.exceptions.NotFound(f'blob {key} not found in {bucket}')

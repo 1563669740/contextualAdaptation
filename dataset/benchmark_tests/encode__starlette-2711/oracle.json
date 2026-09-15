@@ -1,0 +1,14 @@
+{
+  "task_id": "encode__starlette-2711",
+  "log_parser": "pytest",
+  "test_cmds": [
+    "pytest -rA",
+    "cat scripts/test",
+    "ls venv/bin/coverage",
+    "venv/bin/coverage run -m pytest -rA"
+  ],
+  "fail_to_pass_count": 2,
+  "pass_to_pass_count": 857,
+  "resolution_rule": "resolved iff every FAIL_TO_PASS test passes AND every PASS_TO_PASS test still passes after applying the candidate patch",
+  "visibility": "evaluation_only"
+}

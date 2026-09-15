@@ -1,0 +1,5 @@
+[
+  "test/components/retrievers/test_in_memory_bm25_retriever.py::TestMemoryBM25Retriever::test_retriever_valid_run",
+  "test/document_stores/test_in_memory.py::TestMemoryDocumentStore::test_to_dict",
+  "test/document_stores/test_in_memory.py::TestMemoryDocumentStore::test_bm25_retrieval_with_non_scaled_BM25Okapi"
+]

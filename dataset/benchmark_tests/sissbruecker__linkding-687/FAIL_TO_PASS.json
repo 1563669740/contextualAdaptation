@@ -1,0 +1,3 @@
+[
+  "bookmarks/tests/test_bookmarks_tasks.py::BookmarkTasksTestCase::test_create_html_snapshot_truncate_filename"
+]

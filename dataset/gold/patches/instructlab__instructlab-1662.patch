@@ -1,0 +1,190 @@
+diff --git a/scripts/infra/README.md b/scripts/infra/README.md
+index 5f2fdc9fb6..d405b4f6e8 100644
+--- a/scripts/infra/README.md
++++ b/scripts/infra/README.md
+@@ -72,7 +72,7 @@ scripts/infra/cloud-instance.sh ec2 pip-install-with-nvidia
+ scripts/infra/cloud-instance.sh ec2 ssh
+ # Run commands on the instance through ssh
+ scripts/infra/cloud-instance.sh ec2 ssh ls -la
+-scripts/infra/cloud-instance.sh ec2 ssh "source instructlab/venv/bin/activate && ilab system sysinfo"
++scripts/infra/cloud-instance.sh ec2 ssh "source instructlab/venv/bin/activate && ilab system info"
+ # Sync your local git repo to the repo on the instance
+ scripts/infra/cloud-instance.sh ec2 sync
+ # Make changes in your local git without committing
+diff --git a/src/instructlab/lab.py b/src/instructlab/lab.py
+index 32ab80a254..dd927e3fba 100644
+--- a/src/instructlab/lab.py
++++ b/src/instructlab/lab.py
+@@ -34,7 +34,7 @@ def get_command(self, ctx, cmd_name):
+             cmd = self.aliases[cmd_name]["cmd"]
+             group = self.aliases[cmd_name]["group"].name
+             c = self.aliases[cmd_name]["cmd"].name
+-            print(
++            click.echo(
+                 f"You are using an aliased command, this will be deprecated in a future release. Please consider using `ilab {group} {c}` instead"
+             )
+             return cmd
+@@ -68,6 +68,7 @@ def format_epilog(self, ctx, formatter):
+     "download": {"group": model_group.model, "cmd": model_group.download},
+     "diff": {"group": taxonomy_group.taxonomy, "cmd": taxonomy_group.diff},
+     "generate": {"group": data_group.data, "cmd": data_group.generate},
++    "sysinfo": {"group": system_group.system, "cmd": system_group.info},
+ }
+ 
+ 
+diff --git a/src/instructlab/sysinfo.py b/src/instructlab/sysinfo.py
+deleted file mode 100644
+index a15f9a493a..0000000000
+--- a/src/instructlab/sysinfo.py
++++ /dev/null
+@@ -1,6 +0,0 @@
+-# SPDX-License-Identifier: Apache-2.0
+-# First Party
+-from instructlab.system.sysinfo import get_sysinfo
+-
+-if __name__ == "__main__":
+-    get_sysinfo()
+diff --git a/src/instructlab/system/sysinfo.py b/src/instructlab/system/info.py
+similarity index 75%
+rename from src/instructlab/system/sysinfo.py
+rename to src/instructlab/system/info.py
+index df3798840f..014ac30e58 100644
+--- a/src/instructlab/system/sysinfo.py
++++ b/src/instructlab/system/info.py
+@@ -12,20 +12,20 @@
+ 
+ def _platform_info() -> typing.Dict[str, typing.Any]:
+     """Platform and machine information"""
+-    info = {
++    d = {
+         "sys.version": sys.version,
+         "sys.platform": sys.platform,
+         "os.name": os.name,
+         "platform.release": platform.release(),
+         "platform.machine": platform.machine(),
+     }
+-    if sys.version_info >= (3, 10) and sys.platform == "linux":
++    if sys.platform == "linux":
+         os_release = platform.freedesktop_os_release()
+         for key in ["ID", "VERSION_ID", "PRETTY_NAME"]:
+             value = os_release.get(key)
+             if value:
+-                info[f"os-release.{key}"] = value
+-    return info
++                d[f"os-release.{key}"] = value
++    return d
+ 
+ 
+ def _torch_info() -> typing.Dict[str, typing.Any]:
+@@ -53,7 +53,7 @@ def _torch_cuda_info() -> typing.Dict[str, typing.Any]:
+     if not torch.cuda.is_available():
+         return {}
+ 
+-    info = {
++    d = {
+         "torch.cuda.bf16": torch.cuda.is_bf16_supported(),
+         "torch.cuda.current": torch.cuda.current_device(),
+     }
+@@ -62,12 +62,12 @@ def _torch_cuda_info() -> typing.Dict[str, typing.Any]:
+         device = torch.device("cuda", idx)
+         free, total = torch.cuda.mem_get_info(device)
+         capmax, capmin = torch.cuda.get_device_capability(device)
+-        info[f"torch.cuda.{idx}.name"] = torch.cuda.get_device_name(device)
+-        info[f"torch.cuda.{idx}.free"] = f"{(free / 1024**3):.1f}"
+-        info[f"torch.cuda.{idx}.total"] = f"{(total / 1024**3):.1f}"
+-        info[f"torch.cuda.{idx}.capability"] = f"{capmax}.{capmin}"
++        d[f"torch.cuda.{idx}.name"] = torch.cuda.get_device_name(device)
++        d[f"torch.cuda.{idx}.free"] = f"{(free / 1024**3):.1f}"
++        d[f"torch.cuda.{idx}.total"] = f"{(total / 1024**3):.1f}"
++        d[f"torch.cuda.{idx}.capability"] = f"{capmax}.{capmin}"
+ 
+-    return info
++    return d
+ 
+ 
+ def _torch_hpu_info() -> typing.Dict[str, typing.Any]:
+@@ -81,7 +81,7 @@ def _torch_hpu_info() -> typing.Dict[str, typing.Any]:
+     except ImportError:
+         return {}
+ 
+-    info = {
++    d = {
+         # 'habana_frameworks' has package name 'habana_torch_plugin'
+         "habana_torch_plugin.version": importlib.metadata.version(
+             "habana_torch_plugin"
+@@ -89,20 +89,20 @@ def _torch_hpu_info() -> typing.Dict[str, typing.Any]:
+         "torch.hpu.is_available": hpu.is_available(),
+     }
+ 
+-    if not info["torch.hpu.is_available"]:
+-        return info
++    if not d["torch.hpu.is_available"]:
++        return d
+ 
+-    info["torch.hpu.device_count"] = hpu.device_count()
++    d["torch.hpu.device_count"] = hpu.device_count()
+     for idx in range(hpu.device_count()):
+         device = torch.device("hpu", idx)
+-        info[f"torch.hpu.{idx}.name"] = hpu.get_device_name(device)
+-        info[f"torch.hpu.{idx}.capability"] = hpu.get_device_capability(device)
++        d[f"torch.hpu.{idx}.name"] = hpu.get_device_name(device)
++        d[f"torch.hpu.{idx}.capability"] = hpu.get_device_capability(device)
+         prop: str = hpu.get_device_properties(device)
+-        info[f"torch.hpu.{idx}.properties"] = prop.strip("()")
++        d[f"torch.hpu.{idx}.properties"] = prop.strip("()")
+     for key, value in sorted(os.environ.items()):
+         if key.startswith(("PT_", "HABANA", "LOG_LEVEL_", "ENABLE_CONSOLE")):
+-            info[f"env.{key}"] = value
+-    return info
++            d[f"env.{key}"] = value
++    return d
+ 
+ 
+ def _llama_cpp_info() -> typing.Dict[str, typing.Any]:
+@@ -129,18 +129,18 @@ def _instructlab_info():
+ 
+ def get_sysinfo() -> typing.Dict[str, typing.Any]:
+     """Get system information"""
+-    info = {}
+-    info.update(_platform_info())
+-    info.update(_instructlab_info())
+-    info.update(_torch_info())
+-    info.update(_torch_cuda_info())
+-    info.update(_torch_hpu_info())
+-    info.update(_llama_cpp_info())
+-    return info
++    d = {}
++    d.update(_platform_info())
++    d.update(_instructlab_info())
++    d.update(_torch_info())
++    d.update(_torch_cuda_info())
++    d.update(_torch_hpu_info())
++    d.update(_llama_cpp_info())
++    return d
+ 
+ 
+ @click.command()
+-def sysinfo():
++def info():
+     """Print system information"""
+     for key, value in get_sysinfo().items():
+         print(f"{key}: {value}")
+diff --git a/src/instructlab/system/system.py b/src/instructlab/system/system.py
+index 0e0f4eb39c..303bf83cc2 100644
+--- a/src/instructlab/system/system.py
++++ b/src/instructlab/system/system.py
+@@ -7,7 +7,7 @@
+ import click
+ 
+ # Local
+-from .sysinfo import sysinfo
++from .info import info
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -20,4 +20,4 @@ def system(ctx):
+     ctx.default_map = ctx.parent.default_map
+ 
+ 
+-system.add_command(sysinfo)
++system.add_command(info)

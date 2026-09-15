@@ -1,0 +1,13 @@
+{
+  "task_id": "pypsa__pypsa-1112",
+  "repo": "PyPSA/PyPSA",
+  "issue_number": "1109",
+  "issue_url": "https://github.com/PyPSA/PyPSA/issues/1109",
+  "issue_created_at": "1970-01-01 00:28:54.302668+00:00",
+  "issue_title": "Make consistency check optionally strict",
+  "issue_body": "For some pypsa functions we need input that is already checked in the consistency checks. Therefore it would be good to have the consistency checks optionally in strict mode to raise an error instead of a warning. \r\n\r\nFor example, for generalized plotting functions we need colors for all carriers defined. In the context of a soft consistency check this in `n.consistency_check()` would only lead to a warning. But for more complex plotting routines this should be a hard check and would raise an error. The trigger, could be an optional argument `strict`. I then would imagine to run code like  `n.consistency.check_carrier_colors(strict=True)`.",
+  "problem_statement": "Make consistency check optionally strict\nFor some pypsa functions we need input that is already checked in the consistency checks. Therefore it would be good to have the consistency checks optionally in strict mode to raise an error instead of a warning. \r\n\r\nFor example, for generalized plotting functions we need colors for all carriers defined. In the context of a soft consistency check this in `n.consistency_check()` would only lead to a warning. But for more complex plotting routines this should be a hard check and would raise an error. The trigger, could be an optional argument `strict`. I then would imagine to run code like  `n.consistency.check_carrier_colors(strict=True)`.\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

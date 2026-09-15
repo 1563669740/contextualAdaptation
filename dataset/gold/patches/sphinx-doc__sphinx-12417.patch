@@ -1,0 +1,208 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 96e6b18da59..64a80c3859e 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -48,6 +48,10 @@ Bugs fixed
+ * #12380: LaTeX: Footnote mark sometimes indicates ``Page N`` where ``N`` is
+   the current page number and the footnote does appear on that same page.
+   Patch by Jean-François B.
++* #12416: :confval:`root_doc` is synchronized with :confval:`master_doc`
++  so that if either of the two values is modified, the other reflects that
++  modification. It is still recommended to use :confval:`root_doc`.
++  Patch by Bénédikt Tran.
+ 
+ Testing
+ -------
+diff --git a/sphinx/builders/epub3.py b/sphinx/builders/epub3.py
+index 91c76e41c32..1e02787df06 100644
+--- a/sphinx/builders/epub3.py
++++ b/sphinx/builders/epub3.py
+@@ -255,7 +255,7 @@ def convert_epub_css_files(app: Sphinx, config: Config) -> None:
+                 logger.warning(__('invalid css_file: %r, ignored'), entry)
+                 continue
+ 
+-    config.epub_css_files = epub_css_files  # type: ignore[attr-defined]
++    config.epub_css_files = epub_css_files
+ 
+ 
+ def setup(app: Sphinx) -> ExtensionMetadata:
+diff --git a/sphinx/builders/gettext.py b/sphinx/builders/gettext.py
+index fb5bd11e013..274179b9887 100644
+--- a/sphinx/builders/gettext.py
++++ b/sphinx/builders/gettext.py
+@@ -299,9 +299,9 @@ def _gettext_compact_validator(app: Sphinx, config: Config) -> None:
+     gettext_compact = config.gettext_compact
+     # Convert 0/1 from the command line to ``bool`` types
+     if gettext_compact == '0':
+-        config.gettext_compact = False  # type: ignore[attr-defined]
++        config.gettext_compact = False
+     elif gettext_compact == '1':
+-        config.gettext_compact = True  # type: ignore[attr-defined]
++        config.gettext_compact = True
+ 
+ 
+ def setup(app: Sphinx) -> ExtensionMetadata:
+diff --git a/sphinx/builders/html/__init__.py b/sphinx/builders/html/__init__.py
+index 75b0a394ba9..ee4474b64f0 100644
+--- a/sphinx/builders/html/__init__.py
++++ b/sphinx/builders/html/__init__.py
+@@ -1187,7 +1187,7 @@ def convert_html_css_files(app: Sphinx, config: Config) -> None:
+                 logger.warning(__('invalid css_file: %r, ignored'), entry)
+                 continue
+ 
+-    config.html_css_files = html_css_files  # type: ignore[attr-defined]
++    config.html_css_files = html_css_files
+ 
+ 
+ def _format_modified_time(timestamp: float) -> str:
+@@ -1210,7 +1210,7 @@ def convert_html_js_files(app: Sphinx, config: Config) -> None:
+                 logger.warning(__('invalid js_file: %r, ignored'), entry)
+                 continue
+ 
+-    config.html_js_files = html_js_files  # type: ignore[attr-defined]
++    config.html_js_files = html_js_files
+ 
+ 
+ def setup_resource_paths(app: Sphinx, pagename: str, templatename: str,
+@@ -1273,7 +1273,7 @@ def validate_html_logo(app: Sphinx, config: Config) -> None:
+             not path.isfile(path.join(app.confdir, config.html_logo)) and
+             not isurl(config.html_logo)):
+         logger.warning(__('logo file %r does not exist'), config.html_logo)
+-        config.html_logo = None  # type: ignore[attr-defined]
++        config.html_logo = None
+ 
+ 
+ def validate_html_favicon(app: Sphinx, config: Config) -> None:
+@@ -1282,7 +1282,7 @@ def validate_html_favicon(app: Sphinx, config: Config) -> None:
+             not path.isfile(path.join(app.confdir, config.html_favicon)) and
+             not isurl(config.html_favicon)):
+         logger.warning(__('favicon file %r does not exist'), config.html_favicon)
+-        config.html_favicon = None  # type: ignore[attr-defined]
++        config.html_favicon = None
+ 
+ 
+ def error_on_html_4(_app: Sphinx, config: Config) -> None:
+diff --git a/sphinx/config.py b/sphinx/config.py
+index 1f4b47067ab..43781499588 100644
+--- a/sphinx/config.py
++++ b/sphinx/config.py
+@@ -385,6 +385,15 @@ def __repr__(self) -> str:
+             values.append(f"{opt_name}={opt_value!r}")
+         return self.__class__.__qualname__ + '(' + ', '.join(values) + ')'
+ 
++    def __setattr__(self, key: str, value: Any) -> None:
++        # if someone is still using 'master_doc', we need to update 'root_doc'
++        if key in ('master_doc', 'root_doc'):
++            super().__setattr__('root_doc', value)
++            super().__setattr__('master_doc', value)
++            return
++
++        super().__setattr__(key, value)
++
+     def __getattr__(self, name: str) -> Any:
+         if name in self._options:
+             # first check command-line overrides
+@@ -561,10 +570,10 @@ def convert_source_suffix(app: Sphinx, config: Config) -> None:
+         #
+         # The default filetype is determined on later step.
+         # By default, it is considered as restructuredtext.
+-        config.source_suffix = {source_suffix: None}  # type: ignore[attr-defined]
++        config.source_suffix = {source_suffix: None}
+     elif isinstance(source_suffix, (list, tuple)):
+         # if list, considers as all of them are default filetype
+-        config.source_suffix = dict.fromkeys(source_suffix, None)  # type: ignore[attr-defined]
++        config.source_suffix = dict.fromkeys(source_suffix, None)
+     elif not isinstance(source_suffix, dict):
+         logger.warning(__("The config value `source_suffix' expects "
+                           "a string, list of strings, or dictionary. "
+@@ -580,8 +589,7 @@ def convert_highlight_options(app: Sphinx, config: Config) -> None:
+     options = config.highlight_options
+     if options and not all(isinstance(v, dict) for v in options.values()):
+         # old styled option detected because all values are not dictionary.
+-        config.highlight_options = {config.highlight_language:  # type: ignore[attr-defined]
+-                                    options}
++        config.highlight_options = {config.highlight_language: options}
+ 
+ 
+ def init_numfig_format(app: Sphinx, config: Config) -> None:
+@@ -593,7 +601,7 @@ def init_numfig_format(app: Sphinx, config: Config) -> None:
+ 
+     # override default labels by configuration
+     numfig_format.update(config.numfig_format)
+-    config.numfig_format = numfig_format  # type: ignore[attr-defined]
++    config.numfig_format = numfig_format
+ 
+ 
+ def correct_copyright_year(_app: Sphinx, config: Config) -> None:
+@@ -713,7 +721,7 @@ def check_primary_domain(app: Sphinx, config: Config) -> None:
+     primary_domain = config.primary_domain
+     if primary_domain and not app.registry.has_domain(primary_domain):
+         logger.warning(__('primary_domain %r not found, ignored.'), primary_domain)
+-        config.primary_domain = None  # type: ignore[attr-defined]
++        config.primary_domain = None
+ 
+ 
+ def check_root_doc(app: Sphinx, env: BuildEnvironment, added: set[str],
+@@ -726,7 +734,7 @@ def check_root_doc(app: Sphinx, env: BuildEnvironment, added: set[str],
+             'contents' in app.project.docnames):
+         logger.warning(__('Since v2.0, Sphinx uses "index" as root_doc by default. '
+                           'Please add "root_doc = \'contents\'" to your conf.py.'))
+-        app.config.root_doc = "contents"  # type: ignore[attr-defined]
++        app.config.root_doc = "contents"
+ 
+     return changed
+ 
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 197aca25d12..b3fb3e0c41f 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -2721,10 +2721,10 @@ def get_doc(self) -> list[list[str]] | None:
+             # a docstring from the value which descriptor returns unexpectedly.
+             # ref: https://github.com/sphinx-doc/sphinx/issues/7805
+             orig = self.config.autodoc_inherit_docstrings
+-            self.config.autodoc_inherit_docstrings = False  # type: ignore[attr-defined]
++            self.config.autodoc_inherit_docstrings = False
+             return super().get_doc()
+         finally:
+-            self.config.autodoc_inherit_docstrings = orig  # type: ignore[attr-defined]
++            self.config.autodoc_inherit_docstrings = orig
+ 
+     def add_content(self, more_content: StringList | None) -> None:
+         # Disable analyzing attribute comment on Documenter.add_content() to control it on
+diff --git a/sphinx/ext/autosummary/generate.py b/sphinx/ext/autosummary/generate.py
+index 486625639c6..c400d720e8e 100644
+--- a/sphinx/ext/autosummary/generate.py
++++ b/sphinx/ext/autosummary/generate.py
+@@ -740,9 +740,7 @@ def main(argv: Sequence[str] = (), /) -> None:
+ 
+     if args.templates:
+         app.config.templates_path.append(path.abspath(args.templates))
+-    app.config.autosummary_ignore_module_all = (  # type: ignore[attr-defined]
+-        not args.respect_module_all
+-    )
++    app.config.autosummary_ignore_module_all = (not args.respect_module_all)
+ 
+     generate_autosummary_docs(args.source_file, args.output_dir,
+                               '.' + args.suffix,
+diff --git a/sphinx/transforms/i18n.py b/sphinx/transforms/i18n.py
+index 88b7f416e4b..6caf28ef658 100644
+--- a/sphinx/transforms/i18n.py
++++ b/sphinx/transforms/i18n.py
+@@ -64,7 +64,7 @@ def publish_msgstr(app: Sphinx, source: str, source_path: str, source_line: int,
+     try:
+         # clear rst_prolog temporarily
+         rst_prolog = config.rst_prolog
+-        config.rst_prolog = None  # type: ignore[attr-defined]
++        config.rst_prolog = None
+ 
+         from sphinx.io import SphinxI18nReader
+         reader = SphinxI18nReader()
+@@ -81,7 +81,7 @@ def publish_msgstr(app: Sphinx, source: str, source_path: str, source_line: int,
+             return doc[0]
+         return doc
+     finally:
+-        config.rst_prolog = rst_prolog  # type: ignore[attr-defined]
++        config.rst_prolog = rst_prolog
+ 
+ 
+ def parse_noqa(source: str) -> tuple[str, bool]:

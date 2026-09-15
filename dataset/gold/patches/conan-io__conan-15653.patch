@@ -1,0 +1,13 @@
+diff --git a/conans/model/version_range.py b/conans/model/version_range.py
+index 4360758a109..97778f68cf6 100644
+--- a/conans/model/version_range.py
++++ b/conans/model/version_range.py
+@@ -12,7 +12,7 @@ def __init__(self, operator, version):
+         self.display_version = version
+ 
+         value = str(version)
+-        if (operator == ">=" or operator == "<") and "-" not in value:
++        if (operator == ">=" or operator == "<") and "-" not in value and version.build is None:
+             value += "-"
+         self.version = Version(value)
+ 

@@ -1,0 +1,37 @@
+diff --git a/docs/changelog/3247.bugfix.rst b/docs/changelog/3247.bugfix.rst
+new file mode 100644
+index 000000000..f94bcc9e7
+--- /dev/null
++++ b/docs/changelog/3247.bugfix.rst
+@@ -0,0 +1,1 @@
++Fix issue that the leading character ``c`` was dropped from packages in constraints files - by :user:`jugmac00`.
+diff --git a/src/tox/tox_env/python/pip/pip_install.py b/src/tox/tox_env/python/pip/pip_install.py
+index 4b75c2b3c..f09d98d03 100644
+--- a/src/tox/tox_env/python/pip/pip_install.py
++++ b/src/tox/tox_env/python/pip/pip_install.py
+@@ -107,7 +107,7 @@ def constrain_package_deps(self) -> bool:
+     def use_frozen_constraints(self) -> bool:
+         return bool(self._env.conf["use_frozen_constraints"])
+ 
+-    def _install_requirement_file(self, arguments: PythonDeps, section: str, of_type: str) -> None:
++    def _install_requirement_file(self, arguments: PythonDeps, section: str, of_type: str) -> None:  # noqa: C901
+         try:
+             new_options, new_reqs = arguments.unroll()
+         except ValueError as exception:
+@@ -145,7 +145,15 @@ def _install_requirement_file(self, arguments: PythonDeps, section: str, of_type
+                 if args:  # pragma: no branch
+                     self._execute_installer(args, of_type)
+                     if self.constrain_package_deps and not self.use_frozen_constraints:
+-                        combined_constraints = new_requirements + [c.lstrip("-c ") for c in new_constraints]
++                        # when we drop Python 3.8 we can use the builtin `.removeprefix`
++                        def remove_prefix(text: str, prefix: str) -> str:
++                            if text.startswith(prefix):
++                                return text[len(prefix) :]
++                            return text
++
++                        combined_constraints = new_requirements + [
++                            remove_prefix(text=c, prefix="-c ") for c in new_constraints
++                        ]
+                         self.constraints_file().write_text("\n".join(combined_constraints))
+ 
+     @staticmethod

@@ -1,0 +1,94 @@
+diff --git a/src/instructlab/cli/data/generate.py b/src/instructlab/cli/data/generate.py
+index 4b27a962dd..d1f01344eb 100644
+--- a/src/instructlab/cli/data/generate.py
++++ b/src/instructlab/cli/data/generate.py
+@@ -280,6 +280,7 @@ def generate(
+             system_prompt,
+             legacy_pretraining_format,
+         )
++        click.echo("ᕦ(òᴗóˇ)ᕤ Data generate completed successfully! ᕦ(òᴗóˇ)ᕤ")
+     except Exception as exc:
+         click.secho(f"failed to generate data with exception: {exc}", fg="red")
+         raise click.exceptions.Exit(1)
+diff --git a/src/instructlab/cli/model/train.py b/src/instructlab/cli/model/train.py
+index 97b5087946..e764de3d77 100644
+--- a/src/instructlab/cli/model/train.py
++++ b/src/instructlab/cli/model/train.py
+@@ -498,6 +498,7 @@ def train(
+         full_train.train(
+             train_args=train_args, device=device, optimize_memory=optimize_memory
+         )
++        click.echo("ᕦ(òᴗóˇ)ᕤ Full model training completed successfully! ᕦ(òᴗóˇ)ᕤ")
+     elif pipeline == "simple":
+         # First Party
+         from instructlab.model import simple_train
+@@ -518,6 +519,9 @@ def train(
+                 device=device,
+                 four_bit_quant=four_bit_quant,
+             )
++            click.echo(
++                "ᕦ(òᴗóˇ)ᕤ Simple Model training completed successfully! ᕦ(òᴗóˇ)ᕤ"
++            )
+         except Exception as exc:
+             click.secho(f"{exc}", fg="red")
+             raise click.exceptions.Exit(1)
+diff --git a/src/instructlab/model/accelerated_train.py b/src/instructlab/model/accelerated_train.py
+index 3775ce013d..cbc7bfe38a 100644
+--- a/src/instructlab/model/accelerated_train.py
++++ b/src/instructlab/model/accelerated_train.py
+@@ -483,7 +483,7 @@ def _run_phased_training(
+         )
+ 
+     click.secho(
+-        f"Training finished! Best final checkpoint: {output_checkpoint.checkpoint} with score: {output_checkpoint.score}\nJournal: {str(journal.journalfile)}",
++        f"ᕦ(òᴗóˇ)ᕤ Accelerated model training completed successfully! ᕦ(òᴗóˇ)ᕤ\nBest final checkpoint: {output_checkpoint.checkpoint} with score: {output_checkpoint.score}\nJournal: {str(journal.journalfile)}",
+         fg="green",
+     )
+ 
+diff --git a/src/instructlab/model/convert.py b/src/instructlab/model/convert.py
+index d5c57b0ef6..bbfe14faaf 100644
+--- a/src/instructlab/model/convert.py
++++ b/src/instructlab/model/convert.py
+@@ -124,3 +124,4 @@ def convert(
+ 
+     logger.info(f"deleting {source_model_dir}...")
+     shutil.rmtree(source_model_dir)
++    click.echo("ᕦ(òᴗóˇ)ᕤ Model convert completed successfully! ᕦ(òᴗóˇ)ᕤ")
+diff --git a/src/instructlab/model/evaluate.py b/src/instructlab/model/evaluate.py
+index edff2bf3af..2d0697ca6a 100644
+--- a/src/instructlab/model/evaluate.py
++++ b/src/instructlab/model/evaluate.py
+@@ -639,6 +639,7 @@ def evaluate(
+                 turn2_score = round(turn2_score, 2)
+             print(turn2_score)
+             display_error_rate(error_rate)
++            click.echo("\nᕦ(òᴗóˇ)ᕤ Model evaluate with MTBench completed! ᕦ(òᴗóˇ)ᕤ")
+ 
+         elif benchmark == Benchmark.MT_BENCH_BRANCH:
+             # Third Party
+@@ -777,6 +778,9 @@ def evaluate(
+                 new_qnas,
+             )
+             display_error_rate((error_rate + base_error_rate) / 2)
++            click.echo(
++                "\nᕦ(òᴗóˇ)ᕤ Model evaluate with MTBenchBranch completed! ᕦ(òᴗóˇ)ᕤ"
++            )
+ 
+         elif benchmark == Benchmark.MMLU:
+             # Third Party
+@@ -822,6 +826,7 @@ def evaluate(
+             for task, score in individual_scores.items():
+                 s = round(score["score"], 2)
+                 print(f"{task} - {s}")
++            click.echo("\nᕦ(òᴗóˇ)ᕤ Model evaluate with MMLU completed! ᕦ(òᴗóˇ)ᕤ")
+ 
+         elif benchmark == Benchmark.MMLU_BRANCH:
+             # Third Party
+@@ -901,6 +906,7 @@ def evaluate(
+             display_branch_eval_summary(
+                 Benchmark.MMLU_BRANCH, improvements, regressions, no_changes
+             )
++            click.echo("\nᕦ(òᴗóˇ)ᕤ Model evaluate with MMLUBranch completed! ᕦ(òᴗóˇ)ᕤ")
+     except EvalError as ee:
+         print(ee.message)
+         logger.debug("Traceback", exc_info=True)

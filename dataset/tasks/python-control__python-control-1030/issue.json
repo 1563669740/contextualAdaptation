@@ -1,0 +1,13 @@
+{
+  "task_id": "python-control__python-control-1030",
+  "repo": "python-control/python-control",
+  "issue_number": "1025",
+  "issue_url": "https://github.com/python-control/python-control/issues/1025",
+  "issue_created_at": "1970-01-01 00:28:40.888146+00:00",
+  "issue_title": "`control.combine_time_responses` fails to combine time responses",
+  "issue_body": "Using `control.combine_time_responses` results in the following error:\r\n\r\n```python\r\nAttributeError: 'TimeResponseData' object has no attribute 'types'\r\n```\r\nThis is because the code that adds new trace labels to the combined data has a bug where is trying to access a `types` attribute from the `TimeResponseData` objects instead of `trace_types`.",
+  "problem_statement": "`control.combine_time_responses` fails to combine time responses\nUsing `control.combine_time_responses` results in the following error:\r\n\r\n```python\r\nAttributeError: 'TimeResponseData' object has no attribute 'types'\r\n```\r\nThis is because the code that adds new trace labels to the combined data has a bug where is trying to access a `types` attribute from the `TimeResponseData` objects instead of `trace_types`.\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

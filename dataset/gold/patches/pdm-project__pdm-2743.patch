@@ -1,0 +1,90 @@
+diff --git a/news/2665.bugfix.md b/news/2665.bugfix.md
+new file mode 100644
+index 0000000000..e1acc54de5
+--- /dev/null
++++ b/news/2665.bugfix.md
+@@ -0,0 +1,2 @@
++Fix errors when parsing poetry format that contains special characters in author name.
++Poetry-specific `parse_name_email` and `NAME_EMAIL_RE` moved from `pdm.formats.base` to `pdm.formats.poetry`.
+diff --git a/src/pdm/formats/base.py b/src/pdm/formats/base.py
+index af4fa72e3b..108ef06f57 100644
+--- a/src/pdm/formats/base.py
++++ b/src/pdm/formats/base.py
+@@ -1,6 +1,5 @@
+ from __future__ import annotations
+ 
+-import re
+ from typing import Any, Callable, Mapping, TypeVar, cast
+ 
+ import tomlkit
+@@ -86,9 +85,6 @@ def convert(self) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+         return self._data, self.settings
+ 
+ 
+-NAME_EMAIL_RE = re.compile(r"(?P<name>[^,]+?)\s*(?:<(?P<email>.+)>)?\s*$")
+-
+-
+ def make_inline_table(data: Mapping) -> dict:
+     """Create an inline table from the given data."""
+     table = cast(dict, tomlkit.inline_table())
+@@ -106,16 +102,3 @@ def make_array(data: list, multiline: bool = False) -> list:
+ 
+ def array_of_inline_tables(value: list[Mapping], multiline: bool = True) -> list[str]:
+     return make_array([make_inline_table(item) for item in value], multiline)
+-
+-
+-def parse_name_email(name_email: list[str]) -> list[str]:
+-    return array_of_inline_tables(
+-        [
+-            {
+-                k: v
+-                for k, v in NAME_EMAIL_RE.match(item).groupdict().items()  # type: ignore[union-attr]
+-                if v is not None
+-            }
+-            for item in name_email
+-        ]
+-    )
+diff --git a/src/pdm/formats/poetry.py b/src/pdm/formats/poetry.py
+index c05463e53d..440bb9cb83 100644
+--- a/src/pdm/formats/poetry.py
++++ b/src/pdm/formats/poetry.py
+@@ -11,10 +11,10 @@
+ from pdm.formats.base import (
+     MetaConverter,
+     Unset,
++    array_of_inline_tables,
+     convert_from,
+     make_array,
+     make_inline_table,
+-    parse_name_email,
+ )
+ from pdm.models.markers import Marker, get_marker
+ from pdm.models.requirements import Requirement
+@@ -93,6 +93,27 @@ def _convert_req(name: str, req_dict: RequirementDict | list[RequirementDict]) -
+         yield Requirement.from_req_dict(name, req_dict).as_line()
+ 
+ 
++# See https://github.com/python-poetry/poetry-core/pull/521#issuecomment-1327689551
++# for reasoning why email.utils.parseaddr is not used here.
++NAME_EMAIL_RE = re.compile(
++    r"^(?P<name>[- .,\w'’\"():&]+)(?: <(?P<email>.+?)>)?$",  # noqa: RUF001
++    re.UNICODE,
++)
++
++
++def parse_name_email(name_email: list[str]) -> list[str]:
++    return array_of_inline_tables(
++        [
++            {
++                k: v
++                for k, v in NAME_EMAIL_RE.match(item).groupdict().items()  # type: ignore[union-attr]
++                if v is not None
++            }
++            for item in name_email
++        ]
++    )
++
++
+ class PoetryMetaConverter(MetaConverter):
+     @convert_from("authors")
+     def authors(self, value: list[str]) -> list[str]:

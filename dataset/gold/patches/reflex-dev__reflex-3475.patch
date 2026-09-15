@@ -1,0 +1,154 @@
+diff --git a/reflex/.templates/web/utils/state.js b/reflex/.templates/web/utils/state.js
+index 35a129337bd..5c9634d0864 100644
+--- a/reflex/.templates/web/utils/state.js
++++ b/reflex/.templates/web/utils/state.js
+@@ -107,6 +107,18 @@ export const getBackendURL = (url_str) => {
+   return endpoint;
+ };
+ 
++/**
++ * Determine if any event in the event queue is stateful.
++ *
++ * @returns True if there's any event that requires state and False if none of them do.
++ */
++export const isStateful = () => {
++  if (event_queue.length === 0) {
++    return false;
++  }
++  return event_queue.some(event => event.name.startsWith("state"));
++}
++
+ /**
+  * Apply a delta to the state.
+  * @param state The state to apply the delta to.
+@@ -116,6 +128,20 @@ export const applyDelta = (state, delta) => {
+   return { ...state, ...delta };
+ };
+ 
++/**
++ * Only Queue and process events when websocket connection exists.
++ * @param event The event to queue.
++ * @param socket The socket object to send the event on.
++ *
++ * @returns Adds event to queue and processes it if websocket exits, does nothing otherwise.
++ */
++export const queueEventIfSocketExists = async (events, socket) => {
++  if (!socket) {
++    return;
++  }
++  await queueEvents(events, socket);
++}
++
+ /**
+  * Handle frontend event or send the event to the backend via Websocket.
+  * @param event The event to send.
+@@ -143,19 +169,19 @@ export const applyEvent = async (event, socket) => {
+ 
+   if (event.name == "_remove_cookie") {
+     cookies.remove(event.payload.key, { ...event.payload.options });
+-    queueEvents(initialEvents(), socket);
++    queueEventIfSocketExists(initialEvents(), socket);
+     return false;
+   }
+ 
+   if (event.name == "_clear_local_storage") {
+     localStorage.clear();
+-    queueEvents(initialEvents(), socket);
++    queueEventIfSocketExists(initialEvents(), socket);
+     return false;
+   }
+ 
+   if (event.name == "_remove_local_storage") {
+     localStorage.removeItem(event.payload.key);
+-    queueEvents(initialEvents(), socket);
++    queueEventIfSocketExists(initialEvents(), socket);
+     return false;
+   }
+ 
+@@ -249,7 +275,7 @@ export const applyRestEvent = async (event, socket) => {
+   let eventSent = false;
+   if (event.handler === "uploadFiles") {
+ 
+-    if (event.payload.files === undefined || event.payload.files.length === 0){
++    if (event.payload.files === undefined || event.payload.files.length === 0) {
+       // Submit the event over the websocket to trigger the event handler.
+       return await applyEvent(Event(event.name), socket)
+     }
+@@ -282,8 +308,8 @@ export const queueEvents = async (events, socket) => {
+  * @param socket The socket object to send the event on.
+  */
+ export const processEvent = async (socket) => {
+-  // Only proceed if the socket is up, otherwise we throw the event into the void
+-  if (!socket) {
++  // Only proceed if the socket is up and no event in the queue uses state, otherwise we throw the event into the void
++  if (!socket && isStateful()) {
+     return;
+   }
+ 
+@@ -684,7 +710,7 @@ export const useEventLoop = (
+     const change_start = () => {
+       const main_state_dispatch = dispatch["state"]
+       if (main_state_dispatch !== undefined) {
+-        main_state_dispatch({is_hydrated: false})
++        main_state_dispatch({ is_hydrated: false })
+       }
+     }
+     const change_complete = () => addEvents(onLoadInternalEvent());
+diff --git a/reflex/app.py b/reflex/app.py
+index 65bc32438d5..5441ce9870d 100644
+--- a/reflex/app.py
++++ b/reflex/app.py
+@@ -541,7 +541,7 @@ def add_page(
+ 
+         # Ensure state is enabled if this page uses state.
+         if self.state is None:
+-            if on_load or component._has_event_triggers():
++            if on_load or component._has_stateful_event_triggers():
+                 self._enable_state()
+             else:
+                 for var in component._get_vars(include_children=True):
+diff --git a/reflex/components/component.py b/reflex/components/component.py
+index e465e209108..754344cd269 100644
+--- a/reflex/components/component.py
++++ b/reflex/components/component.py
+@@ -1113,17 +1113,35 @@ def _get_vars(self, include_children: bool = False) -> list[Var]:
+ 
+         return vars
+ 
+-    def _has_event_triggers(self) -> bool:
+-        """Check if the component or children have any event triggers.
++    def _event_trigger_values_use_state(self) -> bool:
++        """Check if the values of a component's event trigger use state.
+ 
+         Returns:
+-            True if the component or children have any event triggers.
++            True if any of the component's event trigger values uses State.
+         """
+-        if self.event_triggers:
++        for trigger in self.event_triggers.values():
++            if isinstance(trigger, EventChain):
++                for event in trigger.events:
++                    if event.handler.state_full_name:
++                        return True
++            elif isinstance(trigger, Var) and trigger._var_state:
++                return True
++        return False
++
++    def _has_stateful_event_triggers(self):
++        """Check if component or children have any event triggers that use state.
++
++        Returns:
++            True if the component or children have any event triggers that uses state.
++        """
++        if self.event_triggers and self._event_trigger_values_use_state():
+             return True
+         else:
+             for child in self.children:
+-                if isinstance(child, Component) and child._has_event_triggers():
++                if (
++                    isinstance(child, Component)
++                    and child._has_stateful_event_triggers()
++                ):
+                     return True
+         return False
+ 

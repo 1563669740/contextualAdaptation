@@ -1,0 +1,696 @@
+{
+ "schema": "tifs-code-index/1.0",
+ "generated_utc": "2026-09-15T00:45:27Z",
+ "authoritative_root": "experiment_root",
+ "code_root": "code/",
+ "note": [
+  "code/ 是 experiment_root 的可追溯归档镜像 + 统一入口；权威副本始终是 experiment_root。",
+  "byte_identical_to_source=false 的文件带 adaptation 字段，逐字说明改了什么。",
+  "本目录不参与 experiment_root 的冻结哈希，也不被 tools/audit.py 扫描。"
+ ],
+ "counts": {
+  "files": 55,
+  "byte_identical": 54,
+  "adapted": 1,
+  "auto_adopted": 0,
+  "groups": 11,
+  "sync_added": 0,
+  "sync_updated": 0,
+  "sync_unchanged": 55
+ },
+ "groups": {
+  "01_infra_noncontainer": {
+   "n": 3,
+   "files": [
+    "01_infra_noncontainer/fetch_repos.py",
+    "01_infra_noncontainer/fetch_repos_tarball.py",
+    "01_infra_noncontainer/task_env.py"
+   ]
+  },
+  "02_freeze_protocol": {
+   "n": 9,
+   "files": [
+    "02_freeze_protocol/build_allocation.py",
+    "02_freeze_protocol/build_context_packages.py",
+    "02_freeze_protocol/build_env_manifests.py",
+    "02_freeze_protocol/build_inventory.py",
+    "02_freeze_protocol/build_paper_artefacts.py",
+    "02_freeze_protocol/build_protocol.py",
+    "02_freeze_protocol/build_role_artifacts.py",
+    "02_freeze_protocol/build_understanding_quiz.py",
+    "02_freeze_protocol/pipeline_tick.py"
+   ]
+  },
+  "03_leakage": {
+   "n": 2,
+   "files": [
+    "03_leakage/adjudicate_leakage.py",
+    "03_leakage/screen_answer_leakage.py"
+   ]
+  },
+  "04_session": {
+   "n": 3,
+   "files": [
+    "04_session/pilot_gates.py",
+    "04_session/rehearse_session.py",
+    "04_session/session_runner.py"
+   ]
+  },
+  "05_evaluation": {
+   "n": 6,
+   "files": [
+    "05_evaluation/admission_gate.py",
+    "05_evaluation/aggregate_metrics.py",
+    "05_evaluation/evaluate.py",
+    "05_evaluation/f2p_check.py",
+    "05_evaluation/f2p_check2.py",
+    "05_evaluation/which_fail.py"
+   ]
+  },
+  "06_holdout": {
+   "n": 14,
+   "files": [
+    "06_holdout/calib_summary.py",
+    "06_holdout/find_authorable.py",
+    "06_holdout/holdout_author.py",
+    "06_holdout/holdout_probe.py",
+    "06_holdout/make_holdout_diff.py",
+    "06_holdout/make_holdout_diff2.py",
+    "06_holdout/measure_authorable.py",
+    "06_holdout/probes/probe_babel.py",
+    "06_holdout/probes/probe_holdout.py",
+    "06_holdout/probes/probe_lines.py",
+    "06_holdout/probes/probe_weak_quiz.py",
+    "06_holdout/probes/probe_widths.py",
+    "06_holdout/probes/probe_wrapper.py",
+    "06_holdout/show_verify.py"
+   ]
+  },
+  "07_rq2_coding": {
+   "n": 2,
+   "files": [
+    "07_rq2_coding/kappa_prevalence.py",
+    "07_rq2_coding/rq2_coding.py"
+   ]
+  },
+  "08_rq3_policy": {
+   "n": 5,
+   "files": [
+    "08_rq3_policy/diagnostics/diag_freq.py",
+    "08_rq3_policy/diagnostics/diag_p1.py",
+    "08_rq3_policy/diagnostics/diag_p1b.py",
+    "08_rq3_policy/exercise_thresholds.py",
+    "08_rq3_policy/online_policy.py"
+   ]
+  },
+  "09_rq1_rq4_analysis": {
+   "n": 2,
+   "files": [
+    "09_rq1_rq4_analysis/check_pipeline.py",
+    "09_rq1_rq4_analysis/simulate.py"
+   ]
+  },
+  "10_audit": {
+   "n": 1,
+   "files": [
+    "10_audit/audit.py"
+   ]
+  },
+  "99_scratch": {
+   "n": 8,
+   "files": [
+    "99_scratch/deep_diag.py",
+    "99_scratch/extract_paper.py",
+    "99_scratch/fix_bcp.py",
+    "99_scratch/fix_paths.py",
+    "99_scratch/gold_diag.py",
+    "99_scratch/patch_fetch.py",
+    "99_scratch/probe_local.py",
+    "99_scratch/probe_po24.py"
+   ]
+  }
+ },
+ "unmapped_not_copied": [],
+ "files": [
+  {
+   "path": "01_infra_noncontainer/fetch_repos.py",
+   "source": "experiment_root/repo_cache/fetch_repos.py",
+   "bytes": 16189,
+   "source_sha256": "274f56be72e2e10261661032e31f1c86da9bde26c23e5dafcc2067fdefda598a",
+   "target_sha256": "2f4371f38e7534b40ea0838cca1402521d16a81081d5b06f022bd6654c38fc2d",
+   "byte_identical_to_source": false,
+   "role": "38 个 base repository 抓取（git 路径）+ base commit 内容清单与快照",
+   "paper": "§IV-A 主数据源；§V-E 步骤 2 环境恢复",
+   "adaptation": {
+    "adapter": "path_pin",
+    "line": "CACHE = os.path.dirname(os.path.abspath(__file__))",
+    "replaced_with": "CACHE = r\"C:\\Users\\Administrator\\Desktop\\TIFS\\experiment_root\\repo_cache\"  # code-tree adapter: pin to the authoritative cache",
+    "n_matches": 1
+   }
+  },
+  {
+   "path": "01_infra_noncontainer/fetch_repos_tarball.py",
+   "source": "experiment_root/repo_cache/fetch_repos_tarball.py",
+   "bytes": 11527,
+   "source_sha256": "7ef3ff97bcaaf80587b27d055935a7a950f77464c217cfdfe3646cfaf7dd52da",
+   "target_sha256": "7ef3ff97bcaaf80587b27d055935a7a950f77464c217cfdfe3646cfaf7dd52da",
+   "byte_identical_to_source": true,
+   "role": "codeload tarball 兜底抓取（git 协商失败时补齐剩余仓库），两条路径同一 schema",
+   "paper": "§IV-A 主数据源"
+  },
+  {
+   "path": "01_infra_noncontainer/task_env.py",
+   "source": "experiment_root/tools/task_env.py",
+   "bytes": 17437,
+   "source_sha256": "5e54600a3af9b34525cb605ed2fb667288d5febbbdc812d7fc93d496a60dba7f",
+   "target_sha256": "5e54600a3af9b34525cb605ed2fb667288d5febbbdc812d7fc93d496a60dba7f",
+   "byte_identical_to_source": true,
+   "role": "任务环境底座：按 task manifest 重建工作树、装依赖、跑可见测试",
+   "paper": "§V-E 单个 Session 流程（步骤 2–3）；方案 §2.3 每任务 environment manifest"
+  },
+  {
+   "path": "02_freeze_protocol/build_allocation.py",
+   "source": "experiment_root/tools/build_allocation.py",
+   "bytes": 19514,
+   "source_sha256": "bd1079bd7f20b5c5fd7307b2f08315ae5123f4ebfa523f6799a8dbbc53ff4c4f",
+   "target_sha256": "bd1079bd7f20b5c5fd7307b2f08315ae5123f4ebfa523f6799a8dbbc53ff4c4f",
+   "byte_identical_to_source": true,
+   "role": "Pilot/Discovery/Held-out 划分、2×3 平衡分配、C1–C6 约束校验、种子 20260301 冻结",
+   "paper": "§V-C 2×3 因子与不完全区组设计；§III-D 冻结记录",
+   "note": "record['generator_sha256'] 记录的是本文件自身哈希，复制件不改变该值（它只读 experiment_root 的原件）"
+  },
+  {
+   "path": "02_freeze_protocol/build_context_packages.py",
+   "source": "experiment_root/tools/build_context_packages.py",
+   "bytes": 28335,
+   "source_sha256": "283d2c79dc93cabcd2b470a789c289172351ba0890219fedf54086058fee9581",
+   "target_sha256": "283d2c79dc93cabcd2b470a789c289172351ba0890219fedf54086058fee9581",
+   "byte_identical_to_source": true,
+   "role": "Chigh context package 生成（六节结构 + 防泄漏自证，从不读 gold）",
+   "paper": "§V-A Context-Enriched（Chigh）"
+  },
+  {
+   "path": "02_freeze_protocol/build_env_manifests.py",
+   "source": "experiment_root/tools/build_env_manifests.py",
+   "bytes": 11338,
+   "source_sha256": "cef065e8b5f74fbee57eba9f7fff71bbc5c8dad5374c894d4f5667b6df9654f6",
+   "target_sha256": "cef065e8b5f74fbee57eba9f7fff71bbc5c8dad5374c894d4f5667b6df9654f6",
+   "byte_identical_to_source": true,
+   "role": "每任务环境 manifest 与 env_hash（实验机需重录）",
+   "paper": "§V-E 步骤 2；方案 §2.3"
+  },
+  {
+   "path": "02_freeze_protocol/build_inventory.py",
+   "source": "experiment_root/tools/build_inventory.py",
+   "bytes": 16894,
+   "source_sha256": "942ba9c37922af96c773b45328a771236dfc046ad34f2c23452417ca3e90c096",
+   "target_sha256": "942ba9c37922af96c773b45328a771236dfc046ad34f2c23452417ca3e90c096",
+   "byte_identical_to_source": true,
+   "role": "参与者可见 manifest 与 evaluation_only spec 的物理分离（强制可见性）",
+   "paper": "§V-A context 暴露规则；§III-C 发现集与验证集隔离"
+  },
+  {
+   "path": "02_freeze_protocol/build_paper_artefacts.py",
+   "source": "experiment_root/tools/build_paper_artefacts.py",
+   "bytes": 25839,
+   "source_sha256": "158a0a48ddb2485e5e94904622e042c2b98e34dd4327fa5031dcb8e4fd290bd7",
+   "target_sha256": "158a0a48ddb2485e5e94904622e042c2b98e34dd4327fa5031dcb8e4fd290bd7",
+   "byte_identical_to_source": true,
+   "role": "论文图表所需的派生材料的批量构建",
+   "paper": "§VI–§IX 表 V–XV 的材料来源"
+  },
+  {
+   "path": "02_freeze_protocol/build_protocol.py",
+   "source": "experiment_root/tools/build_protocol.py",
+   "bytes": 24550,
+   "source_sha256": "ec754b6abd835d6aa3c8ca87f4e30aec74dfd5d441e49ef5509455db1e63f7b4",
+   "target_sha256": "ec754b6abd835d6aa3c8ca87f4e30aec74dfd5d441e49ef5509455db1e63f7b4",
+   "byte_identical_to_source": true,
+   "role": "协议全文、事件 schema、codebook、Adaptive Policy、指标口径的冻结（M0）",
+   "paper": "§III-D 冻结记录与可复现性；§V-B 三种 delegation regime"
+  },
+  {
+   "path": "02_freeze_protocol/build_role_artifacts.py",
+   "source": "experiment_root/tools/build_role_artifacts.py",
+   "bytes": 13369,
+   "source_sha256": "f64cf164517d1181c2dbecd64dbc65f5b18cf4aa95f05a95a6ae0a51271d84c9",
+   "target_sha256": "f64cf164517d1181c2dbecd64dbc65f5b18cf4aa95f05a95a6ae0a51271d84c9",
+   "byte_identical_to_source": true,
+   "role": "论文要求但实施方案未列出的 7 项冻结结构（理解检查、语义审查 rubric、可重放、冻结记录等）",
+   "paper": "§III-D、§V-A、§V-G、§VIII-A/B"
+  },
+  {
+   "path": "02_freeze_protocol/build_understanding_quiz.py",
+   "source": "experiment_root/tools/build_understanding_quiz.py",
+   "bytes": 22056,
+   "source_sha256": "55741ed2f474f1eb51ecac1c1b581b292a3c7e36fc7386280b1053c17703046f",
+   "target_sha256": "55741ed2f474f1eb51ecac1c1b581b292a3c7e36fc7386280b1053c17703046f",
+   "byte_identical_to_source": true,
+   "role": "仓库理解检查题目（操纵检查：Chigh 8.4 vs Clow 5.9）",
+   "paper": "§V-A Manipulation 与 treatment-fidelity 检查"
+  },
+  {
+   "path": "02_freeze_protocol/pipeline_tick.py",
+   "source": "experiment_root/_pipeline_tick.py",
+   "bytes": 2901,
+   "source_sha256": "4f0e9af668dd5e126e612161ebeeaa8db56d772dc85b43d94416af6477902483",
+   "target_sha256": "4f0e9af668dd5e126e612161ebeeaa8db56d772dc85b43d94416af6477902483",
+   "byte_identical_to_source": true,
+   "role": "续跑入口：把 repo 内容快照转成 context package + 环境 manifest",
+   "paper": "§V-A；§V-E 步骤 2"
+  },
+  {
+   "path": "03_leakage/adjudicate_leakage.py",
+   "source": "experiment_root/tools/adjudicate_leakage.py",
+   "bytes": 14341,
+   "source_sha256": "98e3477300c686da74a276cbd8d722b28fbaf6f7ede25ee1ffc6bf294399dbc2",
+   "target_sha256": "98e3477300c686da74a276cbd8d722b28fbaf6f7ede25ee1ffc6bf294399dbc2",
+   "byte_identical_to_source": true,
+   "role": "双评审独立工作表、结论录入、一致性统计与仲裁",
+   "paper": "§IV-B 至少两名研究人员独立阅读 + 第三名仲裁"
+  },
+  {
+   "path": "03_leakage/screen_answer_leakage.py",
+   "source": "experiment_root/tools/screen_answer_leakage.py",
+   "bytes": 10739,
+   "source_sha256": "70da8c49638868e3659b3adb1ce010e86af2238fa7a31ab32900c54aae76a3ed",
+   "target_sha256": "70da8c49638868e3659b3adb1ce010e86af2238fa7a31ab32900c54aae76a3ed",
+   "byte_identical_to_source": true,
+   "role": "216 个任务的答案泄漏机器筛查（hints_text 评论区里的 diff 是最大发现）",
+   "paper": "§IV-B 第 6 条候选任务准入（不含明显答案泄漏）"
+  },
+  {
+   "path": "04_session/pilot_gates.py",
+   "source": "experiment_root/tools/pilot_gates.py",
+   "bytes": 13110,
+   "source_sha256": "5b0b29481d4c9a5250d0794d9ea027ebe684a3c3dfea3b4821e318473a2b622c",
+   "target_sha256": "5b0b29481d4c9a5250d0794d9ea027ebe684a3c3dfea3b4821e318473a2b622c",
+   "byte_identical_to_source": true,
+   "role": "Pilot 八项技术门槛的机器判定（环境可重复、工作区隔离、日志完整、工具等价…）",
+   "paper": "§V-E；方案 §13.1 Pilot 技术门槛"
+  },
+  {
+   "path": "04_session/rehearse_session.py",
+   "source": "experiment_root/tools/rehearse_session.py",
+   "bytes": 8327,
+   "source_sha256": "e46f3bea453f722075ba12c02242a91757fb87219d7029c7b7202a803cf727d5",
+   "target_sha256": "e46f3bea453f722075ba12c02242a91757fb87219d7029c7b7202a803cf727d5",
+   "byte_identical_to_source": true,
+   "role": "按 SOP 用真实 runner 跑一遍 14 步演练",
+   "paper": "§V-E 单个 Session 流程全链路"
+  },
+  {
+   "path": "04_session/session_runner.py",
+   "source": "experiment_root/tools/session_runner.py",
+   "bytes": 20352,
+   "source_sha256": "e8e93ef78130b57075629f26ae151657d16cfd34c60beda7123aba5218c79a67",
+   "target_sha256": "e8e93ef78130b57075629f26ae151657d16cfd34c60beda7123aba5218c79a67",
+   "byte_identical_to_source": true,
+   "role": "Session 时钟、events.jsonl、checkpoint、三 regime 权限守卫、75 分钟硬停止、结果冻结",
+   "paper": "§V-B 操作化定义；§V-E 步骤 3–6；§V-C 权限与 checkpoint 冻结"
+  },
+  {
+   "path": "05_evaluation/admission_gate.py",
+   "source": "experiment_root/tools/admission_gate.py",
+   "bytes": 10531,
+   "source_sha256": "2ed02e1e503bd1a6d190a20783da1156c64652cf4193ee7b9db6ca2b30781c40",
+   "target_sha256": "2ed02e1e503bd1a6d190a20783da1156c64652cf4193ee7b9db6ca2b30781c40",
+   "byte_identical_to_source": true,
+   "role": "预注册准入闸门：gold 自己都过不了的任务分三类并给处理规则（必须在招募前跑）",
+   "paper": "§IV-B 候选任务筛选；§V-G holdout 准入"
+  },
+  {
+   "path": "05_evaluation/aggregate_metrics.py",
+   "source": "experiment_root/tools/aggregate_metrics.py",
+   "bytes": 15592,
+   "source_sha256": "646991aeda4e0ea32c32d183d66fa0b034996b6f3f078ff978b13d79f1e56d88",
+   "target_sha256": "646991aeda4e0ea32c32d183d66fa0b034996b6f3f078ff978b13d79f1e56d88",
+   "byte_identical_to_source": true,
+   "role": "指标汇总：wall clock / human active / context prep 的活动口径与 overlap_warning",
+   "paper": "§V-F；方案 §11.3 时间口径（不得相加当 wall-clock）"
+  },
+  {
+   "path": "05_evaluation/evaluate.py",
+   "source": "experiment_root/evaluation/evaluate.py",
+   "bytes": 18588,
+   "source_sha256": "765986f6b91ab21d016b8c99c67799ec0a2ff9d14449dc23e583994a4e3e21ea",
+   "target_sha256": "765986f6b91ab21d016b8c99c67799ec0a2ff9d14449dc23e583994a4e3e21ea",
+   "byte_identical_to_source": true,
+   "role": "隐藏评价 harness：benchmark F2P/P2P + holdout + holdout 准入验收，独立干净工作区",
+   "paper": "§V-F 因变量与评价指标；§V-G 增强正确性 oracle"
+  },
+  {
+   "path": "05_evaluation/f2p_check.py",
+   "source": "_f2p_check.py",
+   "bytes": 1844,
+   "source_sha256": "35fbea7fea667ff61b00a4c851703ffc83bcf1c34829b5300c84b332e2d7d5ae",
+   "target_sha256": "35fbea7fea667ff61b00a4c851703ffc83bcf1c34829b5300c84b332e2d7d5ae",
+   "byte_identical_to_source": true,
+   "role": "一次性：核对 fail-to-pass 集合在 base/gold 上的实际表现",
+   "paper": "§V-F Benchmark resolved"
+  },
+  {
+   "path": "05_evaluation/f2p_check2.py",
+   "source": "_f2p_check2.py",
+   "bytes": 1349,
+   "source_sha256": "0abc66baf42e222ba4d27b86e80b267ec56e4007290e9c5dc14e0222d5b0626d",
+   "target_sha256": "0abc66baf42e222ba4d27b86e80b267ec56e4007290e9c5dc14e0222d5b0626d",
+   "byte_identical_to_source": true,
+   "role": "一次性：F2P 复检（第二版）",
+   "paper": "§V-F Benchmark resolved"
+  },
+  {
+   "path": "05_evaluation/which_fail.py",
+   "source": "_which_fail.py",
+   "bytes": 532,
+   "source_sha256": "c894d54ea305f80b2ede338d8b4fb5c44f3874d0bbe409e7e3215325e10f99c7",
+   "target_sha256": "c894d54ea305f80b2ede338d8b4fb5c44f3874d0bbe409e7e3215325e10f99c7",
+   "byte_identical_to_source": true,
+   "role": "一次性：从测试输出里定位到底哪条断言失败",
+   "paper": "§V-F Regression count/rate"
+  },
+  {
+   "path": "06_holdout/calib_summary.py",
+   "source": "_calib_summary.py",
+   "bytes": 564,
+   "source_sha256": "0cd57d7c132c6718c27d4e95f0ca767632c3b1b9b8420cc45b2347f8859a5886",
+   "target_sha256": "0cd57d7c132c6718c27d4e95f0ca767632c3b1b9b8420cc45b2347f8859a5886",
+   "byte_identical_to_source": true,
+   "role": "汇总 holdout 标定结果（多少任务能区分缺陷与修复）",
+   "paper": "§V-G；STATUS §2.3 ① 非容器化 oracle 可行性 50%"
+  },
+  {
+   "path": "06_holdout/find_authorable.py",
+   "source": "_find_authorable.py",
+   "bytes": 1655,
+   "source_sha256": "e5d2961c85942df0faea34194bcc35595b1fbdb442aa5bc6fc2dafc2dda83ac7",
+   "target_sha256": "e5d2961c85942df0faea34194bcc35595b1fbdb442aa5bc6fc2dafc2dda83ac7",
+   "byte_identical_to_source": true,
+   "role": "筛出环境真能区分缺陷/修复的任务，作为可编写 holdout 的分母",
+   "paper": "§V-G"
+  },
+  {
+   "path": "06_holdout/holdout_author.py",
+   "source": "experiment_root/tools/holdout_author.py",
+   "bytes": 14750,
+   "source_sha256": "5dcb7eba1370badd9e0cc6ff7102baf087d39aa3d995728557af9f07bc23b3c5",
+   "target_sha256": "5dcb7eba1370badd9e0cc6ff7102baf087d39aa3d995728557af9f07bc23b3c5",
+   "byte_identical_to_source": true,
+   "role": "holdout 测试编写与三条件准入（base 失败 → gold 通过 → 5 次确定性）+ 可行性标定",
+   "paper": "§V-G 增强正确性 oracle 的构造",
+   "note": "本文件用 __file__ 推导 sys.path（唯一一处）；副本请用 code/run.py 启动，或让 experiment_root/tools 与 experiment_root/evaluation 在 sys.path 上"
+  },
+  {
+   "path": "06_holdout/holdout_probe.py",
+   "source": "experiment_root/tools/holdout_probe.py",
+   "bytes": 14420,
+   "source_sha256": "73f395675542bbc4d9ed5419d7e7077f9fc1a1fd3299ee4c11fe24fd9be339ed",
+   "target_sha256": "73f395675542bbc4d9ed5419d7e7077f9fc1a1fd3299ee4c11fe24fd9be339ed",
+   "byte_identical_to_source": true,
+   "role": "差分探针：在 base/gold 上探测可调用对象的真实行为差异",
+   "paper": "§V-G 每个新增 test 必须能暴露目标缺陷"
+  },
+  {
+   "path": "06_holdout/make_holdout_diff.py",
+   "source": "_make_holdout_diff.py",
+   "bytes": 1664,
+   "source_sha256": "7e7f706b0d3477b2ce1a17263aa4c1282607e2928fc15b0de98da380b8b79952",
+   "target_sha256": "7e7f706b0d3477b2ce1a17263aa4c1282607e2928fc15b0de98da380b8b79952",
+   "byte_identical_to_source": true,
+   "role": "把 tests_holdout_task.py 打成 holdout.diff 并验证（让 harness 对测试条数保持盲法）",
+   "paper": "§V-G holdout 以 patch 形式注入"
+  },
+  {
+   "path": "06_holdout/make_holdout_diff2.py",
+   "source": "_make_holdout_diff2.py",
+   "bytes": 1693,
+   "source_sha256": "447e83884331838b2dc057dd2f8f7b7863765e06bd65a0f5202edc5e89af5d15",
+   "target_sha256": "447e83884331838b2dc057dd2f8f7b7863765e06bd65a0f5202edc5e89af5d15",
+   "byte_identical_to_source": true,
+   "role": "同上，批量化第二版",
+   "paper": "§V-G"
+  },
+  {
+   "path": "06_holdout/measure_authorable.py",
+   "source": "_measure_authorable.py",
+   "bytes": 2840,
+   "source_sha256": "53cc056d86871f39ea8aba0131afc07c3e707109dd642967142f41ce8c4ded01",
+   "target_sha256": "53cc056d86871f39ea8aba0131afc07c3e707109dd642967142f41ce8c4ded01",
+   "byte_identical_to_source": true,
+   "role": "测量真实的可编写分母",
+   "paper": "§V-G"
+  },
+  {
+   "path": "06_holdout/probes/probe_babel.py",
+   "source": "_probe_babel.py",
+   "bytes": 1004,
+   "source_sha256": "bc9336435960bf1270e2f9d9ba47abb4d9753a34af9c12a0a65923c0851fc9cc",
+   "target_sha256": "bc9336435960bf1270e2f9d9ba47abb4d9753a34af9c12a0a65923c0851fc9cc",
+   "byte_identical_to_source": true,
+   "role": "babel 仓探针",
+   "paper": "§V-G"
+  },
+  {
+   "path": "06_holdout/probes/probe_holdout.py",
+   "source": "_probe_holdout.py",
+   "bytes": 2969,
+   "source_sha256": "aa36c6706a101e1fe55eb900593388d12c77d66e8342d330e26034ee6250524f",
+   "target_sha256": "aa36c6706a101e1fe55eb900593388d12c77d66e8342d330e26034ee6250524f",
+   "byte_identical_to_source": true,
+   "role": "babel-1120 候选 holdout 行为的探针（只用公开 API 接受的输入）",
+   "paper": "§V-G"
+  },
+  {
+   "path": "06_holdout/probes/probe_lines.py",
+   "source": "_probe_lines.py",
+   "bytes": 1706,
+   "source_sha256": "f8205cb6197e394d5424242a7009a9fcba9039f4788922ec034aa4e3d82309b1",
+   "target_sha256": "f8205cb6197e394d5424242a7009a9fcba9039f4788922ec034aa4e3d82309b1",
+   "byte_identical_to_source": true,
+   "role": "按行号探测输出差异",
+   "paper": "§V-G"
+  },
+  {
+   "path": "06_holdout/probes/probe_weak_quiz.py",
+   "source": "_probe_weak_quiz.py",
+   "bytes": 1134,
+   "source_sha256": "91a4a4a643fa38f7eefa1b1ffa42b0c893e518454573c2b1ff5d97535734bf15",
+   "target_sha256": "91a4a4a643fa38f7eefa1b1ffa42b0c893e518454573c2b1ff5d97535734bf15",
+   "byte_identical_to_source": true,
+   "role": "探针：理解检查里偏弱的题目",
+   "paper": "§V-A 操纵检查"
+  },
+  {
+   "path": "06_holdout/probes/probe_widths.py",
+   "source": "_probe_widths.py",
+   "bytes": 2240,
+   "source_sha256": "77a04a46cfb8006fb6f1e5545effa0145dac4df9a9708bc6b168a55d6e0d8eb7",
+   "target_sha256": "77a04a46cfb8006fb6f1e5545effa0145dac4df9a9708bc6b168a55d6e0d8eb7",
+   "byte_identical_to_source": true,
+   "role": "找 base/gold 真正有差异的换行宽度，让断言描述事实而非预期",
+   "paper": "§V-G"
+  },
+  {
+   "path": "06_holdout/probes/probe_wrapper.py",
+   "source": "_probe_wrapper.py",
+   "bytes": 3533,
+   "source_sha256": "6da9e82c32230fb9e0ded86c3bc0b75e480e75531dfb5e31e98be9c09faa0281",
+   "target_sha256": "6da9e82c32230fb9e0ded86c3bc0b75e480e75531dfb5e31e98be9c09faa0281",
+   "byte_identical_to_source": true,
+   "role": "探测 TextWrapper 与 pofile 在 base/gold 下的确切行为",
+   "paper": "§V-G"
+  },
+  {
+   "path": "06_holdout/show_verify.py",
+   "source": "_show_verify.py",
+   "bytes": 486,
+   "source_sha256": "756f034b4dd864200525359b36a1876ced1aa8aa29911992d217d1de4adad1f3",
+   "target_sha256": "756f034b4dd864200525359b36a1876ced1aa8aa29911992d217d1de4adad1f3",
+   "byte_identical_to_source": true,
+   "role": "打印 holdout 验收记录",
+   "paper": "§V-G"
+  },
+  {
+   "path": "07_rq2_coding/kappa_prevalence.py",
+   "source": "_kappa_prevalence.py",
+   "bytes": 4810,
+   "source_sha256": "fed0f8ca1c6917d480fb97c2d631e6097c04b2a30a0ab0790889e0875fabd624",
+   "target_sha256": "fed0f8ca1c6917d480fb97c2d631e6097c04b2a30a0ab0790889e0875fabd624",
+   "byte_identical_to_source": true,
+   "role": "一致性–κ 的边界核算：88.9% raw agreement 下二元题在任何 prevalence 都到不了 κ=0.82",
+   "paper": "§V-G 独立评审一致率与 κ 的口径核对",
+   "note": "结论要求逐 rubric 条目分别报告 agreement 与 κ，不混引"
+  },
+  {
+   "path": "07_rq2_coding/rq2_coding.py",
+   "source": "experiment_root/tools/rq2_coding.py",
+   "bytes": 16206,
+   "source_sha256": "0efe51983a1f0616179126d4bc0cce3897407b8c774cdcda32caaf2f5de80bc4",
+   "target_sha256": "0efe51983a1f0616179126d4bc0cce3897407b8c774cdcda32caaf2f5de80bc4",
+   "byte_identical_to_source": true,
+   "role": "RQ2 编码手册迭代、盲法包生成、Cohen's κ 与 bootstrap CI 估计器",
+   "paper": "§VII RQ2；§V-G 语义审查 88.9% / κ = 0.82"
+  },
+  {
+   "path": "08_rq3_policy/diagnostics/diag_freq.py",
+   "source": "_diag_freq.py",
+   "bytes": 772,
+   "source_sha256": "26f9af29cd7118e83a51952dfad2a874993d552ee1855f17bf871fd936730c14",
+   "target_sha256": "26f9af29cd7118e83a51952dfad2a874993d552ee1855f17bf871fd936730c14",
+   "byte_identical_to_source": true,
+   "role": "一次性：信号触发频率诊断",
+   "paper": "§VIII-A"
+  },
+  {
+   "path": "08_rq3_policy/diagnostics/diag_p1.py",
+   "source": "_diag_p1.py",
+   "bytes": 529,
+   "source_sha256": "21d4d007d585314fc651cea92458d149f6fa1ce712cb6668936fe05028054e93",
+   "target_sha256": "21d4d007d585314fc651cea92458d149f6fa1ce712cb6668936fe05028054e93",
+   "byte_identical_to_source": true,
+   "role": "一次性：P1 信号诊断",
+   "paper": "§VIII-A 过程信号 P1"
+  },
+  {
+   "path": "08_rq3_policy/diagnostics/diag_p1b.py",
+   "source": "_diag_p1b.py",
+   "bytes": 943,
+   "source_sha256": "e4e93f5a366df79af516a779130a7f6c56de6ab6d8f0f5c61df3c8d5d14634cd",
+   "target_sha256": "e4e93f5a366df79af516a779130a7f6c56de6ab6d8f0f5c61df3c8d5d14634cd",
+   "byte_identical_to_source": true,
+   "role": "一次性：P1 信号诊断（第二版）",
+   "paper": "§VIII-A"
+  },
+  {
+   "path": "08_rq3_policy/exercise_thresholds.py",
+   "source": "_exercise_thresholds.py",
+   "bytes": 3893,
+   "source_sha256": "6e34bd7f79d4be7532a3d44a134b88e9a51ee221b7038a3fd8f1c1545355163d",
+   "target_sha256": "6e34bd7f79d4be7532a3d44a134b88e9a51ee221b7038a3fd8f1c1545355163d",
+   "byte_identical_to_source": true,
+   "role": "用真实 120 个 Discovery 任务构造的结构化替身，演练阈值选择机制",
+   "paper": "§VIII-B 阈值按 repository 分组 5 折 CV"
+  },
+  {
+   "path": "08_rq3_policy/online_policy.py",
+   "source": "experiment_root/tools/online_policy.py",
+   "bytes": 20606,
+   "source_sha256": "147205767d4ef9646d5f3f6520abb2a36b7b78898f04d6ea2fae14645fc69c5a",
+   "target_sha256": "147205767d4ef9646d5f3f6520abb2a36b7b78898f04d6ea2fae14645fc69c5a",
+   "byte_identical_to_source": true,
+   "role": "在线信号提取器 + Adaptive Policy 状态机（只用当时可见事件，含前瞻拒绝）",
+   "paper": "§VIII-A 从人工编码概念到在线信号；§VIII-B 从过程信号到委托规则"
+  },
+  {
+   "path": "09_rq1_rq4_analysis/check_pipeline.py",
+   "source": "_check_pipeline.py",
+   "bytes": 3418,
+   "source_sha256": "f59c7b5acbe9cb42d0f6d7a920c1fc58cf12fb57e6c9d62d3cabf39629b50d5a",
+   "target_sha256": "f59c7b5acbe9cb42d0f6d7a920c1fc58cf12fb57e6c9d62d3cabf39629b50d5a",
+   "byte_identical_to_source": true,
+   "role": "管线回收检验：能否从合成样本里找回刻意放进去的已知效应与精确 cell 平衡",
+   "paper": "§VI 2×3 交互；§IX 五种 policy"
+  },
+  {
+   "path": "09_rq1_rq4_analysis/simulate.py",
+   "source": "experiment_root/tools/simulate.py",
+   "bytes": 24704,
+   "source_sha256": "a7111a87699fc0a330a5dcbc6ddbfa32c12ed90a87befc69233ae2b5072719d2",
+   "target_sha256": "a7111a87699fc0a330a5dcbc6ddbfa32c12ed90a87befc69233ae2b5072719d2",
+   "byte_identical_to_source": true,
+   "role": "按冻结分配生成 792 个合成 session（表 V / 表 XV 的目标结构），用于管线自检",
+   "paper": "§VI RQ1 表 V；§IX RQ4 表 XV",
+   "note": "产出标记 SYNTHETIC / NOT_A_RESULT，不得当作结果引用"
+  },
+  {
+   "path": "10_audit/audit.py",
+   "source": "experiment_root/tools/audit.py",
+   "bytes": 51744,
+   "source_sha256": "75af753918ec76124193436c60b6cbb4a4535f41855975f089811973d4259219",
+   "target_sha256": "75af753918ec76124193436c60b6cbb4a4535f41855975f089811973d4259219",
+   "byte_identical_to_source": true,
+   "role": "A–I 组审计、QA 报告、全量冻结清单（只扫 experiment_root 内固定目录）",
+   "paper": "§III-D 冻结记录；§XII 有效性威胁；方案 §13–16"
+  },
+  {
+   "path": "99_scratch/deep_diag.py",
+   "source": "_deep_diag.py",
+   "bytes": 1397,
+   "source_sha256": "9aa39f3193511c838a1075bcd45abae5a1d79fefe18664786457528de4af6090",
+   "target_sha256": "9aa39f3193511c838a1075bcd45abae5a1d79fefe18664786457528de4af6090",
+   "byte_identical_to_source": true,
+   "role": "一次性：子进程级深度诊断",
+   "paper": "非论文产物"
+  },
+  {
+   "path": "99_scratch/extract_paper.py",
+   "source": "_extract_paper.py",
+   "bytes": 491,
+   "source_sha256": "717f0a6bffe5f4a71d1a2df8aa4e5e3d2a476c99643a53f9d4c71db4e0a6c006",
+   "target_sha256": "717f0a6bffe5f4a71d1a2df8aa4e5e3d2a476c99643a53f9d4c71db4e0a6c006",
+   "byte_identical_to_source": true,
+   "role": "一次性文档工具：PDF → _paper.txt",
+   "paper": "非论文产物"
+  },
+  {
+   "path": "99_scratch/fix_bcp.py",
+   "source": "_fix_bcp.py",
+   "bytes": 887,
+   "source_sha256": "a4f15212ff44eb92ca8a23dc905c54c1d232b7c2e4d3bea26f17e9aa048223e4",
+   "target_sha256": "a4f15212ff44eb92ca8a23dc905c54c1d232b7c2e4d3bea26f17e9aa048223e4",
+   "byte_identical_to_source": true,
+   "role": "一次性：对 build_context_packages.py 做过的一处源码修补",
+   "paper": "非论文产物"
+  },
+  {
+   "path": "99_scratch/fix_paths.py",
+   "source": "_fix_paths.py",
+   "bytes": 3210,
+   "source_sha256": "d998070b4dd48637f4cfdca85a7c5ff5dbe94c00d28546497fc7c8e8b18a368b",
+   "target_sha256": "d998070b4dd48637f4cfdca85a7c5ff5dbe94c00d28546497fc7c8e8b18a368b",
+   "byte_identical_to_source": true,
+   "role": "一次性：批量重写脚本里的绝对路径",
+   "paper": "非论文产物"
+  },
+  {
+   "path": "99_scratch/gold_diag.py",
+   "source": "_gold_diag.py",
+   "bytes": 1567,
+   "source_sha256": "ee33e296329d9f33a739d941f9835a3ef50ed54f46fd3678b3d87fa7cd343cce",
+   "target_sha256": "ee33e296329d9f33a739d941f9835a3ef50ed54f46fd3678b3d87fa7cd343cce",
+   "byte_identical_to_source": true,
+   "role": "一次性：gold patch 诊断",
+   "paper": "非论文产物"
+  },
+  {
+   "path": "99_scratch/patch_fetch.py",
+   "source": "_patch_fetch.py",
+   "bytes": 3779,
+   "source_sha256": "08be6ff4ba2443f96fe2c1fcc9212be801175d76a738ba0b251dcb212a3939a1",
+   "target_sha256": "08be6ff4ba2443f96fe2c1fcc9212be801175d76a738ba0b251dcb212a3939a1",
+   "byte_identical_to_source": true,
+   "role": "一次性：对 fetch_repos.py 的抓取加固补丁",
+   "paper": "非论文产物"
+  },
+  {
+   "path": "99_scratch/probe_local.py",
+   "source": "_probe_local.py",
+   "bytes": 1937,
+   "source_sha256": "3ff14d25d8e01d2067d42d11b359514d068e3ac16f4418a1f767a523bf9db798",
+   "target_sha256": "3ff14d25d8e01d2067d42d11b359514d068e3ac16f4418a1f767a523bf9db798",
+   "byte_identical_to_source": true,
+   "role": "一次性：本地 dataset 探针",
+   "paper": "非论文产物"
+  },
+  {
+   "path": "99_scratch/probe_po24.py",
+   "source": "_probe_po24.py",
+   "bytes": 1407,
+   "source_sha256": "bfa560f587f9cfadfb21d53806dfb21fc19770abdbb8a899c206de8de8f93451",
+   "target_sha256": "bfa560f587f9cfadfb21d53806dfb21fc19770abdbb8a899c206de8de8f93451",
+   "byte_identical_to_source": true,
+   "role": "一次性：pofile/Python 2.4 语法相关探针",
+   "paper": "非论文产物"
+  }
+ ]
+}

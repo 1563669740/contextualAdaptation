@@ -1,0 +1,47 @@
+diff --git a/packages/jupyter-ai/jupyter_ai/completions/handlers/base.py b/packages/jupyter-ai/jupyter_ai/completions/handlers/base.py
+index 5d8f3484c..c52c308db 100644
+--- a/packages/jupyter-ai/jupyter_ai/completions/handlers/base.py
++++ b/packages/jupyter-ai/jupyter_ai/completions/handlers/base.py
+@@ -137,7 +137,7 @@ async def handle_exc(self, e: Exception, request: InlineCompletionRequest):
+         """
+         Handles an exception raised in either `handle_request()` or
+         `handle_stream_request()`. This base class provides a default
+-        implementation, which may be overriden by subclasses.
++        implementation, which may be overridden by subclasses.
+         """
+         error = CompletionError(
+             type=e.__class__.__name__,
+@@ -162,8 +162,6 @@ async def _handle_request(self, request: InlineCompletionRequest):
+     async def _handle_stream_request(self, request: InlineCompletionRequest):
+         """Private wrapper around `self.handle_stream_request()`."""
+         start = time.time()
+-        await self._handle_stream_request(request)
+-        async for chunk in self.stream(request):
+-            self.write_message(chunk.dict())
++        await self.handle_stream_request(request)
+         latency_ms = round((time.time() - start) * 1000)
+         self.log.info(f"Inline completion streaming completed in {latency_ms} ms.")
+diff --git a/packages/jupyter-ai/jupyter_ai/completions/handlers/default.py b/packages/jupyter-ai/jupyter_ai/completions/handlers/default.py
+index 1bf0921e5..687e41fed 100644
+--- a/packages/jupyter-ai/jupyter_ai/completions/handlers/default.py
++++ b/packages/jupyter-ai/jupyter_ai/completions/handlers/default.py
+@@ -73,9 +73,7 @@ def create_llm_chain(
+         self.llm = llm
+         self.llm_chain = prompt_template | llm | StrOutputParser()
+ 
+-    async def handle_request(
+-        self, request: InlineCompletionRequest
+-    ) -> InlineCompletionReply:
++    async def handle_request(self, request: InlineCompletionRequest) -> None:
+         """Handles an inline completion request without streaming."""
+         self.get_llm_chain()
+         model_arguments = self._template_inputs_from_request(request)
+@@ -111,7 +109,7 @@ def _write_incomplete_reply(self, request: InlineCompletionRequest):
+ 
+     async def handle_stream_request(self, request: InlineCompletionRequest):
+         # first, send empty initial reply.
+-        self._write_incomplete_reply()
++        self._write_incomplete_reply(request)
+ 
+         # then, generate and stream LLM output over this connection.
+         self.get_llm_chain()

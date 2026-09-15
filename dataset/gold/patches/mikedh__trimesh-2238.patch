@@ -1,0 +1,1312 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index b4ce9a2ef..78c1662b1 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -15,7 +15,7 @@ jobs:
+     - name: Set up Python
+       uses: actions/setup-python@v4
+       with:
+-        python-version: "3.11"
++        python-version: "3.12"
+     - name: Install Formatting
+       run: |
+         pip install ruff
+diff --git a/Dockerfile b/Dockerfile
+index cb9cc3684..ddfde738c 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -74,8 +74,9 @@ USER user
+ 
+ # install things like pytest
+ # install prerelease for tests and make sure we're on Numpy 2.X
+-RUN pip install --pre --upgrade .[all] && \
+-    python -c "import numpy as n; assert(n.__version__.startswith('1'))"
++RUN pip install .[all] && \
++    pip install --pre --upgrade --force-reinstall numpy && \
++    python -c "import numpy as n; assert(n.__version__.startswith('2'))"
+ 
+ # check for lint problems
+ RUN ruff check trimesh
+diff --git a/pyproject.toml b/pyproject.toml
+index b83a66081..5892e7f0c 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -4,8 +4,8 @@ requires = ["setuptools >= 61.0", "wheel"]
+ 
+ [project]
+ name = "trimesh"
+-requires-python = ">=3.7"
+-version = "4.4.1"
++requires-python = ">=3.8"
++version = "4.4.2"
+ authors = [{name = "Michael Dawson-Haggerty", email = "mikedh@kerfed.com"}]
+ license = {file = "LICENSE.md"}
+ description = "Import, export, process, analyze and view triangular meshes."
+@@ -14,7 +14,6 @@ classifiers = [
+     "Development Status :: 4 - Beta",
+     "License :: OSI Approved :: MIT License",
+     "Programming Language :: Python",
+-    "Programming Language :: Python :: 3.7",
+     "Programming Language :: Python :: 3.8",
+     "Programming Language :: Python :: 3.9",
+     "Programming Language :: Python :: 3.10",
+@@ -63,7 +62,7 @@ trimesh = [
+ # this is the base extra most users will want
+ easy = [
+     "colorlog",
+-    "mapbox-earcut",
++    "manifold3d>=2.3.0", # do boolean operations    
+     "chardet",
+     "lxml",
+     "jsonschema",
+@@ -76,7 +75,7 @@ easy = [
+     "rtree",
+     "httpx",
+     "scipy",
+-    "embreex",
++    "embreex; platform_machine=='x86_64'",
+     "pillow",
+     "vhacdx",
+     "xatlas",
+@@ -92,7 +91,8 @@ recommend = [
+     "python-fcl", # do collision checks
+     "openctm", # load `CTM` compressed models
+     "cascadio", # load `STEP` files
+-    "manifold3d>=2.3.0" # do boolean operations
++    "mapbox-earcut", # BLOCKED FOR NUMPY2
++    
+ ]
+ 
+ # this is the list of everything that is ever added anywhere
+@@ -103,7 +103,7 @@ test = [
+     "pyright",
+     "ezdxf",
+     "pytest",
+-    #"pymeshlab",
++    #     "pymeshlab; python_version<='3.11'",
+     "pyinstrument",
+     "matplotlib",
+     "ruff",
+@@ -118,7 +118,7 @@ deprecated = ["gmsh==4.12.2"]
+ all = ["trimesh[easy,recommend,test,deprecated]"]
+ 
+ [tool.ruff]
+-target-version = "py37"
++target-version = "py38"
+ line-length = 90
+ 
+ 
+@@ -156,6 +156,8 @@ flake8-implicit-str-concat = {"allow-multiline" = false}
+ 
+ [tool.ruff.lint.flake8-tidy-imports.banned-api]
+ "IPython.embed".msg = "you forgot to remove a debug embed ;)"
++"numpy.empty".msg = "uninitialized arrays are haunted try numpy.zeros"
++
+ 
+ [tool.codespell]
+ skip = "*.js*,./docs/built/*,./docs/generate/*,./models*,*.toml"
+diff --git a/trimesh/base.py b/trimesh/base.py
+index 0126267af..aafec90e6 100644
+--- a/trimesh/base.py
++++ b/trimesh/base.py
+@@ -314,7 +314,7 @@ def faces(self, values: Optional[ArrayLike]) -> None:
+         """
+         if values is None:
+             # if passed none store an empty array
+-            values = np.empty(shape=(0, 3), dtype=int64)
++            values = np.zeros(shape=(0, 3), dtype=int64)
+         else:
+             values = np.asanyarray(values, dtype=int64)
+ 
+@@ -461,7 +461,7 @@ def vertices(self, values: Optional[ArrayLike]):
+         """
+         if values is None:
+             # remove any stored data and store an empty array
+-            values = np.empty(shape=(0, 3), dtype=float64)
++            values = np.zeros(shape=(0, 3), dtype=float64)
+         self._data["vertices"] = np.asanyarray(values, order="C", dtype=float64)
+ 
+     @caching.cache_decorator
+diff --git a/trimesh/boolean.py b/trimesh/boolean.py
+index 12356db58..fc3d3b320 100644
+--- a/trimesh/boolean.py
++++ b/trimesh/boolean.py
+@@ -8,7 +8,7 @@
+ import numpy as np
+ 
+ from . import exceptions, interfaces
+-from .typed import Iterable, Optional
++from .typed import Callable, Iterable, Optional
+ 
+ try:
+     from manifold3d import Manifold, Mesh
+@@ -111,7 +111,6 @@ def boolean_manifold(
+     meshes: Iterable,
+     operation: str,
+     check_volume: bool = True,
+-    debug: bool = False,
+     **kwargs,
+ ):
+     """
+@@ -127,12 +126,12 @@ def boolean_manifold(
+       Raise an error if not all meshes are watertight
+       positive volumes. Advanced users may want to ignore
+       this check as it is expensive.
+-    debug
+-      Enable potentially slow additional checks and debug info.
+     kwargs
+       Passed through to the `engine`.
+-
+     """
++    if check_volume and not all(m.is_volume for m in meshes):
++        raise ValueError("Not all meshes are volumes!")
++
+     # Convert to manifold meshes
+     manifolds = [
+         Manifold(
+@@ -151,14 +150,9 @@ def boolean_manifold(
+ 
+         result_manifold = manifolds[0] - manifolds[1]
+     elif operation == "union":
+-        result_manifold = manifolds[0]
+-        for manifold in manifolds[1:]:
+-            result_manifold = result_manifold + manifold
++        result_manifold = reduce_cascade(lambda a, b: a + b, manifolds)
+     elif operation == "intersection":
+-        result_manifold = manifolds[0]
+-
+-        for manifold in manifolds[1:]:
+-            result_manifold = result_manifold ^ manifold
++        result_manifold = reduce_cascade(lambda a, b: a ^ b, manifolds)
+     else:
+         raise ValueError(f"Invalid boolean operation: '{operation}'")
+ 
+@@ -171,6 +165,61 @@ def boolean_manifold(
+     return out_mesh
+ 
+ 
++def reduce_cascade(operation: Callable, items: Iterable):
++    """
++    Call a function in a cascaded pairwise way against a
++    flat sequence of items. This should produce the same
++    result as `functools.reduce` but may be faster for some
++    functions that for example perform only as fast as their
++    largest input.
++
++    For example on `a b c d e f g` this function would run and return:
++        a b
++        c d
++        e f
++        ab cd
++        ef g
++        abcd efg
++     -> abcdefg
++
++    Where `functools.reduce` would run and return:
++        a b
++        ab c
++        abc d
++        abcd e
++        abcde f
++        abcdef g
++     -> abcdefg
++
++    Parameters
++    ----------
++    operation
++      The function to call on pairs of items.
++    items
++      The flat list of items to apply operation against.
++    """
++    if len(items) == 0:
++        return None
++    elif len(items) == 2:
++        # might as well skip the loop overhead
++        return operation(items[0], items[1])
++
++    for _ in range(int(1 + np.log2(len(items)))):
++        results = []
++        for i in np.arange(len(items) // 2) * 2:
++            results.append(operation(items[i], items[i + 1]))
++
++        if len(items) % 2:
++            results.append(items[-1])
++
++        items = results
++
++    # logic should have reduced to a single item
++    assert len(results) == 1
++
++    return results[0]
++
++
+ # which backend boolean engines
+ _engines = {
+     None: boolean_manifold,
+diff --git a/trimesh/creation.py b/trimesh/creation.py
+index 21b8fa70f..6f2deb10f 100644
+--- a/trimesh/creation.py
++++ b/trimesh/creation.py
+@@ -16,7 +16,7 @@
+ from .constants import log, tol
+ from .geometry import align_vectors, faces_to_edges, plane_transform
+ from .resources import get_json
+-from .typed import ArrayLike, Dict, Integer, Number, Optional
++from .typed import ArrayLike, Dict, Integer, NDArray, Number, Optional
+ 
+ try:
+     # shapely is a soft dependency
+@@ -28,13 +28,13 @@
+     Polygon = exceptions.ExceptionWrapper(E)
+     load_wkb = exceptions.ExceptionWrapper(E)
+ 
+-try:
+-    from mapbox_earcut import triangulate_float64 as _tri_earcut
+-except BaseException as E:
+-    _tri_earcut = exceptions.ExceptionWrapper(E)
+-
+ # get stored values for simple box and icosahedron primitives
+ _data = get_json("creation.json")
++_engines = [
++    ("earcut", util.has_module("mapbox_earcut")),
++    ("manifold", util.has_module("manifold3d")),
++    ("triangle", util.has_module("triangle")),
++]
+ 
+ 
+ def revolve(
+@@ -427,6 +427,13 @@ def sweep_polygon(
+     return mesh
+ 
+ 
++def _cross_2d(a: NDArray, b: NDArray) -> NDArray:
++    """
++    Numpy 2.0 depreciated cross products of 2D arrays.
++    """
++    return a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]
++
++
+ def extrude_triangulation(
+     vertices: ArrayLike,
+     faces: ArrayLike,
+@@ -467,7 +474,10 @@ def extrude_triangulation(
+         raise ValueError("Height must be nonzero!")
+ 
+     # check the winding of the first few triangles
+-    signs = np.array([np.cross(*i) for i in np.diff(vertices[faces[:10]], axis=1)])
++    signs = _cross_2d(
++        np.subtract(*vertices[faces[:10, :2].T]), np.subtract(*vertices[faces[:10, 1:].T])
++    )
++
+     # make sure the triangulation is aligned with the sign of
+     # the height we've been passed
+     if len(signs) > 0 and np.sign(signs.mean()) != np.sign(height):
+@@ -526,6 +536,7 @@ def triangulate_polygon(
+     Given a shapely polygon create a triangulation using a
+     python interface to the permissively licensed `mapbox-earcut`
+     or the more robust `triangle.c`.
++    > pip install manifold3d
+     > pip install triangle
+     > pip install mapbox_earcut
+ 
+@@ -545,7 +556,17 @@ def triangulate_polygon(
+     faces : (n, 3) int
+        Index of vertices that make up triangles
+     """
+-    if engine is None or engine == "earcut":
++
++    if engine is None:
++        # try getting the first engine that is installed
++        engine = next((name for name, exists in _engines if exists), None)
++
++    if polygon is None or polygon.is_empty:
++        return [], []
++
++    if engine == "earcut":
++        from mapbox_earcut import triangulate_float64
++
+         # get vertices as sequence where exterior
+         # is the first value
+         vertices = [np.array(polygon.exterior.coords)]
+@@ -556,7 +577,7 @@ def triangulate_polygon(
+         vertices = np.vstack(vertices)
+         # run triangulation
+         faces = (
+-            _tri_earcut(vertices, rings)
++            triangulate_float64(vertices, rings)
+             .reshape((-1, 3))
+             .astype(np.int64)
+             .reshape((-1, 3))
+@@ -564,6 +585,21 @@ def triangulate_polygon(
+ 
+         return vertices, faces
+ 
++    elif engine == "manifold":
++        import manifold3d
++
++        # the outer ring is wound counter-clockwise
++        rings = [
++            np.array(polygon.exterior.coords)[:: (1 if polygon.exterior.is_ccw else -1)]
++        ]
++        # wind interiors
++        rings.extend(
++            np.array(b.coords)[:: (-1 if b.is_ccw else 1)] for b in polygon.interiors
++        )
++        faces = manifold3d.triangulate(rings)
++        vertices = np.vstack(rings)
++        return vertices, faces
++
+     elif engine == "triangle":
+         from triangle import triangulate
+ 
+@@ -575,14 +611,14 @@ def triangulate_polygon(
+         # run the triangulation
+         result = triangulate(arg, triangle_args)
+         return result["vertices"], result["triangles"]
+-    else:
+-        log.warning(
+-            "try running `pip install mapbox-earcut`"
+-            + "or explicitly pass:\n"
+-            + '`triangulate_polygon(*args, engine="triangle")`\n'
+-            + "to use the non-FSF-approved-license triangle engine"
+-        )
+-        raise ValueError("no valid triangulation engine!")
++
++    log.warning(
++        "try running `pip install manifold3d`"
++        + "or `triangle`, `mapbox_earcut`, then explicitly pass:\n"
++        + '`triangulate_polygon(*args, engine="triangle")`\n'
++        + "to use the non-FSF-approved-license triangle engine"
++    )
++    raise ValueError("No available triangulation engine!")
+ 
+ 
+ def _polygon_to_kwargs(polygon) -> Dict:
+diff --git a/trimesh/curvature.py b/trimesh/curvature.py
+index 47ffab7d7..88b4d93ef 100644
+--- a/trimesh/curvature.py
++++ b/trimesh/curvature.py
+@@ -117,7 +117,7 @@ def discrete_mean_curvature_measure(mesh, points, radius):
+     # line segments that intersect axis aligned bounding box
+     candidates = [list(mesh.face_adjacency_tree.intersection(b)) for b in bounds]
+ 
+-    mean_curv = np.empty(len(points))
++    mean_curv = np.zeros(len(points))
+     for i, (x, x_candidates) in enumerate(zip(points, candidates)):
+         endpoints = mesh.vertices[mesh.face_adjacency_edges[x_candidates]]
+         lengths = line_ball_intersection(
+diff --git a/trimesh/graph.py b/trimesh/graph.py
+index 9072ab306..0e2894c9b 100644
+--- a/trimesh/graph.py
++++ b/trimesh/graph.py
+@@ -16,12 +16,14 @@
+ from . import exceptions, grouping, util
+ from .constants import log, tol
+ from .geometry import faces_to_edges
+-from .typed import List, NDArray, Number, Optional, int64
++from .typed import ArrayLike, List, NDArray, Number, Optional, Sequence, Union, int64
+ 
+ try:
+     from scipy.sparse import coo_matrix, csgraph
++    from scipy.spatial import cKDTree
+ except BaseException as E:
+     # re-raise exception when used
++    cKDTree = exceptions.ExceptionWrapper(E)
+     csgraph = exceptions.ExceptionWrapper(E)
+     coo_matrix = exceptions.ExceptionWrapper(E)
+ 
+@@ -499,69 +501,70 @@ def connected_component_labels(edges, node_count=None):
+     return labels
+ 
+ 
+-def split_traversal(traversal, edges, edges_hash=None):
++def _split_traversal(traversal: NDArray, edges_tree) -> List[NDArray]:
+     """
+-    Given a traversal as a list of nodes, split the traversal
++    Given a traversal as a list of nodes split the traversal
+     if a sequential index pair is not in the given edges.
++    Useful since the implementation of DFS we're using will
++    happily return disconnected values in a flat traversal.
+ 
+     Parameters
+     --------------
+-    edges : (n, 2) int
+-       Graph edge indexes
+     traversal : (m,) int
+        Traversal through edges
+-    edge_hash : (n,)
+-       Edges sorted on axis=1 and
+-       passed to grouping.hashable_rows
++    edges_tree : cKDTree
++      A way to reconstruct original edge indices from
++      sorted (n, 2) edge values. This is a slight misuse of a
++      kdtree since one could just hash the tuples of the integer
++      edges, but that isn't possible with numpy arrays easily
++      and this allows a vectorized reconstruction.
+ 
+     Returns
+     ---------------
+     split : sequence of (p,) int
++      Traversals split into only connected paths.
+     """
+-    traversal = np.asanyarray(traversal, dtype=np.int64)
+-
+-    # hash edge rows for contains checks
+-    if edges_hash is None:
+-        edges_hash = grouping.hashable_rows(np.sort(edges, axis=1))
+-
+     # turn the (n,) traversal into (n-1, 2) edges
++    # save the original order of the edges for reconstruction
+     trav_edge = np.column_stack((traversal[:-1], traversal[1:]))
+-    # hash each edge so we can compare to edge set
+-    trav_hash = grouping.hashable_rows(np.sort(trav_edge, axis=1))
+-    # check if each edge is contained in edge set
+-    contained = np.isin(trav_hash, edges_hash)
+-
+-    # exit early if every edge of traversal exists
+-    if contained.all():
+-        # just reshape one traversal
++
++    # check to see if the traversal edges exists in the original edges
++    # the tree is holding the sorted edges so query after sorting
++    exists = edges_tree.query(np.sort(trav_edge, axis=1))[0] < 1e-10
++
++    if exists.all():
+         split = [traversal]
+     else:
+-        # find contiguous groups of contained edges
+-        blocks = grouping.blocks(contained, min_len=1, only_nonzero=True)
+-
+-        # turn edges back in to sequence of traversals
+-        split = [np.append(trav_edge[b][:, 0], trav_edge[b[-1]][1]) for b in blocks]
+-
+-    # close traversals if necessary
+-    for i, t in enumerate(split):
+-        # make sure elements of sequence are numpy arrays
+-        split[i] = np.asanyarray(split[i], dtype=np.int64)
+-        # don't close if its a single edge
+-        if len(t) <= 2:
+-            continue
+-        # make sure it's not already closed
+-        edge = np.sort([t[0], t[-1]])
+-        if np.ptp(edge) == 0:
+-            continue
+-        close = grouping.hashable_rows(edge.reshape((1, 2)))[0]
+-        # if we need the edge add it
+-        if close in edges_hash:
+-            split[i] = np.append(t, t[0]).astype(np.int64)
++        # contiguous groups of edges
++        blocks = grouping.blocks(exists, min_len=1, only_nonzero=True)
++        split = [
++            np.concatenate([trav_edge[:, 0][b], trav_edge[b[-1]][1:]]) for b in blocks
++        ]
++
++    # a traversal may be effectively closed so check
++    # to see if we need to add on the first index to the end
++    needs_close = np.array(
++        [
++            len(s) > 2
++            and s[0] != s[-1]
++            and edges_tree.query(sorted([s[0], s[-1]]))[0] < 1e-10
++            for s in split
++        ]
++    )
++
++    if needs_close.any():
++        for i in np.nonzero(needs_close)[0]:
++            split[i] = np.concatenate([split[i], split[i][:1]])
++
++    if tol.strict:
++        for s in split:
++            check_edge = np.sort(np.column_stack((s[:-1], s[1:])), axis=1)
++            assert (edges_tree.query(check_edge)[0] < 1e-10).all()
+ 
+     return split
+ 
+ 
+-def fill_traversals(traversals, edges, edges_hash=None):
++def fill_traversals(traversals: Sequence, edges: ArrayLike) -> Union[Sequence, NDArray]:
+     """
+     Convert a traversal of a list of edges into a sequence of
+     traversals where every pair of consecutive node indexes
+@@ -573,9 +576,6 @@ def fill_traversals(traversals, edges, edges_hash=None):
+        Node indexes of traversals of a graph
+     edges : (n, 2) int
+        Pairs of connected node indexes
+-    edges_hash : None, or (n,) int
+-       Edges sorted along axis 1 then hashed
+-       using grouping.hashable_rows
+ 
+     Returns
+     --------------
+@@ -583,25 +583,18 @@ def fill_traversals(traversals, edges, edges_hash=None):
+        Node indexes of connected traversals
+     """
+     # make sure edges are correct type
+-    edges = np.asanyarray(edges, dtype=np.int64)
+-    # make sure edges are sorted
+-    edges.sort(axis=1)
++    edges = np.sort(edges, axis=1)
++    edges_tree = cKDTree(edges)
+ 
+     # if there are no traversals just return edges
+     if len(traversals) == 0:
+         return edges.copy()
+ 
+-    # hash edges for contains checks
+-    if edges_hash is None:
+-        edges_hash = grouping.hashable_rows(edges)
+-
+     splits = []
+     for nodes in traversals:
+-        # split traversals to remove edges
+-        # that don't actually exist
+-        splits.extend(
+-            split_traversal(traversal=nodes, edges=edges, edges_hash=edges_hash)
+-        )
++        # split traversals to remove edges that don't actually exist
++        splits.extend(_split_traversal(traversal=nodes, edges_tree=edges_tree))
++
+     # turn the split traversals back into (n, 2) edges
+     included = util.vstack_empty([np.column_stack((i[:-1], i[1:])) for i in splits])
+     if len(included) > 0:
+diff --git a/trimesh/grouping.py b/trimesh/grouping.py
+index 24d9bc081..ef36d3c99 100644
+--- a/trimesh/grouping.py
++++ b/trimesh/grouping.py
+@@ -157,7 +157,9 @@ def group(values, min_len=0, max_len=np.inf):
+     return groups
+ 
+ 
+-def hashable_rows(data: ArrayLike, digits=None) -> NDArray:
++def hashable_rows(
++    data: ArrayLike, digits: Optional[Integer] = None, allow_int: bool = True
++) -> NDArray:
+     """
+     We turn our array into integers based on the precision
+     given by digits and then put them in a hashable format.
+@@ -188,7 +190,7 @@ def hashable_rows(data: ArrayLike, digits=None) -> NDArray:
+ 
+     # if array is 2D and smallish, we can try bitbanging
+     # this is significantly faster than the custom dtype
+-    if len(as_int.shape) == 2 and as_int.shape[1] <= 4:
++    if allow_int and len(as_int.shape) == 2 and as_int.shape[1] <= 4:
+         # can we pack the whole row into a single 64 bit integer
+         precision = int(np.floor(64 / as_int.shape[1]))
+ 
+@@ -400,7 +402,7 @@ def merge_runs(data, digits=None):
+     Out[2]: array([-1,  0,  1,  2,  0,  3,  4,  5,  6,  7,  8,  9])
+     """
+     data = np.asanyarray(data)
+-    mask = np.empty(len(data), dtype=bool)
++    mask = np.zeros(len(data), dtype=bool)
+     mask[0] = True
+     mask[1:] = np.abs(data[1:] - data[:-1]) > tol.merge
+ 
+@@ -603,9 +605,7 @@ def boolean_rows(a, b, operation=np.intersect1d):
+ 
+     av = a.view([("", a.dtype)] * a.shape[1]).ravel()
+     bv = b.view([("", b.dtype)] * b.shape[1]).ravel()
+-    shared = operation(av, bv).view(a.dtype).reshape(-1, a.shape[1])
+-
+-    return shared
++    return operation(av, bv).view(a.dtype).reshape(-1, a.shape[1])
+ 
+ 
+ def group_vectors(vectors, angle=1e-4, include_negative=False):
+@@ -837,7 +837,7 @@ def group_min(groups, data):
+     groups = groups[order]  # this is only needed if groups is unsorted
+     data = data[order]
+     # construct an index which marks borders between groups
+-    index = np.empty(len(groups), "bool")
++    index = np.zeros(len(groups), "bool")
+     index[0] = True
+     index[1:] = groups[1:] != groups[:-1]
+     return data[index]
+diff --git a/trimesh/intersections.py b/trimesh/intersections.py
+index 342a77110..64b6a0982 100644
+--- a/trimesh/intersections.py
++++ b/trimesh/intersections.py
+@@ -663,7 +663,6 @@ def slice_mesh_plane(
+     plane_origin,
+     face_index=None,
+     cap=False,
+-    cached_dots=None,
+     engine=None,
+     **kwargs,
+ ):
+@@ -790,7 +789,11 @@ def slice_mesh_plane(
+                 if distance.max() > 1e-8:
+                     util.log.debug("triangulate may have inserted vertex!")
+                 # triangulation should not have inserted vertices
+-                faces.append(vid[fn])
++                nf = vid[fn]
++                # hmm but it may have returned faces that are now degenerate
++                nf_ok = (nf[:, 1:] != nf[:, :1]).all(axis=1) & (nf[:, 1] != nf[:, 2])
++                faces.append(nf[nf_ok])
++
+             faces = np.vstack(faces)
+ 
+     visual = (
+diff --git a/trimesh/interval.py b/trimesh/interval.py
+index c8dcfdb9a..812780289 100644
+--- a/trimesh/interval.py
++++ b/trimesh/interval.py
+@@ -84,7 +84,7 @@ def union(intervals: ArrayLike, sort: bool = True) -> NDArray[float64]:
+       New intervals where `m <= n`
+     """
+     if len(intervals) == 0:
+-        return np.empty(0)
++        return np.zeros(0)
+ 
+     # if the intervals have not been pre-sorted we should apply our sorting logic
+     # you would only skip this if you are subsetting a larger list elsewhere.
+diff --git a/trimesh/path/exchange/misc.py b/trimesh/path/exchange/misc.py
+index 2ae3423ed..d035244d4 100644
+--- a/trimesh/path/exchange/misc.py
++++ b/trimesh/path/exchange/misc.py
+@@ -2,6 +2,7 @@
+ 
+ from ... import graph, grouping, util
+ from ...constants import tol_path
++from ...typed import ArrayLike, Dict
+ from ..entities import Arc, Line
+ 
+ 
+@@ -98,14 +99,18 @@ def polygon_to_path(polygon):
+         boundaries = [polygon.boundary]
+ 
+     # append interiors as single Line objects
++    current = 0
+     for boundary in boundaries:
+-        entities.append(Line(np.arange(len(boundary.coords)) + len(vertices)))
++        entities.append(Line(np.arange(len(boundary.coords)) + current))
++        current += len(boundary.coords)
+         # append the new vertex array
+-        vertices.extend(boundary.coords)
++        vertices.append(np.array(boundary.coords))
+ 
+     # make sure result arrays are numpy
+-    kwargs = {"entities": entities, "vertices": np.array(vertices)}
+-
++    kwargs = {
++        "entities": entities,
++        "vertices": np.vstack(vertices) if len(vertices) > 0 else vertices,
++    }
+     return kwargs
+ 
+ 
+@@ -173,7 +178,7 @@ def faces_to_path(mesh, face_ids=None, **kwargs):
+     return kwargs
+ 
+ 
+-def edges_to_path(edges, vertices, **kwargs):
++def edges_to_path(edges: ArrayLike, vertices: ArrayLike, **kwargs) -> Dict:
+     """
+     Given an edge list of indices and associated vertices
+     representing lines, generate kwargs for a Path object.
+diff --git a/trimesh/path/exchange/svg_io.py b/trimesh/path/exchange/svg_io.py
+index b3d189581..cf2d8d1be 100644
+--- a/trimesh/path/exchange/svg_io.py
++++ b/trimesh/path/exchange/svg_io.py
+@@ -8,6 +8,7 @@
+ from ... import exceptions, grouping, resources, util
+ from ...constants import log, tol
+ from ...transformations import planar_matrix, transform_points
++from ...typed import NDArray, Number
+ from ...util import jsonify
+ from ..arc import arc_center
+ from ..entities import Arc, Bezier, Line
+@@ -436,6 +437,12 @@ def _entities_to_str(entities, vertices, name=None, digits=None, only_layers=Non
+         "DI", temp_digits
+     )
+ 
++    def _cross_2d(a: NDArray, b: NDArray) -> Number:
++        """
++        Numpy 2.0 depreciated cross products of 2D arrays.
++        """
++        return a[0] * b[1] - a[1] * b[0]
++
+     def svg_arc(arc):
+         """
+         arc string: (rx ry x-axis-rotation large-arc-flag sweep-flag x y)+
+@@ -451,7 +458,7 @@ def svg_arc(arc):
+         vertex_start, vertex_mid, vertex_end = vertices
+         large_flag = int(angle > np.pi)
+         sweep_flag = int(
+-            np.cross(vertex_mid - vertex_start, vertex_end - vertex_start) > 0.0
++            _cross_2d(vertex_mid - vertex_start, vertex_end - vertex_start) > 0.0
+         )
+         return temp_arc.format(
+             SX=vertex_start[0],
+@@ -473,10 +480,9 @@ def svg_discrete(entity):
+         if len(discrete) == 0:
+             return ""
+         # the format string for the SVG path
+-        result = (temp_move + (temp_line * (len(discrete) - 1))).format(
++        return (temp_move + (temp_line * (len(discrete) - 1))).format(
+             *discrete.reshape(-1)
+         )
+-        return result
+ 
+     # tuples of (metadata, path string)
+     pairs = []
+diff --git a/trimesh/path/path.py b/trimesh/path/path.py
+index 8d5cc8b4d..b3e9d4429 100644
+--- a/trimesh/path/path.py
++++ b/trimesh/path/path.py
+@@ -773,7 +773,12 @@ class Path3D(Path):
+     Hold multiple vector curves (lines, arcs, splines, etc) in 3D.
+     """
+ 
+-    def to_planar(self, to_2D=None, normal=None, check=True):
++    def to_planar(
++        self,
++        to_2D: Optional[ArrayLike] = None,
++        normal: Optional[ArrayLike] = None,
++        check: bool = True,
++    ):
+         """
+         Check to see if current vectors are all coplanar.
+ 
+@@ -782,16 +787,13 @@ def to_planar(self, to_2D=None, normal=None, check=True):
+ 
+         Parameters
+         -----------
+-        to_2D: (4,4) float
+-            Homogeneous transformation matrix to apply,
+-            If not passed a plane will be fitted to vertices.
+-        normal: (3,) float, or None
+-           Approximate normal of direction of plane
+-           If to_2D is not specified sign
+-           will be applied to fit plane normal
+-        check:  bool
+-            If True: Raise a ValueError if
+-            points aren't coplanar
++        to_2D : (4, 4) float
++          Homogeneous transformation matrix to apply,
++          if not passed a plane will be fitted to vertices.
++        normal : (3,) float or None
++           Normal of direction of plane to use.
++        check
++         Raise a ValueError if points aren't coplanar
+ 
+         Returns
+         -----------
+@@ -807,40 +809,50 @@ def to_planar(self, to_2D=None, normal=None, check=True):
+         if len(referenced) == 0:
+             return Path2D(), np.eye(4)
+ 
++        # support (n, 2) and (n, 3) vertices here
++        dim = self.vertices.shape[1]
++
++        # already flat
++        if dim == 2:
++            to_2D = np.eye(4)
++        elif dim != 3:
++            raise ValueError(f"vertices are `{dim}D != 2D | 3D`!")
++
+         # no explicit transform passed
+         if to_2D is None:
+             # fit a plane to our vertices
+             C, N = plane_fit(self.vertices[referenced])
+             # apply the normal sign hint
+             if normal is not None:
+-                normal = np.asanyarray(normal, dtype=np.float64)
+-                if normal.shape == (3,):
+-                    N *= np.sign(np.dot(N, normal))
+-                    N = normal
+-                else:
+-                    log.debug(f"passed normal not used: {normal.shape}")
++                # make sure normal is a 3D vector
++                normal = np.array(normal, dtype=np.float64).reshape(3)
++                # apply the sign from the passed normal
++                N *= np.sign(np.dot(N, normal))
+             # create a transform from fit plane to XY
+             to_2D = plane_transform(origin=C, normal=N)
+ 
+         # make sure we've extracted a transform
+-        to_2D = np.asanyarray(to_2D, dtype=np.float64)
++        to_2D = np.array(to_2D, dtype=np.float64)
+         if to_2D.shape != (4, 4):
+             raise ValueError("unable to create transform!")
+ 
+-        # transform all vertices to 2D plane
+-        flat = tf.transform_points(self.vertices, to_2D)
+-
+-        # Z values of vertices which are referenced
+-        heights = flat[referenced][:, 2]
+-        # points are not on a plane because Z varies
+-        if np.ptp(heights) > tol.planar:
+-            # since Z is inconsistent set height to zero
++        if dim == 3:
++            # transform all vertices to 2D plane
++            flat = tf.transform_points(self.vertices, to_2D)
++            # Z values of vertices which are referenced
++            heights = flat[referenced][:, 2]
++            # points are not on a plane because Z varies
++            if np.ptp(heights) > tol.planar:
++                # since Z is inconsistent set height to zero
++                height = 0.0
++                if check:
++                    raise ValueError("points are not flat!")
++            else:
++                # if the points were planar store the height
++                height = heights.mean()
++        elif dim == 2:
++            flat = self.vertices.copy()
+             height = 0.0
+-            if check:
+-                raise ValueError("points are not flat!")
+-        else:
+-            # if the points were planar store the height
+-            height = heights.mean()
+ 
+         # the transform from 2D to 3D
+         to_3D = np.linalg.inv(to_2D)
+diff --git a/trimesh/path/polygons.py b/trimesh/path/polygons.py
+index 7ede9daae..dda5af7a6 100644
+--- a/trimesh/path/polygons.py
++++ b/trimesh/path/polygons.py
+@@ -714,8 +714,8 @@ def projected(
+     ignore_sign=True,
+     rpad=1e-5,
+     apad=None,
+-    tol_dot=0.01,
+-    max_regions=200,
++    tol_dot=1e-10,
++    precise: bool = False,
+ ):
+     """
+     Project a mesh onto a plane and then extract the polygon
+@@ -804,20 +804,28 @@ def projected(
+     adjacency_check = side[mesh.face_adjacency].all(axis=1)
+     adjacency = mesh.face_adjacency[adjacency_check]
+ 
++    # transform from the mesh frame in 3D to the XY plane
++    to_2D = geometry.plane_transform(origin=origin, normal=normal)
++    # transform mesh vertices to 2D and clip the zero Z
++    vertices_2D = transform_points(mesh.vertices, to_2D)[:, :2]
++
++    if precise:
++        eps = 1e-10
++        faces = mesh.faces[side]
++        # just union all the polygons
++        return (
++            ops.unary_union(
++                [Polygon(f) for f in vertices_2D[np.column_stack((faces, faces[:, :1]))]]
++            )
++            .buffer(eps)
++            .buffer(-eps)
++        )
++
+     # a sequence of face indexes that are connected
+     face_groups = graph.connected_components(adjacency, nodes=np.nonzero(side)[0])
+ 
+-    # if something is goofy we may end up with thousands of
+-    # regions that do nothing except hang for an hour then segfault
+-    if len(face_groups) > max_regions:
+-        raise ValueError("too many disconnected groups!")
+-
+     # reshape edges into shape length of faces for indexing
+     edges = mesh.edges_sorted.reshape((-1, 6))
+-    # transform from the mesh frame in 3D to the XY plane
+-    to_2D = geometry.plane_transform(origin=origin, normal=normal)
+-    # transform mesh vertices to 2D and clip the zero Z
+-    vertices_2D = transform_points(mesh.vertices, to_2D)[:, :2]
+ 
+     polygons = []
+     for faces in face_groups:
+@@ -838,30 +846,22 @@ def projected(
+         # apply the scale-relative padding
+         padding += float(rpad) * scale
+ 
+-    # some types of errors will lead to a bajillion disconnected
+-    # regions and the union will take forever to fail
+-    # so exit here early
+-    if len(polygons) > max_regions:
+-        raise ValueError("too many disconnected groups!")
+-
+     # if there is only one region we don't need to run a union
+     elif len(polygons) == 1:
+         return polygons[0]
+     elif len(polygons) == 0:
+         return None
+-    else:
+-        # inflate each polygon before unioning to remove zero-size
+-        # gaps then deflate the result after unioning by the same amount
+-        # note the following provides a 25% speedup but needs
+-        # more testing to see if it deflates to a decent looking
+-        # result:
+-        # polygon = ops.unary_union(
+-        #    [p.buffer(padding,
+-        #              join_style=2,
+-        #              mitre_limit=1.5)
+-        #     for p in polygons]).buffer(-padding)
+-        polygon = ops.unary_union([p.buffer(padding) for p in polygons]).buffer(-padding)
+-    return polygon
++    # inflate each polygon before unioning to remove zero-size
++    # gaps then deflate the result after unioning by the same amount
++    # note the following provides a 25% speedup but needs
++    # more testing to see if it deflates to a decent looking
++    # result:
++    # polygon = ops.unary_union(
++    #    [p.buffer(padding,
++    #              join_style=2,
++    #              mitre_limit=1.5)
++    #     for p in polygons]).buffer(-padding)
++    return ops.unary_union([p.buffer(padding) for p in polygons]).buffer(-padding)
+ 
+ 
+ def second_moments(polygon: Polygon, return_centered=False):
+diff --git a/trimesh/points.py b/trimesh/points.py
+index d409e3a3a..681213792 100644
+--- a/trimesh/points.py
++++ b/trimesh/points.py
+@@ -582,7 +582,7 @@ def vertices(self):
+         vertices : (n, 3) float
+           Points in the PointCloud
+         """
+-        return self._data.get("vertices", np.empty(shape=(0, 3), dtype=float64))
++        return self._data.get("vertices", np.zeros(shape=(0, 3), dtype=float64))
+ 
+     @vertices.setter
+     def vertices(self, values):
+diff --git a/trimesh/ray/ray_pyembree.py b/trimesh/ray/ray_pyembree.py
+index 895db86d6..848196627 100644
+--- a/trimesh/ray/ray_pyembree.py
++++ b/trimesh/ray/ray_pyembree.py
+@@ -3,8 +3,6 @@
+ API wrapped to match our native raytracer.
+ """
+ 
+-from copy import deepcopy
+-
+ import numpy as np
+ 
+ from .. import caching, intersections, util
+@@ -147,8 +145,8 @@ def intersects_id(
+           Intersection points, only returned if return_locations
+         """
+         # make sure input is _dtype for embree
+-        ray_origins = np.array(deepcopy(ray_origins), dtype=np.float64)
+-        ray_directions = np.asanyarray(ray_directions, dtype=np.float64)
++        ray_origins = np.array(ray_origins, dtype=np.float64)
++        ray_directions = np.array(ray_directions, dtype=np.float64)
+         if ray_origins.shape != ray_directions.shape:
+             raise ValueError("Ray origin and direction don't match!")
+         ray_directions = util.unitize(ray_directions)
+@@ -265,8 +263,11 @@ def intersects_first(self, ray_origins, ray_directions):
+           Index of triangle ray hit, or -1 if not hit
+         """
+ 
+-        ray_origins = np.asanyarray(deepcopy(ray_origins))
+-        ray_directions = np.asanyarray(ray_directions)
++        ray_origins = np.array(ray_origins, dtype=np.float64)
++        ray_directions = np.array(ray_directions, dtype=np.float64)
++        if ray_origins.shape != ray_directions.shape:
++            raise ValueError("Ray origin and direction don't match!")
++        ray_directions = util.unitize(ray_directions)
+ 
+         triangle_index = self._scene.run(ray_origins, ray_directions)
+         return triangle_index
+diff --git a/trimesh/transformations.py b/trimesh/transformations.py
+index ff179a336..6ef163748 100644
+--- a/trimesh/transformations.py
++++ b/trimesh/transformations.py
+@@ -1090,7 +1090,7 @@ def superimposition_matrix(v0, v1, scale=False, usesvd=True):
+     >>> M = superimposition_matrix(v0, v1, scale=True, usesvd=False)
+     >>> np.allclose(v1, np.dot(M, v0))
+     True
+-    >>> v = np.empty((4, 100, 3))
++    >>> v = np.zeros((4, 100, 3))
+     >>> v[:, :, 0] = v0
+     >>> M = superimposition_matrix(v0, v1, scale=True, usesvd=False)
+     >>> np.allclose(v1, np.dot(M, v[:, :, 0]))
+@@ -1283,7 +1283,7 @@ def quaternion_from_euler(ai, aj, ak, axes="sxyz"):
+     sc = si * ck
+     ss = si * sk
+ 
+-    q = np.empty((4,))
++    q = np.zeros((4,))
+     if repetition:
+         q[0] = cj * (cc - ss)
+         q[i] = cj * (cs + sc)
+@@ -1404,7 +1404,7 @@ def quaternion_from_matrix(matrix, isprecise=False):
+     """
+     M = np.asarray(matrix, dtype=np.float64)[:4, :4]
+     if isprecise:
+-        q = np.empty((4,))
++        q = np.zeros((4,))
+         t = np.trace(M)
+         if t > M[3, 3]:
+             q[0] = t
+@@ -1822,7 +1822,7 @@ def vector_norm(data, axis=None, out=None):
+     >>> np.allclose(n, np.sqrt(np.sum(v*v, axis=1)))
+     True
+     >>> v = np.random.rand(5, 4, 3)
+-    >>> n = np.empty((5, 3))
++    >>> n = np.zeros((5, 3))
+     >>> vector_norm(v, axis=1, out=n)
+     >>> np.allclose(n, np.sqrt(np.sum(v*v, axis=1)))
+     True
+@@ -1862,7 +1862,7 @@ def unit_vector(data, axis=None, out=None):
+     >>> v2 = v0 / np.expand_dims(np.sqrt(np.sum(v0*v0, axis=1)), 1)
+     >>> np.allclose(v1, v2)
+     True
+-    >>> v1 = np.empty((5, 4, 3))
++    >>> v1 = np.zeros((5, 4, 3))
+     >>> unit_vector(v0, axis=1, out=v1)
+     >>> np.allclose(v1, v2)
+     True
+diff --git a/trimesh/triangles.py b/trimesh/triangles.py
+index 55e339635..7af0513b6 100644
+--- a/trimesh/triangles.py
++++ b/trimesh/triangles.py
+@@ -32,6 +32,7 @@ def cross(triangles):
+     """
+     vectors = np.diff(triangles, axis=1)
+     crosses = np.cross(vectors[:, 0], vectors[:, 1])
++
+     return crosses
+ 
+ 
+@@ -475,18 +476,10 @@ def barycentric_to_points(triangles, barycentric):
+     points : (m, 3) float
+       Points in space
+     """
+-    barycentric = np.asanyarray(barycentric, dtype=np.float64)
++    barycentric = np.array(barycentric, dtype=np.float64)
+     triangles = np.asanyarray(triangles, dtype=np.float64)
+ 
+-    if not util.is_shape(triangles, (-1, 3, 3)):
+-        raise ValueError("Triangles must be (n, 3, 3)!")
+-    if barycentric.shape == (2,):
+-        barycentric = np.ones((len(triangles), 2), dtype=np.float64) * barycentric
+-    if util.is_shape(barycentric, (len(triangles), 2)):
+-        barycentric = np.column_stack((barycentric, 1.0 - barycentric.sum(axis=1)))
+-    elif not util.is_shape(barycentric, (len(triangles), 3)):
+-        raise ValueError("Barycentric shape incorrect!")
+-
++    # normalize in-place
+     barycentric /= barycentric.sum(axis=1).reshape((-1, 1))
+     points = (triangles * barycentric.reshape((-1, 3, 1))).sum(axis=1)
+ 
+@@ -506,9 +499,9 @@ def points_to_barycentric(triangles, points, method="cramer"):
+ 
+     Parameters
+     -----------
+-    triangles : (n, 3, 3) float
++    triangles : (n, 3, 2 | 3) float
+       Triangles vertices in space
+-    points : (n, 3) float
++    points : (n, 2 | 3) float
+       Point in space associated with a triangle
+     method :  str
+       Which method to compute the barycentric coordinates with:
+@@ -550,13 +543,22 @@ def method_cramer():
+     # establish that input triangles and points are sane
+     triangles = np.asanyarray(triangles, dtype=np.float64)
+     points = np.asanyarray(points, dtype=np.float64)
+-    if not util.is_shape(triangles, (-1, 3, 3)):
++
++    # triangles should be (n, 3, dimension)
++    if len(triangles.shape) != 3:
+         raise ValueError("triangles shape incorrect")
+-    if not util.is_shape(points, (len(triangles), 3)):
++
++    # this should work for 2D and 3D triangles
++    dim = triangles.shape[2]
++    if (
++        len(points.shape) != 2
++        or points.shape[1] != dim
++        or points.shape[0] != triangles.shape[0]
++    ):
+         raise ValueError("triangles and points must correspond")
+ 
+     edge_vectors = triangles[:, 1:] - triangles[:, :1]
+-    w = points - triangles[:, 0].reshape((-1, 3))
++    w = points - triangles[:, 0].reshape((-1, dim))
+ 
+     if method == "cross":
+         return method_cross()
+diff --git a/trimesh/typed.py b/trimesh/typed.py
+index cc9990bfb..ba4b8626e 100644
+--- a/trimesh/typed.py
++++ b/trimesh/typed.py
+@@ -5,6 +5,7 @@
+     IO,
+     Any,
+     BinaryIO,
++    Callable,
+     Mapping,
+     Optional,
+     TextIO,
+@@ -60,4 +61,5 @@
+     "float64",
+     "int64",
+     "Mapping",
++    "Callable",
+ ]
+diff --git a/trimesh/visual/color.py b/trimesh/visual/color.py
+index f78077f43..d0c9f3649 100644
+--- a/trimesh/visual/color.py
++++ b/trimesh/visual/color.py
+@@ -30,6 +30,7 @@
+ from .. import caching, util
+ from ..constants import tol
+ from ..grouping import unique_rows
++from ..typed import ArrayLike, NDArray
+ from .base import Visuals
+ 
+ 
+@@ -555,14 +556,14 @@ def __hash__(self):
+         return self._colors.__hash__()
+ 
+ 
+-def to_rgba(colors, dtype=np.uint8):
++def to_rgba(colors, dtype=np.uint8) -> NDArray:
+     """
+     Convert a single or multiple RGB colors to RGBA colors.
+ 
+     Parameters
+     ----------
+     colors : (n, 3) or (n, 4) array
+-      RGB or RGBA colors
++      RGB or RGBA colors or None
+ 
+     Returns
+     ----------
+@@ -582,29 +583,25 @@ def to_rgba(colors, dtype=np.uint8):
+         # replace any `nan` or `inf` values with zero
+         colors[~np.isfinite(colors)] = 0.0
+ 
+-    if colors.dtype.kind == "f" and colors.max() < (1.0 + 1e-8):
+-        colors = (colors * opaque).round().astype(dtype)
+-    elif colors.max() <= opaque:
+-        colors = colors.astype(dtype)
+-    else:
+-        raise ValueError("colors non-convertible!")
++        # if we've been passed float colors they better be
++        # 0.0-1.0
++        colors = np.clip((colors * opaque).round(), 0, opaque)
+ 
+     if util.is_shape(colors, (-1, 3)):
+         # add an opaque alpha for RGB colors
+-        colors = np.column_stack((colors, opaque * np.ones(len(colors)))).astype(dtype)
++        colors = np.column_stack((colors, opaque * np.ones(len(colors))))
+     elif util.is_shape(colors, (3,)):
+         # if passed a single RGB color add an alpha
+-        colors = np.append(colors, opaque).astype(dtype)
+-
++        colors = np.append(colors, opaque)
+     if not (util.is_shape(colors, (4,)) or util.is_shape(colors, (-1, 4))):
+         raise ValueError("Colors not of appropriate shape!")
+ 
+-    return colors
++    return colors.astype(dtype)
+ 
+ 
+-def to_float(colors):
++def to_float(colors: ArrayLike) -> NDArray[np.float64]:
+     """
+-    Convert integer colors to 0.0 - 1.0 floating point colors
++    Convert integer colors to 0.0-1.0 floating point colors
+ 
+     Parameters
+     -------------
+@@ -620,7 +617,7 @@ def to_float(colors):
+     # colors as numpy array
+     colors = np.asanyarray(colors)
+     if colors.dtype.kind == "f":
+-        return colors
++        return colors.astype(np.float64)
+     elif colors.dtype.kind in "iu":
+         # integer value for opaque alpha given our datatype
+         opaque = np.iinfo(colors.dtype).max
+diff --git a/trimesh/visual/gloss.py b/trimesh/visual/gloss.py
+index 08ab324dc..8c4065685 100644
+--- a/trimesh/visual/gloss.py
++++ b/trimesh/visual/gloss.py
+@@ -225,10 +225,10 @@ def get_specular_glossiness(
+ 
+     if diffuseTexture is not None and specularGlossinessTexture is not None:
+         # reshape to the size of the largest texture
+-        max_shape = [
++        max_shape = tuple(
+             max(diffuseTexture.size[i], specularGlossinessTexture.size[i])
+             for i in range(2)
+-        ]
++        )
+         if (
+             diffuseTexture.size[0] != max_shape[0]
+             or diffuseTexture.size[1] != max_shape[1]
+diff --git a/trimesh/visual/material.py b/trimesh/visual/material.py
+index 09c137509..15d2fd0de 100644
+--- a/trimesh/visual/material.py
++++ b/trimesh/visual/material.py
+@@ -1007,7 +1007,7 @@ def pack_images(images):
+                     scale = max_tex_size.max() / max_tex_size_individual
+                     max_tex_size = np.round(max_tex_size / scale).astype(np.int64)
+ 
+-                unpadded_sizes.append(max_tex_size)
++                unpadded_sizes.append(tuple(max_tex_size))
+ 
+             # use the same size for all of them to ensure
+             # that texture atlassing is identical
+diff --git a/trimesh/visual/texture.py b/trimesh/visual/texture.py
+index e2be87fc3..04f669120 100644
+--- a/trimesh/visual/texture.py
++++ b/trimesh/visual/texture.py
+@@ -345,6 +345,6 @@ def power_resize(image, resample=1, square=False):
+ 
+     # if we're not powers of two upsize
+     if (size != new_size).any():
+-        return image.resize(new_size, resample=resample)
++        return image.resize(tuple(new_size), resample=resample)
+ 
+     return image.copy()
+diff --git a/trimesh/voxel/encoding.py b/trimesh/voxel/encoding.py
+index cd02c28d1..805cf34aa 100644
+--- a/trimesh/voxel/encoding.py
++++ b/trimesh/voxel/encoding.py
+@@ -18,7 +18,7 @@
+ 
+ def _empty_stripped(shape):
+     num_dims = len(shape)
+-    encoding = DenseEncoding(np.empty(shape=(0,) * num_dims, dtype=bool))
++    encoding = DenseEncoding(np.zeros(shape=(0,) * num_dims, dtype=bool))
+     padding = np.zeros(shape=(num_dims, 2), dtype=int)
+     padding[:, 1] = shape
+     return encoding, padding
+@@ -355,7 +355,7 @@ def sparse_components(self):
+     def dense(self):
+         sparse = self._csc
+         # sparse.todense gives an `np.matrix` which cannot be reshaped
+-        dense = np.empty(shape=sparse.shape, dtype=sparse.dtype)
++        dense = np.zeros(shape=sparse.shape, dtype=sparse.dtype)
+         sparse.todense(out=dense)
+         return np.reshape(dense, self.shape)
+ 
+diff --git a/trimesh/voxel/runlength.py b/trimesh/voxel/runlength.py
+index 50d2c2f08..0b4a042c7 100644
+--- a/trimesh/voxel/runlength.py
++++ b/trimesh/voxel/runlength.py
+@@ -290,7 +290,7 @@ def split_long_rle_lengths(values, lengths, dtype=np.int64):
+         repeats += 1
+         remainder = lengths % max_length
+         values = np.repeat(values, repeats)
+-        lengths = np.empty(len(repeats), dtype=dtype)
++        lengths = np.zeros(len(repeats), dtype=dtype)
+         lengths.fill(max_length)
+         lengths = np.repeat(lengths, repeats)
+         lengths[np.cumsum(repeats) - 1] = remainder
+@@ -352,7 +352,7 @@ def _unsorted_gatherer(indices, sorted_gather_fn):
+     ordered_indices = indices[order]
+ 
+     def f(data, dtype=None):
+-        result = np.empty(len(order), dtype=dtype or getattr(data, "dtype", None))
++        result = np.zeros(len(order), dtype=dtype or getattr(data, "dtype", None))
+         result[order] = tuple(sorted_gather_fn(data, ordered_indices))
+         return result
+ 

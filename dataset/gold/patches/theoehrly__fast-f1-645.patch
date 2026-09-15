@@ -1,0 +1,107 @@
+diff --git a/fastf1/plotting/__init__.py b/fastf1/plotting/__init__.py
+index 1e6b6c568..9d1051feb 100644
+--- a/fastf1/plotting/__init__.py
++++ b/fastf1/plotting/__init__.py
+@@ -4,6 +4,8 @@
+     LEGACY_DRIVER_COLORS as _LEGACY_DRIVER_COLORS
+ from fastf1.plotting._constants import \
+     LEGACY_DRIVER_TRANSLATE as _LEGACY_DRIVER_TRANSLATE
++from fastf1.plotting._constants import \
++    LEGACY_TEAM_COLORS as _LEGACY_TEAM_COLORS
+ from fastf1.plotting._constants import \
+     LEGACY_TEAM_TRANSLATE as _LEGACY_TEAM_TRANSLATE
+ from fastf1.plotting._constants import Constants as _Constants
+@@ -134,12 +136,7 @@ def __getattr__(name):
+     future version. Use :func:`~fastf1.plotting.get_driver_name` instead.
+ """
+ 
+-_DEPR_TEAM_COLORS: dict[str, str] = {
+-    # str(key.value): val for key, val
+-    # in _Constants['2024'].Colormaps[_Colormaps.Default].items()
+-    name.replace("kick ", ""): team.TeamColor.FastF1 for name, team
+-    in _Constants['2024'].Teams.items()
+-}
++_DEPR_TEAM_COLORS: dict[str, str] = _LEGACY_TEAM_COLORS.copy()
+ TEAM_COLORS: dict[str, str]
+ """
+ Mapping of team names to team colors (hex color codes).
+diff --git a/fastf1/plotting/_constants/__init__.py b/fastf1/plotting/_constants/__init__.py
+index f79bf1aa2..c888de832 100644
+--- a/fastf1/plotting/_constants/__init__.py
++++ b/fastf1/plotting/_constants/__init__.py
+@@ -38,7 +38,7 @@
+     'APN': 'alpine',
+     'AMR': 'aston martin',
+     'SAU': 'sauber',
+-    'RB': 'rb',
++    'RB' : 'visa rb',
+     'HAA': 'haas',
+     'WIL': 'williams'
+ }
+diff --git a/fastf1/plotting/_plotting.py b/fastf1/plotting/_plotting.py
+index 2256a15b5..be3976308 100644
+--- a/fastf1/plotting/_plotting.py
++++ b/fastf1/plotting/_plotting.py
+@@ -176,18 +176,23 @@ def driver_color(identifier: str) -> str:
+             ratio = fuzz.ratio(identifier, existing_key)
+             key_ratios.append((ratio, existing_key))
+         key_ratios.sort(reverse=True)
+-        if key_ratios[0][0] != 100:
+-            _logger.warning(
+-                "Correcting invalid user input "
+-                 f"'{identifier}' to '{key_ratios[0][1]}'."
+ 
+-            )
+-        if ((key_ratios[0][0] < 35)
+-                or (key_ratios[0][0] / key_ratios[1][0] < 1.2)):
++        if (key_ratios[0][0] < 35) or (
++            key_ratios[0][0] / key_ratios[1][0] < 1.2
++        ):
+             # ensure that the best match has a minimum accuracy (35 out of
+             # 100) and that it has a minimum confidence (at least 20% better
+             # than second best)
+-            raise KeyError
++            raise KeyError(
++                f"Cannot find a good match for user input: {identifier}"
++            )
++
++        if key_ratios[0][0] != 100:
++            _logger.warning(
++                "Correcting invalid user input "
++                f"'{identifier}' to '{key_ratios[0][1]}'."
++            )
++
+         best_matched_key = key_ratios[0][1]
+         return LEGACY_DRIVER_COLORS[best_matched_key]
+ 
+@@ -263,18 +268,22 @@ def team_color(identifier: str) -> str:
+             ratio = fuzz.ratio(identifier, existing_key)
+             key_ratios.append((ratio, existing_key))
+         key_ratios.sort(reverse=True)
+-        if key_ratios[0][0] != 100:
+-            _logger.warning(
+-                "Correcting invalid user input "
+-                 f"'{identifier}' to '{key_ratios[0][1]}'."
+ 
+-            )
+-        if ((key_ratios[0][0] < 35)
+-                or (key_ratios[0][0] / key_ratios[1][0] < 1.2)):
++        if (key_ratios[0][0] < 35) or (
++            key_ratios[0][0] / key_ratios[1][0] < 1.2
++        ):
+             # ensure that the best match has a minimum accuracy (35 out of
+             # 100) and that it has a minimum confidence (at least 20% better
+             # than second best)
+-            raise KeyError
++            raise KeyError(
++                f"Cannot find a good match for user input: {identifier}"
++            )
++
++        if key_ratios[0][0] != 100:
++            _logger.warning(
++                "Correcting invalid user input "
++                f"'{identifier}' to '{key_ratios[0][1]}'."
++            )
+         best_matched_key = key_ratios[0][1]
+         return LEGACY_TEAM_COLORS[best_matched_key]
+ 

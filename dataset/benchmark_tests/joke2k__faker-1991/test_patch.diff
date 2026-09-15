@@ -1,0 +1,47 @@
+diff --git a/tests/providers/test_misc.py b/tests/providers/test_misc.py
+index ec9fe57a25..df735eee4f 100644
+--- a/tests/providers/test_misc.py
++++ b/tests/providers/test_misc.py
+@@ -423,7 +423,7 @@ def test_dsv_with_row_ids(self, faker, num_samples):
+     def test_dsv_data_columns(self, faker):
+         num_rows = 10
+         data_columns = ["{{name}}", "#??-####", "{{address}}", "{{phone_number}}"]
+-        with patch.object(faker["en_US"], "pystr_format") as mock_pystr_format:
++        with patch.object(faker["en_US"].factories[0], "pystr_format") as mock_pystr_format:
+             mock_pystr_format.assert_not_called()
+             faker.dsv(data_columns=data_columns, num_rows=num_rows)
+ 
+diff --git a/tests/providers/test_python.py b/tests/providers/test_python.py
+index 6342bfb9eb..4935528eb8 100644
+--- a/tests/providers/test_python.py
++++ b/tests/providers/test_python.py
+@@ -523,7 +523,7 @@ def setUp(self):
+         Faker.seed(0)
+ 
+     def test_formatter_invocation(self):
+-        with patch.object(self.fake["en_US"], "foo") as mock_foo:
++        with patch.object(self.fake["en_US"].factories[0], "foo") as mock_foo:
+             with patch("faker.providers.BaseProvider.bothify", wraps=self.fake.bothify) as mock_bothify:
+                 mock_foo.return_value = "barbar"
+                 value = self.fake.pystr_format("{{foo}}?#?{{foo}}?#?{{foo}}", letters="abcde")
+diff --git a/tests/test_proxy.py b/tests/test_proxy.py
+index 322bc39630..8b4b6d6316 100644
+--- a/tests/test_proxy.py
++++ b/tests/test_proxy.py
+@@ -103,14 +103,14 @@ def test_items(self):
+         fake = Faker(locale)
+         for locale_name, factory in fake.items():
+             assert locale_name in processed_locale
+-            assert isinstance(factory, Generator)
++            assert isinstance(factory, (Generator, Faker))
+ 
+     def test_dunder_getitem(self):
+         locale = ["de_DE", "en-US", "en-PH", "ja_JP"]
+         fake = Faker(locale)
+ 
+         for code in locale:
+-            assert isinstance(fake[code], Generator)
++            assert isinstance(fake[code], (Generator, Faker))
+ 
+         with pytest.raises(KeyError):
+             fake["en_GB"]

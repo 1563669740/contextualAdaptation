@@ -1,0 +1,4 @@
+[
+  "xarray/tests/test_variable.py::test_as_compatible_data_writeable[data0]",
+  "xarray/tests/test_variable.py::test_as_compatible_data_writeable[data1]"
+]

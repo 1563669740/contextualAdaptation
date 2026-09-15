@@ -1,0 +1,72 @@
+diff --git a/docs/yaml_configuration.rst b/docs/yaml_configuration.rst
+index 0929404d6..b99476416 100644
+--- a/docs/yaml_configuration.rst
++++ b/docs/yaml_configuration.rst
+@@ -395,7 +395,7 @@ Tags
+ ----
+ -  **clonefrom**: ``true`` or ``false``. If set to ``true`` other nodes might prefer to use this node for bootstrap (take ``pg_basebackup`` from). If there are several nodes with ``clonefrom`` tag set to ``true`` the node to bootstrap from will be chosen randomly. The default value is ``false``.
+ -  **noloadbalance**: ``true`` or ``false``. If set to ``true`` the node will return HTTP Status Code 503 for the ``GET /replica`` REST API health-check and therefore will be excluded from the load-balancing. Defaults to ``false``.
+--  **replicatefrom**: The IP address/hostname of another replica. Used to support cascading replication.
++-  **replicatefrom**: The name of another replica to replicate from. Used to support cascading replication.
+ -  **nosync**: ``true`` or ``false``. If set to ``true`` the node will never be selected as a synchronous replica.
+ -  **nofailover**: ``true`` or ``false``, controls whether this node is allowed to participate in the leader race and become a leader. Defaults to ``false``, meaning this node _can_ participate in leader races. 
+ -  **failover_priority**: integer, controls the priority that this node should have during failover. Nodes with higher priority will be preferred over lower priority nodes if they received/replayed the same amount of WAL. However, nodes with higher values of receive/replay LSN are preferred regardless of their priority. If the ``failover_priority`` is 0 or negative - such node is not allowed to participate in the leader race and to become a leader (similar to ``nofailover: true``).
+diff --git a/patroni/dcs/__init__.py b/patroni/dcs/__init__.py
+index 971cc3c91..33a39464f 100644
+--- a/patroni/dcs/__init__.py
++++ b/patroni/dcs/__init__.py
+@@ -10,7 +10,7 @@
+ from random import randint
+ from threading import Event, Lock
+ from typing import Any, Callable, Collection, Dict, Iterator, List, \
+-    NamedTuple, Optional, Tuple, Type, TYPE_CHECKING, Union
++    NamedTuple, Optional, Set, Tuple, Type, TYPE_CHECKING, Union
+ from urllib.parse import urlparse, urlunparse, parse_qsl
+ 
+ import dateutil.parser
+@@ -913,7 +913,9 @@ def is_physical_slot(value: Union[Any, Dict[str, Any]]) -> bool:
+ 
+         :returns: ``True`` if *value* is a physical replication slot, otherwise ``False``.
+         """
+-        return not value or isinstance(value, dict) and value.get('type', 'physical') == 'physical'
++        return not value \
++            or (isinstance(value, dict) and not Cluster.is_logical_slot(value)
++                and value.get('type', 'physical') == 'physical')
+ 
+     @staticmethod
+     def is_logical_slot(value: Union[Any, Dict[str, Any]]) -> bool:
+@@ -1179,6 +1181,10 @@ def should_enforce_hot_standby_feedback(self, postgresql: 'Postgresql', member:
+ 
+         if global_config.use_slots:
+             name = member.name if isinstance(member, Member) else postgresql.name
++
++            if not self.get_slot_name_on_primary(name, member):
++                return False
++
+             members = [m for m in self.members if m.replicatefrom == name and m.name != self.leader_name]
+             return any(self.should_enforce_hot_standby_feedback(postgresql, m) for m in members)
+         return False
+@@ -1197,11 +1203,18 @@ def get_slot_name_on_primary(self, name: str, tags: Tags) -> Optional[str]:
+ 
+         :returns: the slot name on the primary that is in use for physical replication on this node.
+         """
+-        if tags.nostream:
+-            return None
+-        replicatefrom = self.get_member(tags.replicatefrom, False) if tags.replicatefrom else None
+-        return self.get_slot_name_on_primary(replicatefrom.name, replicatefrom) \
+-            if isinstance(replicatefrom, Member) else slot_name_from_member_name(name)
++        seen_nodes: Set[str] = set()
++        while True:
++            seen_nodes.add(name)
++            if tags.nostream:
++                return None
++            replicatefrom = self.get_member(tags.replicatefrom, False) \
++                if tags.replicatefrom and tags.replicatefrom != name else None
++            if not isinstance(replicatefrom, Member):
++                return slot_name_from_member_name(name)
++            if replicatefrom.name in seen_nodes:
++                return None
++            name, tags = replicatefrom.name, replicatefrom
+ 
+     @property
+     def timeline(self) -> int:

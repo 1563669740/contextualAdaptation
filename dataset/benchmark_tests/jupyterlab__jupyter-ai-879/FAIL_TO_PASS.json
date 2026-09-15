@@ -1,0 +1,3 @@
+[
+  "packages/jupyter-ai/jupyter_ai/tests/completions/test_handlers.py::test_handle_request_with_spurious_fragments_stream[```hello```world```-hello```world]"
+]

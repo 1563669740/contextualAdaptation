@@ -1,0 +1,9 @@
+[
+  "xarray/tests/test_groupby.py::test_reduce_numeric_only[grouper1]",
+  "xarray/tests/test_groupby.py::test_groupby_dataset_reduce_ellipsis[group-by-unique-grouper]",
+  "xarray/tests/test_groupby.py::test_groupby_bins_cut_kwargs[True]",
+  "xarray/tests/test_groupby.py::test_groupby_bins_cut_kwargs[False]",
+  "xarray/tests/test_groupby.py::test_groupby_bins_math[groupby-args1-True]",
+  "xarray/tests/test_groupby.py::test_groupby_bins_math[groupby-args1-False]",
+  "xarray/tests/test_groupby.py::test_custom_grouper"
+]

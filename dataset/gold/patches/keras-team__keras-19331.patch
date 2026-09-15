@@ -1,0 +1,22 @@
+diff --git a/keras/layers/rnn/bidirectional.py b/keras/layers/rnn/bidirectional.py
+index 6c996d55d8be..9a2569fa1591 100644
+--- a/keras/layers/rnn/bidirectional.py
++++ b/keras/layers/rnn/bidirectional.py
+@@ -182,13 +182,13 @@ def compute_output_shape(self, sequences_shape, initial_state_shape=None):
+             output_shape[-1] *= 2
+             output_shape = tuple(output_shape)
+         elif self.merge_mode is None:
+-            output_shape = [output_shape, copy.copy(output_shape)]
++            output_shape = [output_shape, output_shape]
+ 
+         if self.return_state:
+             if self.merge_mode is None:
+-                return output_shape + state_shape + copy.copy(state_shape)
+-            return [output_shape] + state_shape + copy.copy(state_shape)
+-        return output_shape
++                return tuple(output_shape) + state_shape + state_shape
++            return tuple([output_shape]) + (state_shape) + (state_shape)
++        return tuple(output_shape)
+ 
+     def call(
+         self,

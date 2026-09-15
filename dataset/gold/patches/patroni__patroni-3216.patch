@@ -1,0 +1,53 @@
+diff --git a/patroni/ctl.py b/patroni/ctl.py
+index d775c6ad6..2e485af2c 100644
+--- a/patroni/ctl.py
++++ b/patroni/ctl.py
+@@ -1889,12 +1889,13 @@ def listify(string: str) -> List[str]:
+     unified_diff = difflib.unified_diff(listify(before_editing), listify(after_editing))
+ 
+     if sys.stdout.isatty():
+-        buf = io.StringIO()
++        buf = io.BytesIO()
+         for line in unified_diff:
+-            buf.write(str(line))
++            buf.write(line.encode('utf-8'))
+         buf.seek(0)
+ 
+         class opts:
++            theme = 'default'
+             side_by_side = False
+             width = 80
+             tab_width = 8
+diff --git a/requirements.txt b/requirements.txt
+index a35d18655..5b3626b11 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -10,5 +10,5 @@ python-dateutil
+ pysyncobj>=0.3.8
+ cryptography>=1.4
+ psutil>=2.0.0
+-ydiff>=1.2.0
++ydiff>=1.2.0,<1.5,!=1.4.0,!=1.4.1
+ python-json-logger>=2.0.2
+diff --git a/typings/cdiff/__init__.pyi b/typings/cdiff/__init__.pyi
+index 4578d4688..c23b6d733 100644
+--- a/typings/cdiff/__init__.pyi
++++ b/typings/cdiff/__init__.pyi
+@@ -1,5 +1,5 @@
+ import io
+ from typing import Any
+ class PatchStream:
+-    def __init__(self, diff_hdl: io.TextIOBase) -> None: ...
++    def __init__(self, diff_hdl: io.BytesIOBase) -> None: ...
+ def markup_to_pager(stream: Any, opts: Any) -> None: ...
+diff --git a/typings/ydiff/__init__.pyi b/typings/ydiff/__init__.pyi
+index 4578d4688..c23b6d733 100644
+--- a/typings/ydiff/__init__.pyi
++++ b/typings/ydiff/__init__.pyi
+@@ -1,5 +1,5 @@
+ import io
+ from typing import Any
+ class PatchStream:
+-    def __init__(self, diff_hdl: io.TextIOBase) -> None: ...
++    def __init__(self, diff_hdl: io.BytesIOBase) -> None: ...
+ def markup_to_pager(stream: Any, opts: Any) -> None: ...

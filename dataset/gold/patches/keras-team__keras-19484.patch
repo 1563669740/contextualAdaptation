@@ -1,0 +1,13 @@
+diff --git a/keras/optimizers/base_optimizer.py b/keras/optimizers/base_optimizer.py
+index e18f3c1deb35..8709a95b95fe 100644
+--- a/keras/optimizers/base_optimizer.py
++++ b/keras/optimizers/base_optimizer.py
+@@ -567,7 +567,7 @@ def _get_current_learning_rate(self):
+         ):
+             return self._learning_rate(self.iterations)
+         elif callable(self._learning_rate):
+-            return self._learning_rate(self.iterations)
++            return self._learning_rate()
+         return self._learning_rate
+ 
+     def _filter_empty_gradients(self, grads, vars):

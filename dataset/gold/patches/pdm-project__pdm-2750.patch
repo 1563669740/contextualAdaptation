@@ -1,0 +1,133 @@
+diff --git a/news/2747.bugfix.md b/news/2747.bugfix.md
+new file mode 100644
+index 0000000000..094d0b416b
+--- /dev/null
++++ b/news/2747.bugfix.md
+@@ -0,0 +1,1 @@
++Add back `PreparedCandidate.build()` for backward-compatibility.
+diff --git a/src/pdm/installers/manager.py b/src/pdm/installers/manager.py
+index 9adf8ac294..fcbe43fdbb 100644
+--- a/src/pdm/installers/manager.py
++++ b/src/pdm/installers/manager.py
+@@ -26,7 +26,9 @@ def __init__(self, environment: BaseEnvironment, *, use_install_cache: bool = Fa
+     def install(self, candidate: Candidate) -> Distribution:
+         """Install a candidate into the environment, return the distribution"""
+         prepared = candidate.prepare(self.environment)
+-        dist_info = install_package(prepared.build(), self.environment, prepared.direct_url(), self.use_install_cache)
++        dist_info = install_package(
++            prepared.get_cached_package(), self.environment, prepared.direct_url(), self.use_install_cache
++        )
+         return Distribution.at(dist_info)
+ 
+     def get_paths_to_remove(self, dist: Distribution) -> BaseRemovePaths:
+diff --git a/src/pdm/models/cached_package.py b/src/pdm/models/cached_package.py
+index 9c7d875b16..fc2bbc7a07 100644
+--- a/src/pdm/models/cached_package.py
++++ b/src/pdm/models/cached_package.py
+@@ -22,8 +22,9 @@ class CachedPackage:
+     *Only wheel installations will be cached*
+     """
+ 
+-    def __init__(self, path: str | Path) -> None:
++    def __init__(self, path: str | Path, original_wheel: Path | None = None) -> None:
+         self.path = Path(os.path.normcase(os.path.expanduser(path))).resolve()
++        self.original_wheel = original_wheel
+         self._referrers: set[str] | None = None
+ 
+     def lock(self) -> ContextManager[Any]:
+diff --git a/src/pdm/models/caches.py b/src/pdm/models/caches.py
+index 9f3842627d..f518ec5774 100644
+--- a/src/pdm/models/caches.py
++++ b/src/pdm/models/caches.py
+@@ -285,7 +285,7 @@ def cache_wheel(self, wheel: Path, checksum: str | None = None) -> CachedPackage
+             checksum = get_file_hash(wheel)
+         parts = (checksum[:2],)  # shard by the first two chars of the checksum
+         dest = self.root.joinpath(*parts, f"{wheel.name}.cache")
+-        pkg = CachedPackage(dest)
++        pkg = CachedPackage(dest, original_wheel=wheel)
+         if dest.exists():
+             return pkg
+         dest.mkdir(parents=True, exist_ok=True)
+diff --git a/src/pdm/models/candidates.py b/src/pdm/models/candidates.py
+index d55a5e9bad..4d222c86c3 100644
+--- a/src/pdm/models/candidates.py
++++ b/src/pdm/models/candidates.py
+@@ -399,16 +399,29 @@ def direct_url(self) -> dict[str, Any] | None:
+         else:
+             return None
+ 
+-    def build(self) -> CachedPackage:
+-        """Call PEP 517 build hook to build the candidate into a wheel"""
+-        self.obtain(allow_all=False)
++    def get_cached_package(self) -> CachedPackage:
++        """Call PEP 517 build hook to build the candidate into a cached package"""
++        self._obtain(allow_all=False)
+         if self._cached:
+             return self._cached
++        wheel = self.build()
++        checksum_path = Path(f"{wheel}.sha256")
++        if checksum_path.exists():
++            checksum = checksum_path.read_text().strip()
++        else:
++            checksum = None
++        self._cached = self.environment.project.package_cache.cache_wheel(wheel, checksum)
++        return self._cached
++
++    def build(self) -> Path:
++        """Call PEP 517 build hook to build the candidate into a wheel"""
++        self._obtain(allow_all=False, prefer_wheel=True)
++        if self._cached and self._cached.original_wheel:
++            return self._cached.original_wheel
+         if not self.req.editable:
+             cached, checksum = self._get_build_cache()
+             if cached:
+-                self._cached = self.environment.project.package_cache.cache_wheel(cached, checksum)
+-                return self._cached
++                return cached
+         assert self._source_dir, "Source directory isn't ready yet"
+         builder_cls = EditableBuilder if self.req.editable else WheelBuilder
+         builder = builder_cls(str(self._unpacked_dir), self.environment)
+@@ -421,17 +434,20 @@ def build(self) -> CachedPackage:
+         with open(f"{wheel}.sha256", "w") as f:
+             f.write(checksum)
+         self.reporter.report_build_end(self.link.filename)  # type: ignore[union-attr]
+-        return self.environment.project.package_cache.cache_wheel(wheel, checksum)
++        return wheel
+ 
+-    def obtain(self, allow_all: bool = False, unpack: bool = True) -> None:
++    def _obtain(self, allow_all: bool = False, unpack: bool = True, prefer_wheel: bool = False) -> None:
+         """Fetch the link of the candidate and unpack to local if necessary.
+ 
+         :param allow_all: If true, don't validate the wheel tag nor hashes
+         :param unpack: Whether to download and unpack the link if it's not local
++        :param prefer_wheel: Prefer wheel over cached package
+         """
+         if self._cached and self._wheel_compatible(self._cached.path.stem, allow_all):
+-            return
+-        elif self._source_dir and self._source_dir.exists():
++            if not prefer_wheel or self._cached.original_wheel:
++                return
++
++        if self._source_dir and self._source_dir.exists():
+             return
+ 
+         sources = filtered_sources(self.environment.project.sources, self.req.key)
+@@ -456,7 +472,8 @@ def obtain(self, allow_all: bool = False, unpack: bool = True) -> None:
+         package = self.environment.project.package_cache.match_link(self.link)
+         if package is not None:
+             self._cached = package
+-            return
++            if not prefer_wheel:
++                return
+         # If not, find if there is any build cache for the candidate
+         if allow_all and not self.req.editable:
+             cached, checksum = self._get_build_cache()
+@@ -495,7 +512,7 @@ def _unpack(self, validate_hashes: bool = False) -> None:
+             self._unpacked_dir = result
+ 
+     def prepare_metadata(self, force_build: bool = False) -> im.Distribution:
+-        self.obtain(allow_all=True, unpack=False)
++        self._obtain(allow_all=True, unpack=False)
+ 
+         if self._cached:
+             return self._get_metadata_from_cached(self._cached)

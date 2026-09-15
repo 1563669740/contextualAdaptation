@@ -1,0 +1,5 @@
+[
+  "pvlib/tests/test_solarposition.py::test__datetime_to_unixtime[None]",
+  "pvlib/tests/test_solarposition.py::test__datetime_to_unixtime[utc]",
+  "pvlib/tests/test_solarposition.py::test__datetime_to_unixtime[US/Eastern]"
+]

@@ -1,0 +1,340 @@
+diff --git a/doc/api/next_api_changes/behavior/28177-REC.rst b/doc/api/next_api_changes/behavior/28177-REC.rst
+new file mode 100644
+index 000000000000..d7ea8ec0e947
+--- /dev/null
++++ b/doc/api/next_api_changes/behavior/28177-REC.rst
+@@ -0,0 +1,7 @@
++(Sub)Figure.get_figure
++~~~~~~~~~~~~~~~~~~~~~~
++
++...in future will by default return the direct parent figure, which may be a SubFigure.
++This will make the default behavior consistent with the
++`~matplotlib.artist.Artist.get_figure` method of other artists.  To control the
++behavior, use the newly introduced *root* parameter.
+diff --git a/doc/api/next_api_changes/deprecations/28177-REC.rst b/doc/api/next_api_changes/deprecations/28177-REC.rst
+new file mode 100644
+index 000000000000..a3e630630aeb
+--- /dev/null
++++ b/doc/api/next_api_changes/deprecations/28177-REC.rst
+@@ -0,0 +1,5 @@
++(Sub)Figure.set_figure
++~~~~~~~~~~~~~~~~~~~~~~
++
++...is deprecated and in future will always raise an exception.  The parent and
++root figures of a (Sub)Figure are set at instantiation and cannot be changed.
+diff --git a/lib/matplotlib/artist.py b/lib/matplotlib/artist.py
+index d5b8631e95df..baf3b01ee6e5 100644
+--- a/lib/matplotlib/artist.py
++++ b/lib/matplotlib/artist.py
+@@ -181,7 +181,7 @@ def __init__(self):
+         self._stale = True
+         self.stale_callback = None
+         self._axes = None
+-        self.figure = None
++        self._parent_figure = None
+ 
+         self._transform = None
+         self._transformSet = False
+@@ -251,7 +251,7 @@ def remove(self):
+             if self.figure:
+                 if not _ax_flag:
+                     self.figure.stale = True
+-                self.figure = None
++                self._parent_figure = None
+ 
+         else:
+             raise NotImplementedError('cannot remove artist')
+@@ -720,34 +720,49 @@ def set_path_effects(self, path_effects):
+     def get_path_effects(self):
+         return self._path_effects
+ 
+-    def get_figure(self):
+-        """Return the `.Figure` instance the artist belongs to."""
+-        return self.figure
++    def get_figure(self, root=False):
++        """
++        Return the `.Figure` or `.SubFigure` instance the artist belongs to.
++
++        Parameters
++        ----------
++        root : bool, default=False
++            If False, return the (Sub)Figure this artist is on.  If True,
++            return the root Figure for a nested tree of SubFigures.
++        """
++        if root and self._parent_figure is not None:
++            return self._parent_figure.get_figure(root=True)
++
++        return self._parent_figure
+ 
+     def set_figure(self, fig):
+         """
+-        Set the `.Figure` instance the artist belongs to.
++        Set the `.Figure` or `.SubFigure` instance the artist belongs to.
+ 
+         Parameters
+         ----------
+-        fig : `~matplotlib.figure.Figure`
++        fig : `~matplotlib.figure.Figure` or `~matplotlib.figure.SubFigure`
+         """
+         # if this is a no-op just return
+-        if self.figure is fig:
++        if self._parent_figure is fig:
+             return
+         # if we currently have a figure (the case of both `self.figure`
+         # and *fig* being none is taken care of above) we then user is
+         # trying to change the figure an artist is associated with which
+         # is not allowed for the same reason as adding the same instance
+         # to more than one Axes
+-        if self.figure is not None:
++        if self._parent_figure is not None:
+             raise RuntimeError("Can not put single artist in "
+                                "more than one figure")
+-        self.figure = fig
+-        if self.figure and self.figure is not self:
++        self._parent_figure = fig
++        if self._parent_figure and self._parent_figure is not self:
+             self.pchanged()
+         self.stale = True
+ 
++    figure = property(get_figure, set_figure,
++                      doc=("The (Sub)Figure that the artist is on.  For more "
++                           "control, use the `get_figure` method."))
++
+     def set_clip_box(self, clipbox):
+         """
+         Set the artist's clip `.Bbox`.
+diff --git a/lib/matplotlib/artist.pyi b/lib/matplotlib/artist.pyi
+index 50f41b7f70e5..3059600e488c 100644
+--- a/lib/matplotlib/artist.pyi
++++ b/lib/matplotlib/artist.pyi
+@@ -31,7 +31,8 @@ class _Unset: ...
+ class Artist:
+     zorder: float
+     stale_callback: Callable[[Artist, bool], None] | None
+-    figure: Figure | SubFigure | None
++    @property
++    def figure(self) -> Figure | SubFigure: ...
+     clipbox: BboxBase | None
+     def __init__(self) -> None: ...
+     def remove(self) -> None: ...
+@@ -87,8 +88,8 @@ class Artist:
+     ) -> None: ...
+     def set_path_effects(self, path_effects: list[AbstractPathEffect]) -> None: ...
+     def get_path_effects(self) -> list[AbstractPathEffect]: ...
+-    def get_figure(self) -> Figure | None: ...
+-    def set_figure(self, fig: Figure) -> None: ...
++    def get_figure(self, root: bool = ...) -> Figure | SubFigure | None: ...
++    def set_figure(self, fig: Figure | SubFigure) -> None: ...
+     def set_clip_box(self, clipbox: BboxBase | None) -> None: ...
+     def set_clip_path(
+         self,
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index 18ff80a51e5a..4606e5c01aec 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -1296,7 +1296,7 @@ def __clear(self):
+         self._gridOn = mpl.rcParams['axes.grid']
+         old_children, self._children = self._children, []
+         for chld in old_children:
+-            chld.axes = chld.figure = None
++            chld.axes = chld._parent_figure = None
+         self._mouseover_set = _OrderedSet()
+         self.child_axes = []
+         self._current_image = None  # strictly for pyplot via _sci, _gci
+diff --git a/lib/matplotlib/axes/_base.pyi b/lib/matplotlib/axes/_base.pyi
+index 751dcd248a5c..1fdc0750f0bc 100644
+--- a/lib/matplotlib/axes/_base.pyi
++++ b/lib/matplotlib/axes/_base.pyi
+@@ -13,7 +13,7 @@ from matplotlib.cm import ScalarMappable
+ from matplotlib.legend import Legend
+ from matplotlib.lines import Line2D
+ from matplotlib.gridspec import SubplotSpec, GridSpec
+-from matplotlib.figure import Figure
++from matplotlib.figure import Figure, SubFigure
+ from matplotlib.image import AxesImage
+ from matplotlib.patches import Patch
+ from matplotlib.scale import ScaleBase
+@@ -81,7 +81,7 @@ class _AxesBase(martist.Artist):
+     def get_subplotspec(self) -> SubplotSpec | None: ...
+     def set_subplotspec(self, subplotspec: SubplotSpec) -> None: ...
+     def get_gridspec(self) -> GridSpec | None: ...
+-    def set_figure(self, fig: Figure) -> None: ...
++    def set_figure(self, fig: Figure | SubFigure) -> None: ...
+     @property
+     def viewLim(self) -> Bbox: ...
+     def get_xaxis_transform(
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index 1d522f8defa2..51bac3455a28 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -30,6 +30,7 @@
+ from contextlib import ExitStack
+ import inspect
+ import itertools
++import functools
+ import logging
+ from numbers import Integral
+ import threading
+@@ -227,6 +228,67 @@ def get_children(self):
+                 *self.legends,
+                 *self.subfigs]
+ 
++    def get_figure(self, root=None):
++        """
++        Return the `.Figure` or `.SubFigure` instance the (Sub)Figure belongs to.
++
++        Parameters
++        ----------
++        root : bool, default=True
++            If False, return the (Sub)Figure this artist is on.  If True,
++            return the root Figure for a nested tree of SubFigures.
++
++            .. deprecated:: 3.10
++
++                From version 3.12 *root* will default to False.
++        """
++        if self._root_figure is self:
++            # Top level Figure
++            return self
++
++        if self._parent is self._root_figure:
++            # Return early to prevent the deprecation warning when *root* does not
++            # matter
++            return self._parent
++
++        if root is None:
++            # When deprecation expires, consider removing the docstring and just
++            # inheriting the one from Artist.
++            message = ('From Matplotlib 3.12 SubFigure.get_figure will by default '
++                       'return the direct parent figure, which may be a SubFigure. '
++                       'To suppress this warning, pass the root parameter.  Pass '
++                       '`True` to maintain the old behavior and `False` to opt-in to '
++                       'the future behavior.')
++            _api.warn_deprecated('3.10', message=message)
++            root = True
++
++        if root:
++            return self._root_figure
++
++        return self._parent
++
++    def set_figure(self, fig):
++        """
++        .. deprecated:: 3.10
++            Currently this method will raise an exception if *fig* is anything other
++            than the root `.Figure` this (Sub)Figure is on.  In future it will always
++            raise an exception.
++        """
++        no_switch = ("The parent and root figures of a (Sub)Figure are set at "
++                     "instantiation and cannot be changed.")
++        if fig is self._root_figure:
++            _api.warn_deprecated(
++                "3.10",
++                message=(f"{no_switch} From Matplotlib 3.12 this operation will raise "
++                         "an exception."))
++            return
++
++        raise ValueError(no_switch)
++
++    figure = property(functools.partial(get_figure, root=True), set_figure,
++                      doc=("The root `Figure`.  To get the parent of a `SubFigure`, "
++                           "use the `get_figure` method."))
++
+     def contains(self, mouseevent):
+         """
+         Test whether the mouse event occurred on the figure.
+@@ -2222,7 +2284,7 @@ def __init__(self, parent, subplotspec, *,
+ 
+         self._subplotspec = subplotspec
+         self._parent = parent
+-        self.figure = parent.figure
++        self._root_figure = parent._root_figure
+ 
+         # subfigures use the parent axstack
+         self._axstack = parent._axstack
+@@ -2503,7 +2565,7 @@ def __init__(self,
+             %(Figure:kwdoc)s
+         """
+         super().__init__(**kwargs)
+-        self.figure = self
++        self._root_figure = self
+         self._layout_engine = None
+ 
+         if layout is not None:
+diff --git a/lib/matplotlib/figure.pyi b/lib/matplotlib/figure.pyi
+index b079312695c1..711f5b77783e 100644
+--- a/lib/matplotlib/figure.pyi
++++ b/lib/matplotlib/figure.pyi
+@@ -260,7 +260,8 @@ class FigureBase(Artist):
+     ) -> dict[Hashable, Axes]: ...
+ 
+ class SubFigure(FigureBase):
+-    figure: Figure
++    @property
++    def figure(self) -> Figure: ...
+     subplotpars: SubplotParams
+     dpi_scale_trans: Affine2D
+     transFigure: Transform
+@@ -298,7 +299,8 @@ class SubFigure(FigureBase):
+     def get_axes(self) -> list[Axes]: ...
+ 
+ class Figure(FigureBase):
+-    figure: Figure
++    @property
++    def figure(self) -> Figure: ...
+     bbox_inches: Bbox
+     dpi_scale_trans: Affine2D
+     bbox: BboxBase
+diff --git a/lib/matplotlib/offsetbox.pyi b/lib/matplotlib/offsetbox.pyi
+index c222a9b2973e..05e23df4529d 100644
+--- a/lib/matplotlib/offsetbox.pyi
++++ b/lib/matplotlib/offsetbox.pyi
+@@ -2,7 +2,7 @@ import matplotlib.artist as martist
+ from matplotlib.backend_bases import RendererBase, Event, FigureCanvasBase
+ from matplotlib.colors import Colormap, Normalize
+ import matplotlib.text as mtext
+-from matplotlib.figure import Figure
++from matplotlib.figure import Figure, SubFigure
+ from matplotlib.font_manager import FontProperties
+ from matplotlib.image import BboxImage
+ from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+@@ -26,7 +26,7 @@ class OffsetBox(martist.Artist):
+     width: float | None
+     height: float | None
+     def __init__(self, *args, **kwargs) -> None: ...
+-    def set_figure(self, fig: Figure) -> None: ...
++    def set_figure(self, fig: Figure | SubFigure) -> None: ...
+     def set_offset(
+         self,
+         xy: tuple[float, float]
+@@ -271,7 +271,7 @@ class AnnotationBbox(martist.Artist, mtext._AnnotationBase):
+         | Callable[[RendererBase], Bbox | Transform],
+     ) -> None: ...
+     def get_children(self) -> list[martist.Artist]: ...
+-    def set_figure(self, fig: Figure) -> None: ...
++    def set_figure(self, fig: Figure | SubFigure) -> None: ...
+     def set_fontsize(self, s: str | float | None = ...) -> None: ...
+     def get_fontsize(self) -> float: ...
+     def get_tightbbox(self, renderer: RendererBase | None = ...) -> Bbox: ...
+diff --git a/lib/matplotlib/quiver.pyi b/lib/matplotlib/quiver.pyi
+index 2a043a92b4b5..164f0ab3a77a 100644
+--- a/lib/matplotlib/quiver.pyi
++++ b/lib/matplotlib/quiver.pyi
+@@ -1,7 +1,7 @@
+ import matplotlib.artist as martist
+ import matplotlib.collections as mcollections
+ from matplotlib.axes import Axes
+-from matplotlib.figure import Figure
++from matplotlib.figure import Figure, SubFigure
+ from matplotlib.text import Text
+ from matplotlib.transforms import Transform, Bbox
+ 
+@@ -49,7 +49,7 @@ class QuiverKey(martist.Artist):
+     ) -> None: ...
+     @property
+     def labelsep(self) -> float: ...
+-    def set_figure(self, fig: Figure) -> None: ...
++    def set_figure(self, fig: Figure | SubFigure) -> None: ...
+ 
+ class Quiver(mcollections.PolyCollection):
+     X: ArrayLike

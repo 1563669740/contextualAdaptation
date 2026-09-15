@@ -1,0 +1,53 @@
+diff --git a/changelog/fix-repo-urls-with-auth-and-port.bugfix b/changelog/fix-repo-urls-with-auth-and-port.bugfix
+new file mode 100644
+index 00000000..8841e505
+--- /dev/null
++++ b/changelog/fix-repo-urls-with-auth-and-port.bugfix
+@@ -0,0 +1,5 @@
++Fix bug for Repository URLs with auth where the port was lost. When attempting
++to prevent printing authentication credentials in URLs provided with username
++and password, we did not properly handle the case where the URL also contains
++a port (when reconstructing the URL). This is now handled and tested to ensure
++no regressions.
+diff --git a/tox.ini b/tox.ini
+index 9dd7b847..9681ed3a 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -95,11 +95,22 @@ commands =
+ 
+ [testenv:changelog]
+ basepython = python3
++skip_install = True
+ deps =
+     towncrier
+ commands =
+     towncrier build {posargs}
+ 
++
++# Usage:
++#  tox -e create-changelog-item -- [additional arguments] {filename}.{bugfix,feature,doc,removal,misc}
++[testenv:create-changelog-item]
++basepython = python3
++skip_install = True
++deps = towncrier
++commands =
++    towncrier create --config pyproject.toml {posargs}
++
+ [testenv:release]
+ # specify Python 3 to use platform's default Python 3
+ basepython = python3
+diff --git a/twine/utils.py b/twine/utils.py
+index 05739bc4..10e374e7 100644
+--- a/twine/utils.py
++++ b/twine/utils.py
+@@ -174,7 +174,9 @@ def _config_from_repository_url(url: str) -> RepositoryConfig:
+     if parsed.username:
+         config["username"] = parsed.username
+         config["password"] = parsed.password
+-        config["repository"] = urlunparse((parsed.scheme, parsed.hostname) + parsed[2:])
++        config["repository"] = cast(
++            str, rfc3986.urlparse(url).copy_with(userinfo=None).unsplit()
++        )
+     config["repository"] = normalize_repository_url(cast(str, config["repository"]))
+     return config
+ 

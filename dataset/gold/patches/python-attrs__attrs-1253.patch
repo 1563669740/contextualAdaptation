@@ -1,0 +1,26 @@
+diff --git a/changelog.d/1253.change.md b/changelog.d/1253.change.md
+new file mode 100644
+index 000000000..3c32d8356
+--- /dev/null
++++ b/changelog.d/1253.change.md
+@@ -0,0 +1,1 @@
++Preserve `AttributeError` raised by properties of slotted classes with `functools.cached_properties`.
+diff --git a/src/attr/_make.py b/src/attr/_make.py
+index 0114582aa..d3bfb440f 100644
+--- a/src/attr/_make.py
++++ b/src/attr/_make.py
+@@ -619,8 +619,12 @@ def _make_cached_property_getattr(cached_properties, original_getattr, cls):
+     else:
+         lines.extend(
+             [
+-                "         if hasattr(super(), '__getattr__'):",
+-                "              return super().__getattr__(item)",
++                "         try:",
++                "             return super().__getattribute__(item)",
++                "         except AttributeError:",
++                "             if not hasattr(super(), '__getattr__'):",
++                "                 raise",
++                "             return super().__getattr__(item)",
+                 "         original_error = f\"'{self.__class__.__name__}' object has no attribute '{item}'\"",
+                 "         raise AttributeError(original_error)",
+             ]

@@ -1,0 +1,41 @@
+{
+  "task_id": "pypsa__pypsa-1112",
+  "repo": "PyPSA/PyPSA",
+  "pull_number": "1112",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=3 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.9,
+  "base_commit": "5822ff21dc327ab4404c9557f6f61e4da56fabf8",
+  "repo_commit": "5822ff21dc327ab4404c9557f6f61e4da56fabf8",
+  "gold_commit": "a6133808fb2ec973341be4b67d4e1127f8cc9b47",
+  "gold_commit_count": 5,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 3,
+  "gold_loc_added": 181,
+  "gold_loc_deleted": 104,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 13,
+  "pass_to_pass_count": 296,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

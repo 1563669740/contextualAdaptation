@@ -1,0 +1,13 @@
+diff --git a/src/cfnlint/jsonschema/_resolvers_cfn.py b/src/cfnlint/jsonschema/_resolvers_cfn.py
+index 5c84aa3539..9f890b5a20 100644
+--- a/src/cfnlint/jsonschema/_resolvers_cfn.py
++++ b/src/cfnlint/jsonschema/_resolvers_cfn.py
+@@ -246,7 +246,7 @@ def _replace(matchobj):
+                     ref_values=c.ref_values,
+                 )
+             )
+-            return value
++            return str(value)
+         raise ValueError(f"No matches for {matchobj.group(2)!r}")
+ 
+     try:

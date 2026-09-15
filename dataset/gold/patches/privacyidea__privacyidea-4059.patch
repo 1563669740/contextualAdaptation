@@ -1,0 +1,1020 @@
+diff --git a/doc/policies/authentication.rst b/doc/policies/authentication.rst
+index ce33d86e98..ee91b5e557 100644
+--- a/doc/policies/authentication.rst
++++ b/doc/policies/authentication.rst
+@@ -333,6 +333,18 @@ be used during authentication. The list is separated by whitespaces like
+ 
+ .. _policy_change_pin_via_validate:
+ 
++force_challenge_response
++~~~~~~~~~~~~~
++
++.. index:: force_challenge_response
++
++type: bool
++
++When enabled, authentication attempts will be interpreted as either the PIN or the answer to a challenge.
++PIN concatenated with OTP can not be used anymore! Does only work when authenticating with a username.
++
++.. _policy_force_challenge_response:
++
+ change_pin_via_validate
+ ~~~~~~~~~~~~~~~~~~~~~~~
+ 
+diff --git a/doc/policies/conditions.rst b/doc/policies/conditions.rst
+index 3fafb03c0d..e7a13d6c7f 100644
+--- a/doc/policies/conditions.rst
++++ b/doc/policies/conditions.rst
+@@ -188,7 +188,7 @@ The following comparators can be used in definitions of policy conditions:
+ 
+ If you want to define a policy that e.g. only matches users from Active Directory, that are in a
+ VPN User group, you would first need to map the `memberOf` attribute in the LDAP resolver to a certain
+-attribute like `"goups": "memberOf"`. Then you need to define the extended condition:
++attribute like `"groups": "memberOf"`. Then you need to define the extended condition:
+ 
+    "groups" contains "CN=VPN Users,OU=Groups,DC=example,DC=com"
+ 
+diff --git a/privacyidea/lib/policy.py b/privacyidea/lib/policy.py
+index 9c0c5ef3bc..142e4c6c7f 100644
+--- a/privacyidea/lib/policy.py
++++ b/privacyidea/lib/policy.py
+@@ -404,6 +404,7 @@ class ACTION(object):
+     CONTAINER_UNASSIGN_USER = "container_unassign_user"
+     CONTAINER_REALMS = "container_realms"
+     CONTAINER_LIST = "container_list"
++    FORCE_CHALLENGE_RESPONSE = "force_challenge_response"
+ 
+ 
+ class TYPE(object):
+@@ -2515,6 +2516,12 @@ def get_static_policy_definitions(scope=None):
+                 'desc': _('You can set the client modes in the order that you prefer. '
+                           'For example: "interactive webauthn poll u2f". Accepted '
+                           'values are: <code>interactive webauthn poll u2f</code>')
++            },
++            ACTION.FORCE_CHALLENGE_RESPONSE: {
++                'type': 'bool',
++                'desc': _('When enabled, authentication attempts will be interpreted as either the PIN or '
++                          'the answer to a challenge. PIN concatenated with OTP can not be used anymore! '
++                          'Does only work when authenticating with a username.'),
+             }
+         },
+         SCOPE.AUTHZ: {
+@@ -3122,7 +3129,7 @@ def admin_or_user(cls, g, action, user_obj):
+         elif scope == ROLE.USER:
+             if not user_obj:
+                 # If we have a user object (including resolver) in a request, we use this on.
+-                # Otherwise we take the user from the logged in user.
++                # Otherwise, we take the user from the logged-in user.
+                 username = g.logged_in_user["username"]
+                 userrealm = g.logged_in_user["realm"]
+         else:
+diff --git a/privacyidea/lib/policydecorators.py b/privacyidea/lib/policydecorators.py
+index 480a9d6adb..ab8d961736 100644
+--- a/privacyidea/lib/policydecorators.py
++++ b/privacyidea/lib/policydecorators.py
+@@ -24,12 +24,12 @@
+ #
+ # This code is free software; you can redistribute it and/or
+ # modify it under the terms of the GNU AFFERO GENERAL PUBLIC LICENSE
+-# License as published by the Free Software Foundation; either
++# as published by the Free Software Foundation; either
+ # version 3 of the License, or any later version.
+ #
+ # This code is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNE7SS FOR A PARTICULAR PURPOSE.  See the
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU AFFERO GENERAL PUBLIC LICENSE for more details.
+ #
+ # You should have received a copy of the GNU Affero General Public
+@@ -41,18 +41,20 @@
+ 
+ The functions of this module are tested in tests/test_lib_policy_decorator.py
+ """
++import datetime
++import functools
+ import logging
+ import re
+-from privacyidea.lib.policy import Match
+-from privacyidea.lib.error import PolicyError, privacyIDEAError
+-import functools
+-from privacyidea.lib.policy import ACTION, SCOPE, ACTIONVALUE, LOGINMODE
+-from privacyidea.lib.user import User
+-from privacyidea.lib.utils import parse_timelimit, parse_timedelta, split_pin_pass
+-from privacyidea.lib.authcache import verify_in_cache, add_to_cache
+-import datetime
++
+ from dateutil.tz import tzlocal
++
++from privacyidea.lib.authcache import verify_in_cache, add_to_cache
++from privacyidea.lib.error import PolicyError
++from privacyidea.lib.policy import ACTION, SCOPE, ACTIONVALUE, LOGINMODE
++from privacyidea.lib.policy import Match
+ from privacyidea.lib.radiusserver import get_radius
++from privacyidea.lib.user import User
++from privacyidea.lib.utils import parse_timelimit, parse_timedelta, split_pin_pass, is_true
+ 
+ log = logging.getLogger(__name__)
+ 
+@@ -66,6 +68,7 @@ class libpolicy(object):
+     The decorator expects a named parameter "options". In this options dict
+     it will look for the flask global "g".
+     """
++
+     def __init__(self, decorator_function):
+         """
+         :param decorator_function: This is the policy function that is to be
+@@ -77,7 +80,7 @@ def __init__(self, decorator_function):
+     def __call__(self, wrapped_function):
+         """
+         This decorates the given function.
+-        If some error occur the a PolicyException is raised.
++        If some error occurs, a PolicyException is raised.
+ 
+         The decorator function takes the options parameter and can modify
+         the behaviour of the original function.
+@@ -86,6 +89,7 @@ def __call__(self, wrapped_function):
+         :type wrapped_function: API function
+         :return: None
+         """
++
+         @functools.wraps(wrapped_function)
+         def policy_wrapper(*args, **kwds):
+             return self.decorator_function(wrapped_function, *args, **kwds)
+@@ -108,26 +112,27 @@ def challenge_response_allowed(func):
+ 
+     :param func: wrapped function
+     """
++
+     @functools.wraps(func)
+     def challenge_response_wrapper(*args, **kwds):
+         options = kwds.get("options", {})
+         g = options.get("g")
+-        token = args[0]
++        token_type = args[0]
+         user_object = kwds.get("user") or User()
+         if g:
+-            allowed_tokentypes_dict = Match.user(g, scope=SCOPE.AUTH,
+-                                                 action=ACTION.CHALLENGERESPONSE, user_object=user_object)\
+-                .action_values(unique=False, write_to_audit_log=False)
+-            log.debug("Found these allowed tokentypes: {0!s}".format(list(allowed_tokentypes_dict)))
+-            allowed_tokentypes_dict = {k.lower(): v for k, v in allowed_tokentypes_dict.items()}
+-            token = token.get_tokentype().lower()
+-            chal_resp_found = False
+-            if token in allowed_tokentypes_dict:
++            allowed_token_types = (Match.user(g, scope=SCOPE.AUTH, action=ACTION.CHALLENGERESPONSE,
++                                              user_object=user_object)
++                                   .action_values(unique=False, write_to_audit_log=False))
++            log.debug(f"Found these allowed token types: {list(allowed_token_types)}")
++            allowed_token_types = {k.lower(): v for k, v in allowed_token_types.items()}
++            token_type = token_type.get_tokentype().lower()
++            challenge_response = False
++            if token_type in allowed_token_types:
+                 # This token is allowed to do challenge-response
+-                chal_resp_found = True
+-                g.audit_object.add_policy(allowed_tokentypes_dict.get(token))
++                challenge_response = True
++                g.audit_object.add_policy(allowed_token_types.get(token_type))
+ 
+-            if not chal_resp_found:
++            if not challenge_response:
+                 # No policy to allow this token to do challenge-response
+                 return False
+ 
+@@ -139,9 +144,9 @@ def challenge_response_wrapper(*args, **kwds):
+ 
+ def auth_cache(wrapped_function, user_object, passw, options=None):
+     """
+-    Decorate lib.token:check_user_pass. Verify, if the authentication can 
++    Decorate lib.token:check_user_pass. Verify, if the authentication can
+     be found in the auth_cache.
+-    
++
+     :param wrapped_function: usually "check_user_pass"
+     :param user_object: User who tries to authenticate
+     :param passw: The PIN and OTP
+@@ -150,15 +155,15 @@ def auth_cache(wrapped_function, user_object, passw, options=None):
+     """
+     options = options or {}
+     g = options.get("g")
+-    auth_cache_dict = None
++    auth_cache_policy = None
+ 
+     if g:
+-        auth_cache_dict = Match.user(g, scope=SCOPE.AUTH, action=ACTION.AUTH_CACHE,
+-                                     user_object=user_object).action_values(unique=True, write_to_audit_log=False)
+-        if auth_cache_dict:
+-            auth_times = list(auth_cache_dict)[0].split("/")
++        auth_cache_policy = (Match.user(g, scope=SCOPE.AUTH, action=ACTION.AUTH_CACHE, user_object=user_object)
++                             .action_values(unique=True, write_to_audit_log=False))
++        if auth_cache_policy:
++            auth_times = list(auth_cache_policy)[0].split("/")
+ 
+-            # determine first_auth from policy!
++            # Determine first_auth from policy!
+             first_offset = parse_timedelta(auth_times[0])
+             first_auth = datetime.datetime.utcnow() - first_offset
+             last_auth = first_auth  # Default if no last auth exists
+@@ -180,12 +185,12 @@ def auth_cache(wrapped_function, user_object, passw, options=None):
+                                      max_auths=max_auths)
+ 
+             if result:
+-                g.audit_object.add_policy(next(iter(auth_cache_dict.values())))
++                g.audit_object.add_policy(next(iter(auth_cache_policy.values())))
+                 return True, {"message": "Authenticated by AuthCache."}
+ 
+     # If nothing else returned, call the wrapped function
+     res, reply_dict = wrapped_function(user_object, passw, options)
+-    if auth_cache_dict and res:
++    if auth_cache_policy and res:
+         # If authentication is successful, we store the password in auth_cache
+         add_to_cache(user_object.login, user_object.realm, user_object.resolver, passw)
+     return res, reply_dict
+@@ -214,18 +219,16 @@ def auth_user_has_no_token(wrapped_function, user_object, passw,
+                                    user_object=user_object).policies(write_to_audit_log=False)
+         if pass_no_token:
+             # Now we need to check, if the user really has no token.
+-            tokencount = get_tokens(user=user_object, count=True)
+-            if tokencount == 0:
++            token_count = get_tokens(user=user_object, count=True)
++            if token_count == 0:
+                 g.audit_object.add_policy([p.get("name") for p in pass_no_token])
+-                return True, {"message": "user has no token, accepted due to '{!s}'".format(
+-                    pass_no_token[0].get("name"))}
++                return True, {"message": f"user has no token, accepted due to '{pass_no_token[0].get('name')}'"}
+ 
+     # If nothing else returned, we return the wrapped function
+     return wrapped_function(user_object, passw, options)
+ 
+ 
+-def auth_user_does_not_exist(wrapped_function, user_object, passw,
+-                               options=None):
++def auth_user_does_not_exist(wrapped_function, user_object, passw, options=None):
+     """
+     This decorator checks, if the user does exist at all.
+     If the user does exist, the wrapped function is called.
+@@ -248,8 +251,7 @@ def auth_user_does_not_exist(wrapped_function, user_object, passw,
+             # Check if user object exists
+             if not user_object.exist():
+                 g.audit_object.add_policy([p.get("name") for p in pass_no_user])
+-                return True, {"message": "user does not exist, accepted due to '{!s}'".format(
+-                    pass_no_user[0].get("name"))}
++                return True, {"message": f"user does not exist, accepted due to '{pass_no_user[0].get('name')}'"}
+ 
+     # If nothing else returned, we return the wrapped function
+     return wrapped_function(user_object, passw, options)
+@@ -288,8 +290,7 @@ def auth_user_passthru(wrapped_function, user_object, passw, options=None):
+             if pass_thru_action in ["userstore", True]:
+                 # Now we need to check the userstore password
+                 if user_object.check_password(passw):
+-                    return True, {"message": "against userstore due to '{!s}'".format(
+-                                      policy_name)}
++                    return True, {"message": f"against userstore due to '{policy_name}'"}
+             else:
+                 # We are doing RADIUS passthru
+                 log.info("Forwarding the authentication request to the radius "
+@@ -307,8 +308,7 @@ def auth_user_passthru(wrapped_function, user_object, passw, options=None):
+                             prepend_pin = components[0] == "pin"
+                             otp_length = int(components[int(prepend_pin)])
+                             pin, otp = split_pin_pass(passw, otp_length, prepend_pin)
+-                            realm_tokens = get_tokens(realm=user_object.realm,
+-                                                      assigned=False)
++                            realm_tokens = get_tokens(realm=user_object.realm, assigned=False)
+                             window = 100
+                             if len(components) == 3:
+                                 window = int(components[2])
+@@ -318,14 +318,13 @@ def auth_user_passthru(wrapped_function, user_object, passw, options=None):
+                                     # We do not check any max tokens per realm or user,
+                                     # since this very user currently has no token
+                                     # and the unassigned token already was contained in the user's realm
+-                                    assign_token(serial=token_obj.token.serial,
+-                                                 user=user_object, pin=pin)
+-                                    messages.append("autoassigned {0!s}".format(token_obj.token.serial))
++                                    assign_token(serial=token_obj.token.serial, user=user_object, pin=pin)
++                                    messages.append(f"auto-assigned {token_obj.token.serial}")
+                                     break
+ 
+                         else:
+-                            log.warning("Wrong value in passthru_assign policy: {0!s}".format(passthru_assign))
+-                    messages.append("against RADIUS server {!s} due to '{!s}'".format(pass_thru_action, policy_name))
++                            log.warning(f"Wrong value in passthru_assign policy: {passthru_assign}")
++                    messages.append(f"against RADIUS server {pass_thru_action} due to '{policy_name}'")
+                     return True, {'message': ",".join(messages)}
+ 
+     # If nothing else returned, we return the wrapped function
+@@ -340,7 +339,7 @@ def auth_user_timelimit(wrapped_function, user_object, passw, options=None):
+     If the authentication was successful, it checks, if the number of allowed
+     successful authentications is exceeded (AUTHMAXSUCCESS).
+ 
+-    If the AUTHMAXFAIL is exceed it denies even a successful authentication.
++    If the AUTHMAXFAIL is exceeded it denies even a successful authentication.
+ 
+     The wrapped function is usually token.check_user_pass, which takes the
+     arguments (user, passw, options={})
+@@ -378,8 +377,8 @@ def auth_user_timelimit(wrapped_function, user_object, passw, options=None):
+                                                     "realm": user_object.realm,
+                                                     "info": "%loginmode=privacyIDEA%",
+                                                     "action": "%/auth"},
+-                                                    success=False,
+-                                                    timedelta=tdelta)
++                                                   success=False,
++                                                   timedelta=tdelta)
+             log.debug("Checking users timelimit %s: %s "
+                       "failed authentications with /auth" %
+                       (list(max_fail_dict)[0], fail_auth_c))
+@@ -394,7 +393,7 @@ def auth_user_timelimit(wrapped_function, user_object, passw, options=None):
+             # Only in case of a successful authentication
+             if len(max_success_dict) == 1:
+                 policy_count, tdelta = parse_timelimit(list(max_success_dict)[0])
+-                # check the successful authentications for this user
++                # Check the successful authentications for this user
+                 succ_c = g.audit_object.get_count({"user": user_object.login,
+                                                    "realm": user_object.realm,
+                                                    "action":
+@@ -405,11 +404,11 @@ def auth_user_timelimit(wrapped_function, user_object, passw, options=None):
+                           "successful authentications with /validate/check" %
+                           (list(max_success_dict)[0], succ_c))
+                 succ_auth_c = g.audit_object.get_count({"user": user_object.login,
+-                                                   "realm": user_object.realm,
+-                                                   "info": "%loginmode=privacyIDEA%",
+-                                                   "action": "%/auth"},
+-                                                  success=True,
+-                                                  timedelta=tdelta)
++                                                        "realm": user_object.realm,
++                                                        "info": "%loginmode=privacyIDEA%",
++                                                        "action": "%/auth"},
++                                                       success=True,
++                                                       timedelta=tdelta)
+                 log.debug("Checking users timelimit %s: %s "
+                           "successful authentications with /auth" %
+                           (list(max_success_dict)[0], succ_auth_c))
+@@ -444,12 +443,10 @@ def auth_lastauth(wrapped_function, user_or_serial, passw, options=None):
+     options = options or {}
+     g = options.get("g")
+     if g and res:
+-        # in case of a serial:
+         if isinstance(user_or_serial, User):
+             user_object = user_or_serial
+             serial = reply_dict.get("serial")
+         else:
+-            # in case of a serial:
+             user_object = None
+             serial = user_or_serial
+ 
+@@ -464,18 +461,17 @@ def auth_lastauth(wrapped_function, user_or_serial, passw, options=None):
+                 # the token does not exist anymore. So we immediately return
+                 return res, reply_dict
+ 
+-            last_auth_dict = Match.user(g, scope=SCOPE.AUTHZ, action=ACTION.LASTAUTH,
+-                                        user_object=user_object).action_values(unique=True, write_to_audit_log=False)
++            last_auth_dict = (Match.user(g, scope=SCOPE.AUTHZ, action=ACTION.LASTAUTH, user_object=user_object)
++                              .action_values(unique=True, write_to_audit_log=False))
+             if len(last_auth_dict) == 1:
+                 res = token.check_last_auth_newer(list(last_auth_dict)[0])
+                 if not res:
+-                    reply_dict["message"] = "The last successful " \
+-                                            "authentication was %s. " \
+-                                            "It is to long ago." % \
+-                                            token.get_tokeninfo(ACTION.LASTAUTH)
++                    reply_dict["message"] = (f"The last successful authentication was "
++                                             f"{token.get_tokeninfo(ACTION.LASTAUTH)}. It is too long ago.")
++
+                     g.audit_object.add_policy(next(iter(last_auth_dict.values())))
+ 
+-            # set the last successful authentication, if res still true
++            # Set the last successful authentication, if res still true
+             if res:
+                 token.add_tokeninfo(ACTION.LASTAUTH,
+                                     datetime.datetime.now(tzlocal()))
+@@ -495,14 +491,14 @@ def login_mode(wrapped_function, *args, **kwds):
+         kwds["options"] contains the flask g
+     :return: calls the original function with the modified "check_otp" argument
+     """
+-    # if tokenclass.check_pin is called in any other way, options may be None
+-    #  or it might have no element "g".
++    # If tokenclass.check_pin is called in any other way, options may be None
++    # or have no element "g".
+     options = kwds.get("options") or {}
+     g = options.get("g")
+     if g:
+-        # We need the user but we do not need the password
++        # We need the user, but we do not need the password
+         user_object = args[0]
+-        # get the policy
++        # Get the policy
+         login_mode_dict = Match.user(g, scope=SCOPE.WEBUI, action=ACTION.LOGINMODE,
+                                      user_object=user_object).action_values(unique=True)
+         if login_mode_dict:
+@@ -527,34 +523,34 @@ def auth_otppin(wrapped_function, *args, **kwds):
+      * checks the pin against the userstore
+      * or passes the request to the wrapped_function
+ 
++    If ACTION.OTPPIN is ACTIONVALUE.USERSTORE, the result is written to options["otppin_userstore_success"] for the use
++    in subsequent calls to this function in the same request (checking all token of a user).
++
+     :param wrapped_function: In this case the wrapped function should be
+         :py:func:`privacyidea.lib.tokenclass.TokenClass.check_pin`
+     :param `*args`: args[1] is the pin
+     :param `**kwds`: kwds["options"] contains the flask g
+     :return: True or False
+     """
+-    # if tokenclass.check_pin is called in any other way, options may be None
+-    #  or it might have no element "g".
++    # If tokenclass.check_pin is called in any other way, options may be None
++    # or no element "g".
+     options = kwds.get("options") or {}
+     g = options.get("g")
+     if g:
+         token = args[0]
+         pin = args[1]
+-        clientip = options.get("clientip")
+         user_object = kwds.get("user")
+         if not user_object:
+-            # No user in the parameters, so we need to determine the owner of
+-            #  the token
++            # No user in the parameters, so we need to determine the owner of the token
+             user_object = token.user
+             realms = token.get_realms()
+             if not user_object and len(realms):
+-                # if the token has not owner, we take a realm.
++                # If the token has no owner, we take a realm.
+                 user_object = User("", realm=realms[0])
+         if not user_object:
+-            # If we still have no user and no tokenrealm, we create an empty
+-            # user object.
+-            user_object=User("", realm="")
+-        # get the policy
++            # If we still have no user and no tokenrealm, we create an empty user object.
++            user_object = User("", realm="")
++        # Get the policy for OTPPIN
+         otppin_dict = Match.user(g, scope=SCOPE.AUTH, action=ACTION.OTPPIN,
+                                  user_object=user_object).action_values(unique=True)
+         if otppin_dict:
+@@ -569,7 +565,7 @@ def auth_otppin(wrapped_function, *args, **kwds):
+                 rv = user_object.check_password(pin)
+                 return rv is not None
+ 
+-    # call and return the original check_pin function
++    # Call and return the original check_pin function
+     return wrapped_function(*args, **kwds)
+ 
+ 
+@@ -587,27 +583,25 @@ def config_lost_token(wrapped_function, *args, **kwds):
+     :return: calls the original function with the modified "validity",
+         "contents" and "pw_len" argument
+     """
+-    # if called in any other way, options may be None
+-    #  or it might have no element "g".
++    # If called in any other way, options may be None, or it might have no element "g".
+     from privacyidea.lib.token import get_tokens
+     options = kwds.get("options") or {}
+     g = options.get("g")
+     if g:
+-        # We need the old serial number, to determine the user - if it exist.
++        # We need the old serial number, to determine the user - if it exists.
+         serial = args[0]
+-        toks = get_tokens(serial=serial)
+-        if len(toks) == 1:
+-            user_object = toks[0].user
+-            # get the policy
++        tokens = get_tokens(serial=serial)
++        if len(tokens) == 1:
++            user_object = tokens[0].user or None
++            # Get the policies
+             contents_dict = Match.user(g, scope=SCOPE.ENROLL, action=ACTION.LOSTTOKENPWCONTENTS,
+-                                       user_object=user_object if user_object else None)\
+-                .action_values(unique=True)
++                                       user_object=user_object).action_values(unique=True)
++
+             validity_dict = Match.user(g, scope=SCOPE.ENROLL, action=ACTION.LOSTTOKENVALID,
+-                                       user_object=user_object if user_object else None)\
+-                .action_values(unique=True)
++                                       user_object=user_object).action_values(unique=True)
++
+             pw_len_dict = Match.user(g, scope=SCOPE.ENROLL, action=ACTION.LOSTTOKENPWLEN,
+-                                     user_object=user_object if user_object else None)\
+-                .action_values(unique=True)
++                                     user_object=user_object).action_values(unique=True)
+ 
+             if contents_dict:
+                 kwds["contents"] = list(contents_dict)[0]
+@@ -630,29 +624,39 @@ def reset_all_user_tokens(wrapped_function, *args, **kwds):
+     :param options: options dictionary containing g.
+     :return: None
+     """
+-    tokenobject_list = args[0]
++    token_objects = args[0]
+     options = kwds.get("options") or {}
+     g = options.get("g")
+     allow_reset = kwds.get("allow_reset_all_tokens")
+ 
+     r = wrapped_function(*args, **kwds)
+ 
+-    toks_avail = [tok for tok in tokenobject_list if tok.get_class_type() not in ['registration']]
++    available_tokens = [tok for tok in token_objects if tok.get_class_type() not in ['registration']]
+ 
+     # A successful authentication was done
+-    if r[0] and g and allow_reset and toks_avail:
+-        token_owner = kwds.get('user') or toks_avail[0].user
++    if r[0] and g and allow_reset and available_tokens:
++        token_owner = kwds.get('user') or available_tokens[0].user
+         reset_all = Match.user(g, scope=SCOPE.AUTH, action=ACTION.RESETALLTOKENS,
+                                user_object=token_owner if token_owner else None).policies()
+         if reset_all:
+             log.debug("Reset failcounter of all tokens of {0!s}".format(
+                 token_owner))
+-            for tok_obj_reset in toks_avail:
++            for tok_obj_reset in available_tokens:
+                 try:
+                     tok_obj_reset.reset()
+                 except Exception:
+-                    log.debug(
+-                        "registration token does not exist anymore and "
+-                        "cannot be reset.")
++                    log.debug("Registration token does not exist anymore and cannot be reset.")
+ 
+     return r
++
++
++def force_challenge_response(wrapped_function, user_object, passw, options=None):
++    if options:
++        g = options.get("g")
++        if g:
++            if Match.user(g, scope=SCOPE.AUTH, action=ACTION.FORCE_CHALLENGE_RESPONSE,
++                          user_object=user_object).any(write_to_audit_log=False):
++                options[ACTION.FORCE_CHALLENGE_RESPONSE] = True
++    else:
++        log.warning("force_challenge_response can not work without options!")
++    return wrapped_function(user_object, passw, options)
+diff --git a/privacyidea/lib/token.py b/privacyidea/lib/token.py
+index 01219599a2..cd24f2f636 100644
+--- a/privacyidea/lib/token.py
++++ b/privacyidea/lib/token.py
+@@ -91,6 +91,7 @@
+ from privacyidea.lib import _
+ from privacyidea.lib.realm import realm_is_defined, get_realms
+ from privacyidea.lib.resolver import get_resolver_object
++from privacyidea.lib.policy import ACTION
+ from privacyidea.lib.policydecorators import (libpolicy,
+                                               auth_user_does_not_exist,
+                                               auth_user_has_no_token,
+@@ -99,7 +100,7 @@
+                                               auth_lastauth,
+                                               auth_cache,
+                                               config_lost_token,
+-                                              reset_all_user_tokens)
++                                              reset_all_user_tokens, force_challenge_response)
+ from privacyidea.lib.challengeresponsedecorators import (generic_challenge_response_reset_pin,
+                                                          generic_challenge_response_resync)
+ from privacyidea.lib.tokenclass import DATE_FORMAT
+@@ -2166,9 +2167,9 @@ def check_serial_pass(serial, passw, options=None):
+     :return: tuple of result (True, False) and additional dict
+     :rtype: tuple
+     """
+-    tokenobject = get_one_token(serial=serial)
+-    res, reply_dict = check_token_list([tokenobject], passw,
+-                                       user=tokenobject.user,
++    token_object = get_one_token(serial=serial)
++    res, reply_dict = check_token_list([token_object], passw,
++                                       user=token_object.user,
+                                        options=options,
+                                        allow_reset_all_tokens=True)
+ 
+@@ -2187,8 +2188,8 @@ def check_otp(serial, otpval):
+     :rtype: tuple(bool, dict)
+     """
+     reply_dict = {}
+-    tokenobject = get_one_token(serial=serial)
+-    res = tokenobject.check_otp(otpval) >= 0
++    token_object = get_one_token(serial=serial)
++    res = token_object.check_otp(otpval) >= 0
+     if not res:
+         reply_dict["message"] = _("OTP verification failed.")
+     return res, reply_dict
+@@ -2200,6 +2201,7 @@ def check_otp(serial, otpval):
+ @libpolicy(auth_user_timelimit)
+ @libpolicy(auth_lastauth)
+ @libpolicy(auth_user_passthru)
++@libpolicy(force_challenge_response)
+ @log_with(log, hide_kwargs=["passw"])
+ def check_user_pass(user, passw, options=None):
+     """
+@@ -2218,16 +2220,16 @@ def check_user_pass(user, passw, options=None):
+     :rtype: tuple
+     """
+     token_type = options.pop("token_type", None)
+-    tokenobject_list = get_tokens(user=user, tokentype=token_type)
++    token_objects = get_tokens(user=user, tokentype=token_type)
+     reply_dict = {}
+-    if not tokenobject_list:
++    if not token_objects:
+         # The user has no tokens assigned
+         res = False
+         reply_dict["message"] = _("The user has no tokens assigned")
+     else:
+-        tokenobject = tokenobject_list[0]
+-        res, reply_dict = check_token_list(tokenobject_list, passw,
+-                                           user=tokenobject.user,
++        token_object = token_objects[0]
++        res, reply_dict = check_token_list(token_objects, passw,
++                                           user=token_object.user,
+                                            options=options,
+                                            allow_reset_all_tokens=True)
+ 
+@@ -2252,8 +2254,7 @@ def create_challenges_from_tokens(token_list, reply_dict, options=None):
+     for token_obj in token_list:
+         # Check if the max auth is succeeded
+         if token_obj.check_all(message_list):
+-            r_chal, message, transaction_id, challenge_info = \
+-                token_obj.create_challenge(
++            r_chal, message, transaction_id, challenge_info = token_obj.create_challenge(
+                     transactionid=transaction_id, options=options)
+             # Add the reply to the response
+             message = challenge_text_replace(message, user=token_obj.user, token_obj=token_obj)
+@@ -2311,10 +2312,9 @@ def weigh_token_type(token_obj):
+ @libpolicy(reset_all_user_tokens)
+ @libpolicy(generic_challenge_response_reset_pin)
+ @libpolicy(generic_challenge_response_resync)
+-def check_token_list(tokenobject_list, passw, user=None, options=None, allow_reset_all_tokens=False):
++def check_token_list(token_object_list, passw, user=None, options=None, allow_reset_all_tokens=False):
+     """
+-    this takes a list of token objects and tries to find the matching token
+-    for the given passw. It also tests,
++    Takes a list of token objects and tries to find the matching token for the given passw. It also tests
+     * if the token is active or
+     * the max fail count is reached,
+     * if the validity period is ok...
+@@ -2322,8 +2322,8 @@ def check_token_list(tokenobject_list, passw, user=None, options=None, allow_res
+     This function is called by check_serial_pass, check_user_pass and
+     check_yubikey_pass.
+ 
+-    :param tokenobject_list: list of identified tokens
+-    :param passw: the provided passw (mostly pin+otp)
++    :param token_object_list: list of identified tokens
++    :param passw: the provided password, can be just the PIN or PIN+OTP
+     :param user: the identified use - as class object
+     :param options: additional parameters, which are passed to the token
+     :param allow_reset_all_tokens: If set to True, the policy reset_all_user_tokens is evaluated to
+@@ -2336,77 +2336,78 @@ def check_token_list(tokenobject_list, passw, user=None, options=None, allow_res
+     reply_dict = {}
+     increase_auth_counters = not is_true(get_from_config(key="no_auth_counter"))
+ 
+-    # add the user to the options, so that every token, that get passed the
+-    # options can see the user
++    # Add the user to the options, so that every token with access to options can see the user
+     if options:
+         options = options.copy()
+     else:
+         options = {}
+     options.update({'user': user})
+ 
+-    # if there has been one token in challenge mode, we only handle challenges
++    # If there has been one token in challenge mode, we only handle challenges
+     challenge_response_token_list = []
+     challenge_request_token_list = []
+     pin_matching_token_list = []
+     invalid_token_list = []
+     valid_token_list = []
+ 
+-    # Remove locked tokens from tokenobject_list
+-    if len(tokenobject_list) > 0:
+-        tokenobject_list = [token for token in tokenobject_list if not token.is_revoked()]
++    # Remove locked tokens from token_object_list
++    if len(token_object_list) > 0:
++        token_object_list = [token for token in token_object_list if not token.is_revoked()]
+ 
+-        if len(tokenobject_list) == 0:
++        if len(token_object_list) == 0:
+             # If there is no unlocked token left.
+-            raise TokenAdminError(_("This action is not possible, since the "
+-                                    "token is locked"), id=1007)
++            raise TokenAdminError(_("This action is not possible, since the token is locked"), id=1007)
+ 
+-    # Remove certain disabled tokens from tokenobject_list
+-    if len(tokenobject_list) > 0:
+-        tokenobject_list = [token for token in tokenobject_list if token.use_for_authentication(options)]
++    # Remove certain disabled tokens from token_object_list
++    if len(token_object_list) > 0:
++        token_object_list = [token for token in token_object_list if token.use_for_authentication(options)]
+ 
+-    for tokenobject in sorted(tokenobject_list, key=weigh_token_type):
++    for token_object in sorted(token_object_list, key=weigh_token_type):
+         if log.isEnabledFor(logging.DEBUG):
+-            # Avoid a SQL query triggered by ``tokenobject.user`` in case
++            # Avoid a SQL query triggered by ``token_object.user`` in case
+             # the log level is not DEBUG
+-            log.debug("Found user with loginId {0!r}: {1!r}".format(
+-                tokenobject.user, tokenobject.get_serial()))
++            log.debug(f"Found user with loginId {token_object.user}: {token_object.get_serial()}")
+ 
+-        if tokenobject.is_challenge_response(passw, user=user, options=options):
+-            # This is a challenge response and it still has a challenge DB entry
+-            if tokenobject.has_db_challenge_response(passw, user=user, options=options):
+-                challenge_response_token_list.append(tokenobject)
++        if token_object.is_challenge_response(passw, user=user, options=options):
++            # This is a challenge response, and it still has a challenge DB entry
++            if token_object.has_db_challenge_response(passw, user=user, options=options):
++                challenge_response_token_list.append(token_object)
+             else:
+                 # This is a transaction_id, that either never existed or has expired.
+                 # We add this to the invalid_token_list
+-                invalid_token_list.append(tokenobject)
+-        elif tokenobject.is_challenge_request(passw, user=user,
+-                                              options=options):
++                invalid_token_list.append(token_object)
++        elif token_object.is_challenge_request(passw, user=user,
++                                               options=options):
+             # This is a challenge request
+-            challenge_request_token_list.append(tokenobject)
++            challenge_request_token_list.append(token_object)
+         else:
+-            # This is a normal authentication attempt
+-            try:
+-                # pass the length of the valid_token_list to ``authenticate`` so that
+-                # the push token can react accordingly
+-                options["valid_token_num"] = len(valid_token_list)
+-                pin_match, otp_count, repl = \
+-                    tokenobject.authenticate(passw, user, options=options)
+-            except TokenAdminError as tae:
+-                # Token is locked
+-                pin_match = False
+-                otp_count = -1
+-                repl = {'message': tae.message}
+-            repl = repl or {}
+-            reply_dict.update(repl)
+-            if otp_count >= 0:
+-                # This is a successful authentication
+-                valid_token_list.append(tokenobject)
+-            elif pin_match:
+-                # The PIN of the token matches
+-                pin_matching_token_list.append(tokenobject)
++            if not (ACTION.FORCE_CHALLENGE_RESPONSE in options and is_true(options[ACTION.FORCE_CHALLENGE_RESPONSE])):
++                # This is a normal authentication attempt
++                try:
++                    # Pass the length of the valid_token_list to ``authenticate`` so that
++                    # the push token can react accordingly
++                    options["valid_token_num"] = len(valid_token_list)
++                    pin_match, otp_count, repl = token_object.authenticate(passw, user, options=options)
++                except TokenAdminError as tae:
++                    # Token is locked
++                    pin_match = False
++                    otp_count = -1
++                    repl = {'message': tae.message}
++                repl = repl or {}
++                reply_dict.update(repl)
++                if otp_count >= 0:
++                    # This is a successful authentication
++                    valid_token_list.append(token_object)
++                elif pin_match:
++                    # The PIN of the token matches
++                    pin_matching_token_list.append(token_object)
++                else:
++                    # Nothing matches at all
++                    invalid_token_list.append(token_object)
+             else:
+-                # Nothing matches at all
+-                invalid_token_list.append(tokenobject)
++                invalid_token_list.append(token_object)
++                log.info(f"Skipping authentication try for token {token_object.get_serial()}"
++                         f" because policy force_challenge_response is set.")
+ 
+     """
+     There might be
+@@ -2415,7 +2416,7 @@ def check_token_list(tokenobject_list, passw, user=None, options=None, allow_res
+     10 in invalid_token_list
+     0 in challenge_token_list.
+ 
+-    in this case, the failcounter of the 2 tokens in pin_matchting_token_list
++    in this case, the failcounter of the 2 tokens in pin_matching_token_list
+     needs to be increased. And return False
+ 
+     If there is
+@@ -2437,7 +2438,7 @@ def check_token_list(tokenobject_list, passw, user=None, options=None, allow_res
+     <count> of the valid tokens need to be increased to the new count.
+     """
+     if valid_token_list:
+-        # One ore more successfully authenticating tokens found
++        # One or more successfully authenticating tokens found
+         # We need to return success
+         message_list = [_("matching {0:d} tokens").format(len(valid_token_list))]
+         # write serial numbers or something to audit log
+@@ -2484,45 +2485,45 @@ def check_token_list(tokenobject_list, passw, user=None, options=None, allow_res
+         # found.
+         matching_challenge = False
+         further_challenge = False
+-        for tokenobject in challenge_response_token_list:
+-            if tokenobject.check_challenge_response(passw=passw,
++        for token_object in challenge_response_token_list:
++            if token_object.check_challenge_response(passw=passw,
+                                                     options=options) >= 0:
+-                reply_dict["serial"] = tokenobject.token.serial
++                reply_dict["serial"] = token_object.token.serial
+                 matching_challenge = True
+                 messages = []
+-                if not tokenobject.is_fit_for_challenge(messages, options=options):
++                if not token_object.is_fit_for_challenge(messages, options=options):
+                     messages.insert(0, _("Challenge matches, but token is not fit for challenge"))
+                     reply_dict["message"] = ". ".join(messages)
+                     log.info("Received a valid response to a "
+-                             "challenge for a non-fit token {0!s}. {1!s}".format(tokenobject.token.serial,
++                             "challenge for a non-fit token {0!s}. {1!s}".format(token_object.token.serial,
+                                                                                  reply_dict["message"]))
+                 else:
+                     # Challenge matches, token is active and token is fit for challenge
+                     res = True
+                     if increase_auth_counters:
+-                        tokenobject.inc_count_auth_success()
++                        token_object.inc_count_auth_success()
+                     reply_dict["message"] = _("Found matching challenge")
+                     # If they exist, add next pin and next password change
+-                    next_pin = tokenobject.get_tokeninfo("next_pin_change")
++                    next_pin = token_object.get_tokeninfo("next_pin_change")
+                     if next_pin:
+                         reply_dict["next_pin_change"] = next_pin
+-                        reply_dict["pin_change"] = tokenobject.is_pin_change()
+-                    next_passw = tokenobject.get_tokeninfo("next_password_change")
++                        reply_dict["pin_change"] = token_object.is_pin_change()
++                    next_passw = token_object.get_tokeninfo("next_password_change")
+                     if next_passw:
+                         reply_dict["next_password_change"] = next_passw
+-                        reply_dict["password_change"] = tokenobject.is_pin_change(password=True)
+-                    tokenobject.challenge_janitor()
+-                    if tokenobject.has_further_challenge(options):
++                        reply_dict["password_change"] = token_object.is_pin_change(password=True)
++                    token_object.challenge_janitor()
++                    if token_object.has_further_challenge(options):
+                         # The token creates further challenges, so create the new challenge
+                         # and new transaction_id
+-                        create_challenges_from_tokens([tokenobject], reply_dict, options)
++                        create_challenges_from_tokens([token_object], reply_dict, options)
+                         further_challenge = True
+                         res = False
+                     else:
+                         # This was the last successful challenge, so
+                         # reset the fail counter of the challenge response token
+-                        tokenobject.reset()
+-                        tokenobject.post_success()
++                        token_object.reset()
++                        token_object.post_success()
+ 
+                     # clean up all challenges from this and other tokens. I.e.
+                     # all challenges with this very transaction_id!
+@@ -2565,10 +2566,10 @@ def check_token_list(tokenobject_list, passw, user=None, options=None, allow_res
+         # We did not find a valid token and no challenge.
+         # But there are tokens, with a matching pin.
+         # So we increase the failcounter. Return failure.
+-        for tokenobject in pin_matching_token_list:
+-            tokenobject.inc_failcount()
++        for token_object in pin_matching_token_list:
++            token_object.inc_failcount()
+             if get_from_config(SYSCONF.RESET_FAILCOUNTER_ON_PIN_ONLY, False, return_bool=True):
+-                tokenobject.check_reset_failcount()
++                token_object.check_reset_failcount()
+             reply_dict["message"] = _("wrong otp value")
+             if len(pin_matching_token_list) == 1:
+                 # If there is only one pin matching token, we look if it was
+@@ -2589,13 +2590,13 @@ def check_token_list(tokenobject_list, passw, user=None, options=None, allow_res
+     elif invalid_token_list:
+         # There were only tokens, that did not match the OTP value and
+         # not even the PIN.
+-        # Depending of IncFailCountOnFalsePin, we increase the failcounter.
++        # Depending on IncFailCountOnFalsePin, we increase the failcounter.
+         reply_dict["message"] = _("wrong otp pin")
+         if get_inc_fail_count_on_false_pin():
+-            for tokenobject in invalid_token_list:
+-                tokenobject.inc_failcount()
++            for token_object in invalid_token_list:
++                token_object.inc_failcount()
+                 if increase_auth_counters:
+-                    tokenobject.inc_count_auth()
++                    token_object.inc_count_auth()
+     else:
+         # There is no suitable token for authentication
+         reply_dict["message"] = _("No suitable token found for authentication.")
+diff --git a/privacyidea/lib/tokenclass.py b/privacyidea/lib/tokenclass.py
+index 6af17efe42..0589344b9b 100644
+--- a/privacyidea/lib/tokenclass.py
++++ b/privacyidea/lib/tokenclass.py
+@@ -485,7 +485,7 @@ def check_pin(self, pin, user=None, options=None):
+         :return: If the PIN is correct, return True
+         :rtype: bool
+         """
+-        # check PIN against the token database
++        # Check PIN against the token database
+         res = self.token.check_pin(pin)
+         return res
+ 
+diff --git a/privacyidea/lib/user.py b/privacyidea/lib/user.py
+index aab7229246..f8de7b4c0e 100644
+--- a/privacyidea/lib/user.py
++++ b/privacyidea/lib/user.py
+@@ -44,6 +44,7 @@
+ This code is tested in tests/test_lib_user.py
+ '''
+ 
++import hashlib
+ import logging
+ import traceback
+ 
+@@ -95,10 +96,15 @@ def __init__(self, login="", realm="", resolver="", uid=None):
+         self.resolver = resolver or ""
+         self.uid = uid
+         self.rtype = None
++        # Hash of already checked passwords and their result. If a user has multiple token, it is not necessary to check
++        # the same password multiple times. However, we can not differentiate between PIN+OTP and just PIN, so this dict
++        # will have an entry for PIN+OTP (likely to fail) and then the OTP cut off to just PIN. In case the PIN was
++        # given in the request, the dict will have only one entry.
++        self._checked_passwords = {}
+         if not self.login and not self.resolver and uid is not None:
+             raise UserError("Can not create a user object from a uid without a resolver!")
+         # Enrich user object with information from the userstore or from the
+-        # usercache
++        # user cache
+         if login or uid is not None:
+             self._get_user_from_userstore()
+             # Just store the resolver type
+@@ -202,8 +208,8 @@ def get_ordered_resolvers(self):
+         """
+         resolver_tuples = []
+         realm_config = get_realms(self.realm)
+-        resolvers_in_realm = realm_config.get(self.realm, {})\
+-                                         .get("resolver", [])
++        resolvers_in_realm = realm_config.get(self.realm, {}) \
++            .get("resolver", [])
+         for resolver in resolvers_in_realm:
+             # append a tuple
+             resolver_tuples.append((resolver.get("name"),
+@@ -432,28 +438,42 @@ def check_password(self, password):
+         :rtype: string/None
+         """
+         success = None
++
++        # The password hash is used to avoid multiple password checks at the
++        # resolver. It is not persisted in any way and only stored in memory for
++        # the duration of the request.
++        password_hash = hashlib.sha3_512(password.encode("utf-8")).hexdigest()
++
+         try:
+-            log.info("User %r from realm %r tries to "
+-                     "authenticate" % (self.login, self.realm))
++            log.info(f"User {self.login} from realm {self.realm} tries to authenticate")
++            # If the password was already checked, return the known result
++            if password_hash in self._checked_passwords.keys():
++                if self._checked_passwords[password_hash]:
++                    success = f"{self.login}@{self.realm}"
++                    log.debug(f"Successfully authenticated user {self} from request cache.")
++                else:
++                    log.info(f"User {self} failed to authenticate from request cache.")
++                return success
+             res = self._get_resolvers()
+-            # Now we know, the resolvers of this user and we can verify the
+-            # password
++            # Now we know, the resolvers of this user, and we can verify the password
+             if len(res) == 1:
+                 y = get_resolver_object(self.resolver)
+                 uid, _rtype, _rname = self.get_user_identifiers()
+                 if y.checkPass(uid, password):
+-                    success = "{0!s}@{1!s}".format(self.login, self.realm)
+-                    log.debug("Successfully authenticated user {0!r}.".format(self))
++                    success = f"{self.login}@{self.realm}"
++                    log.debug(f"Successfully authenticated user {self}.")
++                    self._checked_passwords[password_hash] = True
+                 else:
+-                    log.info("user {0!r} failed to authenticate.".format(self))
++                    log.info(f"User {self} failed to authenticate.")
++                    self._checked_passwords[password_hash] = False
+ 
+             elif not res:
+-                log.error("The user {0!r} exists in NO resolver.".format(self))
++                log.error(f"The user {self!r} exists in NO resolver.")
+         except UserError as e:  # pragma: no cover
+-            log.error("Error while trying to verify the username: {0!r}".format(e))
++            log.error(f"Error while trying to verify the username: {e}")
+         except Exception as e:  # pragma: no cover
+-            log.error("Error checking password within module {0!r}".format(e))
+-            log.debug("{0!s}".format(traceback.format_exc()))
++            log.error(f"Error checking password within module {e}")
++            log.debug(f"{traceback.format_exc()}")
+ 
+         return success
+ 
+diff --git a/privacyidea/lib/usercache.py b/privacyidea/lib/usercache.py
+index 3946e9c2bd..374b4c508b 100644
+--- a/privacyidea/lib/usercache.py
++++ b/privacyidea/lib/usercache.py
+@@ -119,9 +119,9 @@ def add_to_cache(username, used_login, resolver, user_id):
+     """
+     if is_cache_enabled():
+         timestamp = datetime.datetime.now()
+-        record = UserCache(username, used_login, resolver, user_id, timestamp)
+         log.debug('Adding record to cache: ({!r}, {!r}, {!r}, {!r}, {!r})'.format(
+             username, used_login, resolver, user_id, timestamp))
++        record = UserCache(username, used_login, resolver, user_id, timestamp)
+         record.save()
+ 
+ 
+@@ -239,4 +239,3 @@ def user_init(wrapped_function, self):
+     if self.login and self.resolver and self.uid and self.used_login:
+         # We only cache complete sets!
+         add_to_cache(self.login, self.used_login, self.resolver, self.uid)
+-

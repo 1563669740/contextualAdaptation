@@ -1,0 +1,84 @@
+diff --git a/checkov/arm/checks/resource/StorageAccountName.py b/checkov/arm/checks/resource/StorageAccountName.py
+index e5937cd06a..f6e28508c8 100644
+--- a/checkov/arm/checks/resource/StorageAccountName.py
++++ b/checkov/arm/checks/resource/StorageAccountName.py
+@@ -9,7 +9,7 @@
+ 
+ STO_NAME_REGEX = re.compile(r"^[a-z0-9]{3,24}$")
+ VARIABLE_REFS = ("local.", "module.", "var.", "random_string.", "random_id.", "random_integer.", "random_pet.",
+-                 "azurecaf_name", "each.")
++                 "azurecaf_name", "each.", "substring")
+ 
+ 
+ class StorageAccountName(BaseResourceCheck):
+diff --git a/checkov/terraform/checks/graph_checks/aws/Route53ZoneEnableDNSSECSigning.yaml b/checkov/terraform/checks/graph_checks/aws/Route53ZoneEnableDNSSECSigning.yaml
+index f1951949f3..e9262389ec 100644
+--- a/checkov/terraform/checks/graph_checks/aws/Route53ZoneEnableDNSSECSigning.yaml
++++ b/checkov/terraform/checks/graph_checks/aws/Route53ZoneEnableDNSSECSigning.yaml
+@@ -3,28 +3,30 @@ metadata:
+   id: "CKV2_AWS_38"
+   category: "NETWORKING"
+ definition:
+- and :
+-    - cond_type: filter
+-      attribute: resource_type
+-      value:
+-      - aws_route53_zone
+-      operator: within
+-    - cond_type: connection
+-      resource_types:
+-      - aws_route53_zone
+-      connected_resource_types:
+-      - aws_route53_hosted_zone_dnssec
+-      - aws_route53_key_signing_key
+-      operator: exists
+-    - or:
++  or:
++    - and:
+       - cond_type: attribute
+         resource_types:
+           - aws_route53_zone
+-        attribute: vpc
+-        operator: not_exists
++        attribute: vpc  # This indicates a private zone that can't have DNSSEC enabled
++        operator: exists
++      - cond_type: attribute
++        resource_types:
++          - aws_route53_zone
++        attribute: vpc  # This indicates a private zone that can't have DNSSEC enabled
++        operator: not_equals
++        value: []
++    - and:
++      - cond_type: filter
++        attribute: resource_type
++        value:
++        - aws_route53_zone
++        operator: within
+       - cond_type: connection
+         resource_types:
+         - aws_route53_zone
+         connected_resource_types:
+-        - aws_route53_zone_association
+-        operator: not_exists
++        - aws_route53_hosted_zone_dnssec
++        - aws_route53_key_signing_key
++        - aws_route53_zone_association  # This indicates a private zone that can't have DNSSEC enabled
++        operator: exists
+diff --git a/checkov/terraform/checks/resource/aws/S3AllowsAnyPrincipal.py b/checkov/terraform/checks/resource/aws/S3AllowsAnyPrincipal.py
+index 46c3201687..f5ddbb587a 100644
+--- a/checkov/terraform/checks/resource/aws/S3AllowsAnyPrincipal.py
++++ b/checkov/terraform/checks/resource/aws/S3AllowsAnyPrincipal.py
+@@ -82,8 +82,11 @@ def scan_resource_conf(self, conf):
+                     return CheckResult.UNKNOWN
+ 
+         if isinstance(policy_block, dict) and 'Statement' in policy_block.keys():
+-            for statement in force_list(policy_block['Statement']):
+-                if statement['Effect'] == 'Deny' or 'Principal' not in statement:
++            statements = force_list(policy_block['Statement'])
++            if all('Effect' not in statement for statement in statements):
++                return CheckResult.UNKNOWN
++            for statement in statements:
++                if 'Effect' not in statement or statement['Effect'] == 'Deny' or 'Principal' not in statement:
+                     continue
+                 principal = statement['Principal']
+                 if principal == '*':

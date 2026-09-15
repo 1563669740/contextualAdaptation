@@ -1,0 +1,3 @@
+[
+  "tests/test_slots.py::test_slots_cached_property_raising_attributeerror"
+]

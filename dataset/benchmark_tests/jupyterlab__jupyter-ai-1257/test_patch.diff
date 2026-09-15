@@ -1,0 +1,12 @@
+diff --git a/packages/jupyter-ai/jupyter_ai/tests/test_handlers.py b/packages/jupyter-ai/jupyter_ai/tests/test_handlers.py
+index 408324529..530af814f 100644
+--- a/packages/jupyter-ai/jupyter_ai/tests/test_handlers.py
++++ b/packages/jupyter-ai/jupyter_ai/tests/test_handlers.py
+@@ -67,6 +67,7 @@ def __init__(self, lm_provider=None, lm_provider_params=None):
+             message_interrupted={},
+             llm_chat_memory=self.ychat_history,
+             ychat=self.ychat,
++            log_dir="",
+         )
+ 
+     @property

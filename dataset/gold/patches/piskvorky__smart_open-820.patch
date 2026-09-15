@@ -1,0 +1,24 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 85fc7d31..575f1f5c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -482,3 +482,4 @@ The old `smart_open.smart_open` function is deprecated, but continues to work as
+ 
+   - support for multistream bzip files (PR #9, @pombredanne)
+   - introduce this CHANGELOG
++
+diff --git a/smart_open/s3.py b/smart_open/s3.py
+index 09433ad7..60ae2a99 100644
+--- a/smart_open/s3.py
++++ b/smart_open/s3.py
+@@ -1209,8 +1209,8 @@ def write(self, b):
+         return length
+ 
+     def terminate(self):
+-        """Nothing to cancel in single-part uploads."""
+-        return
++        self._buf = None
++        logger.debug('%s: terminated singlepart upload', self)
+ 
+     #
+     # Internal methods.

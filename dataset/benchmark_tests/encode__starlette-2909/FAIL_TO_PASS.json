@@ -1,0 +1,10 @@
+[
+  "tests/test_templates.py::TestTemplatesArgsOnly::test_status_code[asyncio]",
+  "tests/test_templates.py::TestTemplatesArgsOnly::test_headers[asyncio]",
+  "tests/test_templates.py::TestTemplatesArgsOnly::test_media_type[asyncio]",
+  "tests/test_templates.py::TestTemplatesArgsOnly::test_all_args[asyncio]",
+  "tests/test_templates.py::TestTemplatesArgsOnly::test_status_code[trio]",
+  "tests/test_templates.py::TestTemplatesArgsOnly::test_headers[trio]",
+  "tests/test_templates.py::TestTemplatesArgsOnly::test_media_type[trio]",
+  "tests/test_templates.py::TestTemplatesArgsOnly::test_all_args[trio]"
+]

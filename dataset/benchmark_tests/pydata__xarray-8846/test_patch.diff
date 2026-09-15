@@ -1,0 +1,225 @@
+diff --git a/xarray/tests/__init__.py b/xarray/tests/__init__.py
+index 2e6e638f5b1..5007db9eeb2 100644
+--- a/xarray/tests/__init__.py
++++ b/xarray/tests/__init__.py
+@@ -20,6 +20,7 @@
+ from xarray.core.duck_array_ops import allclose_or_equiv  # noqa: F401
+ from xarray.core.indexing import ExplicitlyIndexed
+ from xarray.core.options import set_options
++from xarray.core.variable import IndexVariable
+ from xarray.testing import (  # noqa: F401
+     assert_chunks_equal,
+     assert_duckarray_allclose,
+@@ -47,6 +48,15 @@
+ )
+ 
+ 
++def assert_writeable(ds):
++    readonly = [
++        name
++        for name, var in ds.variables.items()
++        if not isinstance(var, IndexVariable) and not var.data.flags.writeable
++    ]
++    assert not readonly, readonly
++
++
+ def _importorskip(
+     modname: str, minversion: str | None = None
+ ) -> tuple[bool, pytest.MarkDecorator]:
+@@ -326,7 +336,7 @@ def create_test_data(
+         numbers_values = np.random.randint(0, 3, _dims["dim3"], dtype="int64")
+     obj.coords["numbers"] = ("dim3", numbers_values)
+     obj.encoding = {"foo": "bar"}
+-    assert all(obj.data.flags.writeable for obj in obj.variables.values())
++    assert_writeable(obj)
+     return obj
+ 
+ 
+diff --git a/xarray/tests/test_backends.py b/xarray/tests/test_backends.py
+index b97d5ced938..3fb137977e8 100644
+--- a/xarray/tests/test_backends.py
++++ b/xarray/tests/test_backends.py
+@@ -2605,7 +2605,9 @@ def test_append_with_append_dim_no_overwrite(self) -> None:
+             # overwrite a coordinate;
+             # for mode='a-', this will not get written to the store
+             # because it does not have the append_dim as a dim
+-            ds_to_append.lon.data[:] = -999
++            lon = ds_to_append.lon.to_numpy().copy()
++            lon[:] = -999
++            ds_to_append["lon"] = lon
+             ds_to_append.to_zarr(
+                 store_target, mode="a-", append_dim="time", **self.version_kwargs
+             )
+@@ -2615,7 +2617,9 @@ def test_append_with_append_dim_no_overwrite(self) -> None:
+             # by default, mode="a" will overwrite all coordinates.
+             ds_to_append.to_zarr(store_target, append_dim="time", **self.version_kwargs)
+             actual = xr.open_dataset(store_target, engine="zarr", **self.version_kwargs)
+-            original2.lon.data[:] = -999
++            lon = original2.lon.to_numpy().copy()
++            lon[:] = -999
++            original2["lon"] = lon
+             assert_identical(original2, actual)
+ 
+     @requires_dask
+diff --git a/xarray/tests/test_dataset.py b/xarray/tests/test_dataset.py
+index 4937fc5f3a3..d2b8634b8b9 100644
+--- a/xarray/tests/test_dataset.py
++++ b/xarray/tests/test_dataset.py
+@@ -51,6 +51,7 @@
+     assert_equal,
+     assert_identical,
+     assert_no_warnings,
++    assert_writeable,
+     create_test_data,
+     has_cftime,
+     has_dask,
+@@ -96,11 +97,11 @@ def create_append_test_data(seed=None) -> tuple[Dataset, Dataset, Dataset]:
+     nt2 = 2
+     time1 = pd.date_range("2000-01-01", periods=nt1)
+     time2 = pd.date_range("2000-02-01", periods=nt2)
+-    string_var = np.array(["ae", "bc", "df"], dtype=object)
++    string_var = np.array(["a", "bc", "def"], dtype=object)
+     string_var_to_append = np.array(["asdf", "asdfg"], dtype=object)
+     string_var_fixed_length = np.array(["aa", "bb", "cc"], dtype="|S2")
+     string_var_fixed_length_to_append = np.array(["dd", "ee"], dtype="|S2")
+-    unicode_var = ["áó", "áó", "áó"]
++    unicode_var = np.array(["áó", "áó", "áó"])
+     datetime_var = np.array(
+         ["2019-01-01", "2019-01-02", "2019-01-03"], dtype="datetime64[s]"
+     )
+@@ -119,17 +120,11 @@ def create_append_test_data(seed=None) -> tuple[Dataset, Dataset, Dataset]:
+                     coords=[lat, lon, time1],
+                     dims=["lat", "lon", "time"],
+                 ),
+-                "string_var": xr.DataArray(string_var, coords=[time1], dims=["time"]),
+-                "string_var_fixed_length": xr.DataArray(
+-                    string_var_fixed_length, coords=[time1], dims=["time"]
+-                ),
+-                "unicode_var": xr.DataArray(
+-                    unicode_var, coords=[time1], dims=["time"]
+-                ).astype(np.str_),
+-                "datetime_var": xr.DataArray(
+-                    datetime_var, coords=[time1], dims=["time"]
+-                ),
+-                "bool_var": xr.DataArray(bool_var, coords=[time1], dims=["time"]),
++                "string_var": ("time", string_var),
++                "string_var_fixed_length": ("time", string_var_fixed_length),
++                "unicode_var": ("time", unicode_var),
++                "datetime_var": ("time", datetime_var),
++                "bool_var": ("time", bool_var),
+             }
+         )
+ 
+@@ -140,21 +135,11 @@ def create_append_test_data(seed=None) -> tuple[Dataset, Dataset, Dataset]:
+                     coords=[lat, lon, time2],
+                     dims=["lat", "lon", "time"],
+                 ),
+-                "string_var": xr.DataArray(
+-                    string_var_to_append, coords=[time2], dims=["time"]
+-                ),
+-                "string_var_fixed_length": xr.DataArray(
+-                    string_var_fixed_length_to_append, coords=[time2], dims=["time"]
+-                ),
+-                "unicode_var": xr.DataArray(
+-                    unicode_var[:nt2], coords=[time2], dims=["time"]
+-                ).astype(np.str_),
+-                "datetime_var": xr.DataArray(
+-                    datetime_var_to_append, coords=[time2], dims=["time"]
+-                ),
+-                "bool_var": xr.DataArray(
+-                    bool_var_to_append, coords=[time2], dims=["time"]
+-                ),
++                "string_var": ("time", string_var_to_append),
++                "string_var_fixed_length": ("time", string_var_fixed_length_to_append),
++                "unicode_var": ("time", unicode_var[:nt2]),
++                "datetime_var": ("time", datetime_var_to_append),
++                "bool_var": ("time", bool_var_to_append),
+             }
+         )
+ 
+@@ -168,8 +153,9 @@ def create_append_test_data(seed=None) -> tuple[Dataset, Dataset, Dataset]:
+             }
+         )
+ 
+-    assert all(objp.data.flags.writeable for objp in ds.variables.values())
+-    assert all(objp.data.flags.writeable for objp in ds_to_append.variables.values())
++    assert_writeable(ds)
++    assert_writeable(ds_to_append)
++    assert_writeable(ds_with_new_var)
+     return ds, ds_to_append, ds_with_new_var
+ 
+ 
+@@ -182,10 +168,8 @@ def make_datasets(data, data_to_append) -> tuple[Dataset, Dataset]:
+         ds_to_append = xr.Dataset(
+             {"temperature": (["time"], data_to_append)}, coords={"time": [0, 1, 2]}
+         )
+-        assert all(objp.data.flags.writeable for objp in ds.variables.values())
+-        assert all(
+-            objp.data.flags.writeable for objp in ds_to_append.variables.values()
+-        )
++        assert_writeable(ds)
++        assert_writeable(ds_to_append)
+         return ds, ds_to_append
+ 
+     u2_strings = ["ab", "cd", "ef"]
+@@ -2964,10 +2948,11 @@ def test_copy_coords(self, deep, expected_orig) -> None:
+             name="value",
+         ).to_dataset()
+         ds_cp = ds.copy(deep=deep)
+-        ds_cp.coords["a"].data[0] = 999
++        new_a = np.array([999, 2])
++        ds_cp.coords["a"] = ds_cp.a.copy(data=new_a)
+ 
+         expected_cp = xr.DataArray(
+-            xr.IndexVariable("a", np.array([999, 2])),
++            xr.IndexVariable("a", new_a),
+             coords={"a": [999, 2]},
+             dims=["a"],
+         )
+diff --git a/xarray/tests/test_missing.py b/xarray/tests/test_missing.py
+index f13406d0acc..c1d1058fd6e 100644
+--- a/xarray/tests/test_missing.py
++++ b/xarray/tests/test_missing.py
+@@ -122,10 +122,13 @@ def test_interpolate_pd_compat(method, fill_value) -> None:
+                 # for the numpy linear methods.
+                 # see https://github.com/pandas-dev/pandas/issues/55144
+                 # This aligns the pandas output with the xarray output
+-                expected.values[pd.isnull(actual.values)] = np.nan
+-                expected.values[actual.values == fill_value] = fill_value
++                fixed = expected.values.copy()
++                fixed[pd.isnull(actual.values)] = np.nan
++                fixed[actual.values == fill_value] = fill_value
++            else:
++                fixed = expected.values
+ 
+-            np.testing.assert_allclose(actual.values, expected.values)
++            np.testing.assert_allclose(actual.values, fixed)
+ 
+ 
+ @requires_scipy
+diff --git a/xarray/tests/test_variable.py b/xarray/tests/test_variable.py
+index 73f5abe66e5..061510f2515 100644
+--- a/xarray/tests/test_variable.py
++++ b/xarray/tests/test_variable.py
+@@ -64,6 +64,21 @@ def var():
+     return Variable(dims=list("xyz"), data=np.random.rand(3, 4, 5))
+ 
+ 
++@pytest.mark.parametrize(
++    "data",
++    [
++        np.array(["a", "bc", "def"], dtype=object),
++        np.array(["2019-01-01", "2019-01-02", "2019-01-03"], dtype="datetime64[ns]"),
++    ],
++)
++def test_as_compatible_data_writeable(data):
++    pd.set_option("mode.copy_on_write", True)
++    # GH8843, ensure writeable arrays for data_vars even with
++    # pandas copy-on-write mode
++    assert as_compatible_data(data).flags.writeable
++    pd.reset_option("mode.copy_on_write")
++
++
+ class VariableSubclassobjects(NamedArraySubclassobjects, ABC):
+     @pytest.fixture
+     def target(self, data):

@@ -1,0 +1,130 @@
+diff --git a/tests/test_color.py b/tests/test_color.py
+index 83e95baad..d19f26e7f 100644
+--- a/tests/test_color.py
++++ b/tests/test_color.py
+@@ -28,6 +28,34 @@ def test_concatenate(self):
+         r = a + b
+         assert any(r.visual.face_colors.ptp(axis=0) > 1)
+ 
++    def test_concatenate_empty_mesh(self):
++        box = g.get_mesh("box.STL")
++
++        mesh_fcolor = box.copy()
++        mesh_fcolor.visual.face_colors = [255, 0, 0]
++
++        mesh_vcolor = box.copy()
++        mesh_vcolor.visual.vertex_colors = [0, 0, 255]
++
++        mesh_empty = g.trimesh.Trimesh()
++
++        r_left_fcolor = mesh_fcolor + mesh_empty
++        r_right_fcolor = mesh_empty + mesh_fcolor
++        r_left_vcolor = mesh_vcolor + mesh_empty
++        r_right_vcolor = mesh_empty + mesh_vcolor
++        r_empty = mesh_empty + mesh_empty
++
++        for visual_face in [r_left_fcolor.visual, r_right_fcolor.visual]:
++            assert (visual_face.face_colors == mesh_fcolor.visual.face_colors).all()
++            assert visual_face.kind == "face"
++
++        for visual_vert in [r_left_vcolor.visual, r_right_vcolor.visual]:
++            assert (visual_vert.vertex_colors == mesh_vcolor.visual.vertex_colors).all()
++            assert visual_vert.kind == "vertex"
++
++        assert len(r_empty.visual.face_colors) == 0
++        assert r_empty.visual.kind is None
++
+     def test_data_model(self):
+         """
+         Test the probably too- magical color caching and storage
+diff --git a/tests/test_gltf.py b/tests/test_gltf.py
+index 5cb41a4e5..2261f8c1f 100644
+--- a/tests/test_gltf.py
++++ b/tests/test_gltf.py
+@@ -1019,6 +1019,19 @@ def test_relative_paths(self):
+             r = g.trimesh.load(path)
+             assert g.np.isclose(r.volume, 1.0)
+ 
++    def test_postprocess(self):
++        # check to see if keys we expect exist
++        s = g.get_mesh("cycloidal.3DXML")
++
++        def post(tree):
++            # should have exported meshes here
++            assert len(tree["meshes"]) == len(s.geometry)
++            # should have buffers
++            assert len(tree["buffers"]) >= 1
++
++        # export with a postprocessor
++        s.export(file_type="glb", tree_postprocessor=post)
++
+ 
+ if __name__ == "__main__":
+     g.trimesh.util.attach_to_log()
+diff --git a/tests/test_stl.py b/tests/test_stl.py
+index 2cc48187a..144a4c470 100644
+--- a/tests/test_stl.py
++++ b/tests/test_stl.py
+@@ -69,7 +69,7 @@ def test_attrib(self):
+     def test_ascii_multibody(self):
+         s = g.get_mesh("multibody.stl")
+         assert len(s.geometry) == 2
+-        assert set(s.geometry.keys()) == {"bodya", "bodyb"}
++        assert set(s.geometry.keys()) == {"bodyA", "bodyB"}
+ 
+     def test_empty(self):
+         # demo files to check
+diff --git a/tests/test_transformations.py b/tests/test_transformations.py
+index a0cc07f0a..1d54c310f 100644
+--- a/tests/test_transformations.py
++++ b/tests/test_transformations.py
+@@ -184,6 +184,49 @@ def test_angle(self):
+             0.0,
+         )
+ 
++    def test_symbolic_rotation(self):
++        # you can pass `sympy.Symbol` to `trimesh.transformation.rotation_matrix`
++        try:
++            import sympy as sp
++        except BaseException:
++            return
++        tf = g.trimesh.transformations
++
++        a = sp.Symbol("a")
++        vector = [1, 1, 1]
++        m = tf.rotation_matrix(a, vector)
++        for v in [0.0, 1.1, 1.234, g.np.pi]:
++            # evaluate the symbolic matrix with a value
++            s = g.np.array(m.subs({a: v}).evalf(), dtype=g.np.float64)
++            # call rotation matrix with a scalar
++            n = tf.rotation_matrix(v, vector)
++
++            # they should be the same matrix
++            assert g.np.allclose(s, n)
++
++    def test_symbolic_euler(self):
++        # some of the functions have been modified to support `sympy.Symbol`
++        # values which is useful for calculating final rotations symbolically
++        try:
++            import sympy as sp
++        except BaseException:
++            return
++
++        euler = g.trimesh.transformations.euler_matrix
++
++        ra, rb, rc = sp.symbols("ra rb rc")
++        m = euler(ra, rb, rc)
++        for rot in g.random((100, 3)):
++            # get the euler matrix evaluated from the symbolic matrix
++            s = g.np.array(
++                m.subs({ra: rot[0], rb: rot[1], rc: rot[2]}).evalf(), dtype=g.np.float64
++            )
++            # get it from a numeric scalar
++            n = euler(*rot)
++
++            # they should be the same matrix
++            assert g.np.allclose(s, n)
++
+ 
+ if __name__ == "__main__":
+     g.trimesh.util.attach_to_log()

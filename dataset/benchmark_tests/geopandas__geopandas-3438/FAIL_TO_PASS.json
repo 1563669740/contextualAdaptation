@@ -1,0 +1,3 @@
+[
+  "geopandas/tests/test_plotting.py::TestPointPlotting::test_missing_aspect"
+]

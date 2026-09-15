@@ -1,0 +1,143 @@
+diff --git a/doc/policies/authentication.rst b/doc/policies/authentication.rst
+index 1ed1c8c9c9..f446b64e81 100644
+--- a/doc/policies/authentication.rst
++++ b/doc/policies/authentication.rst
+@@ -771,6 +771,7 @@ tag.
+     * {date} the current server date in the format YYYY-MM-DD.
+     * {phone} the phone number from the challenge in case of sms token.
+     * {email} email address from the challenge in case of email token.
++    * {presence_answer} only for push token and only if require_presence is enabled.
+ 
+ .. _policy_indexedsecret:
+ 
+diff --git a/privacyidea/lib/token.py b/privacyidea/lib/token.py
+index f99351d41a..2e99630418 100644
+--- a/privacyidea/lib/token.py
++++ b/privacyidea/lib/token.py
+@@ -2276,12 +2276,19 @@ def create_challenges_from_tokens(token_list, reply_dict, options=None):
+         # Check if the max auth is succeeded
+         if token_obj.check_all(message_list):
+             r_chal, message, transaction_id, challenge_info = token_obj.create_challenge(
+-                    transactionid=transaction_id, options=options)
++                transactionid=transaction_id, options=options)
++
+             # We need to pass the info if a push token has been triggered, so that require presence can re-use the
+             # challenge instead of creating a new one with a different answer
+-            options["push_triggered"] = token_obj.get_type() == "push" if not options["push_triggered"] else True
++            # Also check the challenge info if the presence answer is returned to pass it on for tag replacement
++            additional_tags = {}
++            if token_obj.get_type() == "push":
++                options["push_triggered"] = True
++                if "presence_answer" in challenge_info:
++                    additional_tags["presence_answer"] = challenge_info["presence_answer"]
+             # Add the reply to the response
+-            message = challenge_text_replace(message, user=token_obj.user, token_obj=token_obj)
++            message = challenge_text_replace(message, user=token_obj.user, token_obj=token_obj,
++                                             additional_tags=additional_tags)
+             message_list.append(message)
+             if r_chal:
+                 challenge_info = challenge_info or {}
+@@ -2507,7 +2514,7 @@ def check_token_list(token_object_list, passw, user=None, options=None, allow_re
+         further_challenge = False
+         for token_object in challenge_response_token_list:
+             if token_object.check_challenge_response(passw=passw,
+-                                                    options=options) >= 0:
++                                                     options=options) >= 0:
+                 reply_dict["serial"] = token_object.token.serial
+                 matching_challenge = True
+                 messages = []
+@@ -2857,11 +2864,15 @@ def token_load(token_dict, tokenowner=True, overwrite=False):
+     return token
+ 
+ 
+-def challenge_text_replace(message, user, token_obj):
++def challenge_text_replace(message, user, token_obj, additional_tags: dict = None):
++    # TODO this function should be a token function since most of the info is from that token anyway, optionally pass
++    # TODO environment stuff into that function
+     serial = token_obj.token.serial if token_obj.token.serial else None
+     tokenowner = user if user else None
+     tokentype = token_obj.token.tokentype if token_obj.token.tokentype else ""
+     tags = create_tag_dict(serial=serial, tokenowner=tokenowner, tokentype=tokentype)
++    if additional_tags:
++        tags.update(additional_tags)
+ 
+     if tokentype == "sms":
+         if is_true(token_obj.get_tokeninfo("dynamic_phone")):
+@@ -2885,5 +2896,13 @@ def challenge_text_replace(message, user, token_obj):
+         if email is not None:
+             tags["email"] = email
+ 
++    # If the message is for a pushtoken and the presence_answer is set, but there is no tag for placing that answer,
++    # Append the answer to the message
++    presence_answer = tags.get("presence_answer", None)
++    if presence_answer and tokentype == "push" and "{presence_answer}" not in message:
++        # PyBabel gettext and f-strings don't like each other
++        message += _(" Please press: {presence_answer}".format(presence_answer=presence_answer))
++
+     message = message.format_map(defaultdict(str, tags))
++
+     return message
+diff --git a/privacyidea/lib/tokens/pushtoken.py b/privacyidea/lib/tokens/pushtoken.py
+index 7546e9315a..b1507fb75e 100644
+--- a/privacyidea/lib/tokens/pushtoken.py
++++ b/privacyidea/lib/tokens/pushtoken.py
+@@ -251,7 +251,11 @@ def _build_smartphone_data(token_obj, challenge, registration_url, pem_privkey,
+                            recipient={"givenname": user_object.info.get("givenname") if user_object else "",
+                                       "surname": user_object.info.get("surname") if user_object else ""},
+                            challenge=options.get("challenge"))
+-    message_on_mobile = message_on_mobile.format(**tags)
++    try:
++        message_on_mobile = message_on_mobile.format(**tags)
++    except KeyError as e:
++        log.warning(f"Could not format the message: {e}. Using default message.")
++        message_on_mobile = DEFAULT_MOBILE_TEXT
+     log.debug(f"Sending to mobile: {message_on_mobile}")
+ 
+     title = get_action_values_from_options(SCOPE.AUTH, PUSH_ACTION.MOBILE_TITLE,
+@@ -973,6 +977,7 @@ def create_challenge(self, transactionid=None, options=None):
+                                       user_object=options.get("user")).any()
+         data = None
+         current_presence_options = None
++        reply_dict = {}
+         if is_true(require_presence):
+             if not options["push_triggered"]:
+                 # Create a new challenge data
+@@ -987,15 +992,19 @@ def create_challenge(self, transactionid=None, options=None):
+                     selected_option = secrets.choice(available_presence_options)
+                     available_presence_options.remove(selected_option)
+                     current_presence_options.append(selected_option)
+-                correct_option = secrets.choice(current_presence_options)
++                correct_presence_option = secrets.choice(current_presence_options)
+                 # The data contains all selected options and the correct option at the end.
+-                data = ",".join(current_presence_options + [correct_option])
++                data = ",".join(current_presence_options + [correct_presence_option])
+             else:
+                 # If the user has more than one token and more than one challenge is created, we need to ensure
+                 # that the challenge data for all push token is the same.
+                 challenges = get_challenges(transaction_id=transactionid)
+                 data = next(c.data for c in challenges if c.serial.startswith("PIPU") and c.data) or ""
+-                current_presence_options = data.split(",")[:-1]  # The correct option is the last one, so we remove it
++                # The correct option is the last one, so we remove it
++                split_presence_options = data.split(",")
++                current_presence_options = split_presence_options[:-1]
++                correct_presence_option = split_presence_options[-1]
++            reply_dict.update({"presence_answer": correct_presence_option})
+         # Initially we assume there is no error from Firebase
+         res = True
+         fb_identifier = self.get_tokeninfo(PUSH_ACTION.FIREBASE_CONFIG)
+@@ -1052,14 +1061,7 @@ def create_challenge(self, transactionid=None, options=None):
+             if is_true(options.get("exception")):
+                 raise ValidateError("The token has no tokeninfo. Can not send via Firebase service.")
+ 
+-        reply_dict = {"attributes": {"hideResponseInput": self.client_mode != CLIENTMODE.INTERACTIVE}}
+-
+-        if data:
+-            # If the message contains {} we replace it with the data otherwise we add a new text
+-            if "{}" in message:
+-                message = message.format(data.split(",").pop())  # The correct presence option is the last one
+-            else:
+-                message += f" Please press: {data.split(',').pop()}"  # The correct presence option is the last one
++        reply_dict.update({"attributes": {"hideResponseInput": self.client_mode != CLIENTMODE.INTERACTIVE}})
+         return True, message, transactionid, reply_dict
+ 
+     @check_token_locked

@@ -1,0 +1,56 @@
+diff --git a/doc/users/next_whats_new/exception_prop_name.rst b/doc/users/next_whats_new/exception_prop_name.rst
+new file mode 100644
+index 000000000000..c887b879393c
+--- /dev/null
++++ b/doc/users/next_whats_new/exception_prop_name.rst
+@@ -0,0 +1,26 @@
++Exception handling control
++~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++The exception raised when an invalid keyword parameter is passed now includes
++that parameter name as the exception's ``name`` property.  This provides more
++control for exception handling:
++
++
++.. code-block:: python
++
++    import matplotlib.pyplot as plt
++
++    def wobbly_plot(args, **kwargs):
++        w = kwargs.pop('wobble_factor', None)
++
++        try:
++            plt.plot(args, **kwargs)
++        except AttributeError as e:
++            raise AttributeError(f'wobbly_plot does not take parameter {e.name}') from e
++
++
++    wobbly_plot([0, 1], wibble_factor=5)
++
++.. code-block::
++
++    AttributeError: wobbly_plot does not take parameter wibble_factor
+diff --git a/lib/matplotlib/artist.py b/lib/matplotlib/artist.py
+index baf3b01ee6e5..345a61bfc16a 100644
+--- a/lib/matplotlib/artist.py
++++ b/lib/matplotlib/artist.py
+@@ -1190,7 +1190,8 @@ def _update_props(self, props, errfmt):
+         Helper for `.Artist.set` and `.Artist.update`.
+ 
+         *errfmt* is used to generate error messages for invalid property
+-        names; it gets formatted with ``type(self)`` and the property name.
++        names; it gets formatted with ``type(self)`` for "{cls}" and the
++        property name for "{prop_name}".
+         """
+         ret = []
+         with cbook._setattr_cm(self, eventson=False):
+@@ -1203,7 +1204,8 @@ def _update_props(self, props, errfmt):
+                     func = getattr(self, f"set_{k}", None)
+                     if not callable(func):
+                         raise AttributeError(
+-                            errfmt.format(cls=type(self), prop_name=k))
++                            errfmt.format(cls=type(self), prop_name=k),
++                            name=k)
+                     ret.append(func(v))
+         if ret:
+             self.pchanged()

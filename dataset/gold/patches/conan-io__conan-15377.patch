@@ -1,0 +1,39 @@
+diff --git a/conan/tools/files/conandata.py b/conan/tools/files/conandata.py
+index c6925450826..0b01824bbc5 100644
+--- a/conan/tools/files/conandata.py
++++ b/conan/tools/files/conandata.py
+@@ -58,7 +58,7 @@ def trim_conandata(conanfile):
+     version = str(conanfile.version)
+     result = {}
+     for k, v in conandata.items():
+-        if not isinstance(v, dict):
++        if k == "scm" or not isinstance(v, dict):
+             result[k] = v
+             continue  # to allow user extra conandata, common to all versions
+         version_data = v.get(version)
+diff --git a/conan/tools/scm/git.py b/conan/tools/scm/git.py
+index 77d0e6dbbfd..b4944a1b3a2 100644
+--- a/conan/tools/scm/git.py
++++ b/conan/tools/scm/git.py
+@@ -1,7 +1,7 @@
+ import fnmatch
+ import os
+ 
+-from conan.tools.files import chdir
++from conan.tools.files import chdir, update_conandata
+ from conan.errors import ConanException
+ from conans.model.conf import ConfDefinition
+ from conans.util.files import mkdir
+@@ -237,3 +237,12 @@ def included_files(self):
+         files = self.run("ls-files --full-name --others --cached --exclude-standard")
+         files = files.splitlines()
+         return files
++
++    def coordinates_to_conandata(self):
++        scm_url, scm_commit = self.get_url_and_commit()
++        update_conandata(self._conanfile, {"scm": {"commit": scm_commit, "url": scm_url}})
++
++    def checkout_from_conandata_coordinates(self):
++        sources = self._conanfile.conan_data["scm"]
++        self.clone(url=sources["url"], target=".")
++        self.checkout(commit=sources["commit"])

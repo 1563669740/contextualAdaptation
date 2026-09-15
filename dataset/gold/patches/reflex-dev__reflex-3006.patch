@@ -1,0 +1,274 @@
+diff --git a/reflex/app.py b/reflex/app.py
+index ef8780b4926..e0b84792d2f 100644
+--- a/reflex/app.py
++++ b/reflex/app.py
+@@ -729,9 +729,12 @@ def _apply_decorated_pages(self):
+         for render, kwargs in DECORATED_PAGES:
+             self.add_page(render, **kwargs)
+ 
+-    def compile_(self):
++    def compile_(self, export: bool = False):
+         """Compile the app and output it to the pages folder.
+ 
++        Args:
++            export: Whether to compile the app for export.
++
+         Raises:
+             RuntimeError: When any page uses state, but no rx.State subclass is defined.
+         """
+@@ -937,6 +940,17 @@ def _submit_work(fn, *args, **kwargs):
+         # Install frontend packages.
+         self.get_frontend_packages(all_imports)
+ 
++        # Setup the next.config.js
++        transpile_packages = [
++            package
++            for package, import_vars in all_imports.items()
++            if any(import_var.transpile for import_var in import_vars)
++        ]
++        prerequisites.update_next_config(
++            export=export,
++            transpile_packages=transpile_packages,
++        )
++
+         for output_path, code in compile_results:
+             compiler_utils.write_page(output_path, code)
+ 
+diff --git a/reflex/components/component.py b/reflex/components/component.py
+index c873e687bac..ad2f4ac48b9 100644
+--- a/reflex/components/component.py
++++ b/reflex/components/component.py
+@@ -64,6 +64,9 @@ class BaseComponent(Base, ABC):
+     # List here the non-react dependency needed by `library`
+     lib_dependencies: List[str] = []
+ 
++    # List here the dependencies that need to be transpiled by Next.js
++    transpile_packages: List[str] = []
++
+     # The tag to use when rendering the component.
+     tag: Optional[str] = None
+ 
+@@ -987,6 +990,20 @@ def _get_props_imports(self) -> List[str]:
+             if getattr(self, prop) is not None
+         ]
+ 
++    def _should_transpile(self, dep: str | None) -> bool:
++        """Check if a dependency should be transpiled.
++
++        Args:
++            dep: The dependency to check.
++
++        Returns:
++            True if the dependency should be transpiled.
++        """
++        return (
++            dep in self.transpile_packages
++            or format.format_library_name(dep or "") in self.transpile_packages
++        )
++
+     def _get_dependencies_imports(self) -> imports.ImportDict:
+         """Get the imports from lib_dependencies for installing.
+ 
+@@ -994,7 +1011,14 @@ def _get_dependencies_imports(self) -> imports.ImportDict:
+             The dependencies imports of the component.
+         """
+         return {
+-            dep: [ImportVar(tag=None, render=False)] for dep in self.lib_dependencies
++            dep: [
++                ImportVar(
++                    tag=None,
++                    render=False,
++                    transpile=self._should_transpile(dep),
++                )
++            ]
++            for dep in self.lib_dependencies
+         }
+ 
+     def _get_hooks_imports(self) -> imports.ImportDict:
+@@ -1250,7 +1274,12 @@ def import_var(self):
+         # If the tag is dot-qualified, only import the left-most name.
+         tag = self.tag.partition(".")[0] if self.tag else None
+         alias = self.alias.partition(".")[0] if self.alias else None
+-        return ImportVar(tag=tag, is_default=self.is_default, alias=alias)
++        return ImportVar(
++            tag=tag,
++            is_default=self.is_default,
++            alias=alias,
++            transpile=self._should_transpile(self.library),
++        )
+ 
+     @staticmethod
+     def _get_app_wrap_components() -> dict[tuple[int, str], Component]:
+@@ -1512,7 +1541,13 @@ def _get_imports(self) -> imports.ImportDict:
+ 
+         # Do NOT import the main library/tag statically.
+         if self.library is not None:
+-            _imports[self.library] = [imports.ImportVar(tag=None, render=False)]
++            _imports[self.library] = [
++                imports.ImportVar(
++                    tag=None,
++                    render=False,
++                    transpile=self._should_transpile(self.library),
++                ),
++            ]
+ 
+         return imports.merge_imports(
+             dynamic_import,
+@@ -1527,10 +1562,7 @@ def _get_dynamic_imports(self) -> str:
+         if self.library is None:
+             raise ValueError("Undefined library for NoSSRComponent")
+ 
+-        import_name_parts = [p for p in self.library.rpartition("@") if p != ""]
+-        import_name = (
+-            import_name_parts[0] if import_name_parts[0] != "@" else self.library
+-        )
++        import_name = format.format_library_name(self.library)
+ 
+         library_import = f"const {self.alias if self.alias else self.tag} = dynamic(() => import('{import_name}')"
+         mod_import = (
+diff --git a/reflex/reflex.py b/reflex/reflex.py
+index 547bb9a25fe..c4933b1f927 100644
+--- a/reflex/reflex.py
++++ b/reflex/reflex.py
+@@ -188,7 +188,6 @@ def _run(
+     prerequisites.check_latest_package_version(constants.Reflex.MODULE_NAME)
+ 
+     if frontend:
+-        prerequisites.update_next_config()
+         # Get the app module.
+         prerequisites.get_compiled_app()
+ 
+diff --git a/reflex/utils/export.py b/reflex/utils/export.py
+index 12a6933fbd8..abc607c74af 100644
+--- a/reflex/utils/export.py
++++ b/reflex/utils/export.py
+@@ -53,10 +53,8 @@ def export(
+     console.rule("[bold]Compiling production app and preparing for export.")
+ 
+     if frontend:
+-        # Update some parameters for export
+-        prerequisites.update_next_config(export=True)
+         # Ensure module can be imported and app.compile() is called.
+-        prerequisites.get_compiled_app()
++        prerequisites.get_compiled_app(export=True)
+         # Set up .web directory and install frontend dependencies.
+         build.setup_frontend(Path.cwd())
+ 
+diff --git a/reflex/utils/imports.py b/reflex/utils/imports.py
+index 66ac6221396..8d678b4eb0f 100644
+--- a/reflex/utils/imports.py
++++ b/reflex/utils/imports.py
+@@ -54,6 +54,10 @@ class ImportVar(Base):
+     # whether this import should be rendered or not
+     render: Optional[bool] = True
+ 
++    # whether this import package should be added to transpilePackages in next.config.js
++    # https://nextjs.org/docs/app/api-reference/next-config-js/transpilePackages
++    transpile: Optional[bool] = False
++
+     @property
+     def name(self) -> str:
+         """The name of the import.
+@@ -72,7 +76,16 @@ def __hash__(self) -> int:
+         Returns:
+             The hash of the var.
+         """
+-        return hash((self.tag, self.is_default, self.alias, self.install, self.render))
++        return hash(
++            (
++                self.tag,
++                self.is_default,
++                self.alias,
++                self.install,
++                self.render,
++                self.transpile,
++            )
++        )
+ 
+ 
+ ImportDict = Dict[str, List[ImportVar]]
+diff --git a/reflex/utils/prerequisites.py b/reflex/utils/prerequisites.py
+index 0502be60906..ce67f18e380 100644
+--- a/reflex/utils/prerequisites.py
++++ b/reflex/utils/prerequisites.py
+@@ -18,7 +18,7 @@
+ from fileinput import FileInput
+ from pathlib import Path
+ from types import ModuleType
+-from typing import Callable, Optional
++from typing import Callable, List, Optional
+ 
+ import httpx
+ import pkg_resources
+@@ -33,6 +33,7 @@
+ from reflex.compiler import templates
+ from reflex.config import Config, get_config
+ from reflex.utils import console, path_ops, processes
++from reflex.utils.format import format_library_name
+ 
+ CURRENTLY_INSTALLING_NODE = False
+ 
+@@ -216,11 +217,12 @@ def get_app(reload: bool = False) -> ModuleType:
+     return app
+ 
+ 
+-def get_compiled_app(reload: bool = False) -> ModuleType:
++def get_compiled_app(reload: bool = False, export: bool = False) -> ModuleType:
+     """Get the app module based on the default config after first compiling it.
+ 
+     Args:
+         reload: Re-import the app module from disk
++        export: Compile the app for export
+ 
+     Returns:
+         The compiled app based on the default config.
+@@ -230,7 +232,7 @@ def get_compiled_app(reload: bool = False) -> ModuleType:
+     # For py3.8 and py3.9 compatibility when redis is used, we MUST add any decorator pages
+     # before compiling the app in a thread to avoid event loop error (REF-2172).
+     app._apply_decorated_pages()
+-    app.compile_()
++    app.compile_(export=export)
+     return app_module
+ 
+ 
+@@ -526,28 +528,37 @@ def init_reflex_json(project_hash: int | None):
+     path_ops.update_json_file(constants.Reflex.JSON, reflex_json)
+ 
+ 
+-def update_next_config(export=False):
++def update_next_config(export=False, transpile_packages: Optional[List[str]] = None):
+     """Update Next.js config from Reflex config.
+ 
+     Args:
+         export: if the method run during reflex export.
++        transpile_packages: list of packages to transpile via next.config.js.
+     """
+     next_config_file = os.path.join(constants.Dirs.WEB, constants.Next.CONFIG_FILE)
+ 
+-    next_config = _update_next_config(get_config(), export=export)
++    next_config = _update_next_config(
++        get_config(), export=export, transpile_packages=transpile_packages
++    )
+ 
+     with open(next_config_file, "w") as file:
+         file.write(next_config)
+         file.write("\n")
+ 
+ 
+-def _update_next_config(config, export=False):
++def _update_next_config(
++    config: Config, export: bool = False, transpile_packages: Optional[List[str]] = None
++):
+     next_config = {
+         "basePath": config.frontend_path or "",
+         "compress": config.next_compression,
+         "reactStrictMode": True,
+         "trailingSlash": True,
+     }
++    if transpile_packages:
++        next_config["transpilePackages"] = list(
++            set((format_library_name(p) for p in transpile_packages))
++        )
+     if export:
+         next_config["output"] = "export"
+         next_config["distDir"] = constants.Dirs.STATIC

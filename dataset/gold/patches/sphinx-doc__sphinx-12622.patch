@@ -1,0 +1,150 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index c53bb8f8b0f..66150d2624a 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -11,6 +11,10 @@ Bugs fixed
+ * #12601, #12625: Support callable objects in :py:class:`~typing.Annotated` type
+   metadata in the Python domain.
+   Patch by Adam Turner.
++* #12601, #12622: Resolve :py:class:`~typing.Annotated` warnings with
++  ``sphinx.ext.autodoc``,
++  especially when using :mod:`dataclasses` as type metadata.
++  Patch by Adam Turner.
+ 
+ Release 7.4.6 (released Jul 18, 2024)
+ =====================================
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index b3fb3e0c41f..41e128e0732 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -2008,7 +2008,8 @@ def import_object(self, raiseerror: bool = False) -> bool:
+                 with mock(self.config.autodoc_mock_imports):
+                     parent = import_module(self.modname, self.config.autodoc_warningiserror)
+                     annotations = get_type_hints(parent, None,
+-                                                 self.config.autodoc_type_aliases)
++                                                 self.config.autodoc_type_aliases,
++                                                 include_extras=True)
+                     if self.objpath[-1] in annotations:
+                         self.object = UNINITIALIZED_ATTR
+                         self.parent = parent
+@@ -2097,7 +2098,8 @@ def add_directive_header(self, sig: str) -> None:
+             if self.config.autodoc_typehints != 'none':
+                 # obtain annotation for this data
+                 annotations = get_type_hints(self.parent, None,
+-                                             self.config.autodoc_type_aliases)
++                                             self.config.autodoc_type_aliases,
++                                             include_extras=True)
+                 if self.objpath[-1] in annotations:
+                     if self.config.autodoc_typehints_format == "short":
+                         objrepr = stringify_annotation(annotations.get(self.objpath[-1]),
+@@ -2541,7 +2543,8 @@ class Foo:
+ 
+     def is_uninitialized_instance_attribute(self, parent: Any) -> bool:
+         """Check the subject is an annotation only attribute."""
+-        annotations = get_type_hints(parent, None, self.config.autodoc_type_aliases)
++        annotations = get_type_hints(parent, None, self.config.autodoc_type_aliases,
++                                     include_extras=True)
+         return self.objpath[-1] in annotations
+ 
+     def import_object(self, raiseerror: bool = False) -> bool:
+@@ -2673,7 +2676,8 @@ def add_directive_header(self, sig: str) -> None:
+             if self.config.autodoc_typehints != 'none':
+                 # obtain type annotation for this attribute
+                 annotations = get_type_hints(self.parent, None,
+-                                             self.config.autodoc_type_aliases)
++                                             self.config.autodoc_type_aliases,
++                                             include_extras=True)
+                 if self.objpath[-1] in annotations:
+                     if self.config.autodoc_typehints_format == "short":
+                         objrepr = stringify_annotation(annotations.get(self.objpath[-1]),
+diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py
+index 04595fd8c58..28bba0c3032 100644
+--- a/sphinx/util/inspect.py
++++ b/sphinx/util/inspect.py
+@@ -652,7 +652,7 @@ def signature(
+     try:
+         # Resolve annotations using ``get_type_hints()`` and type_aliases.
+         localns = TypeAliasNamespace(type_aliases)
+-        annotations = typing.get_type_hints(subject, None, localns)
++        annotations = typing.get_type_hints(subject, None, localns, include_extras=True)
+         for i, param in enumerate(parameters):
+             if param.name in annotations:
+                 annotation = annotations[param.name]
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index a295c0605e6..a5d24170576 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import dataclasses
+ import sys
+ import types
+ import typing
+@@ -157,6 +158,7 @@ def get_type_hints(
+     obj: Any,
+     globalns: dict[str, Any] | None = None,
+     localns: dict[str, Any] | None = None,
++    include_extras: bool = False,
+ ) -> dict[str, Any]:
+     """Return a dictionary containing type hints for a function, method, module or class
+     object.
+@@ -167,7 +169,7 @@ def get_type_hints(
+     from sphinx.util.inspect import safe_getattr  # lazy loading
+ 
+     try:
+-        return typing.get_type_hints(obj, globalns, localns)
++        return typing.get_type_hints(obj, globalns, localns, include_extras=include_extras)
+     except NameError:
+         # Failed to evaluate ForwardRef (maybe TYPE_CHECKING)
+         return safe_getattr(obj, '__annotations__', {})
+@@ -267,7 +269,20 @@ def restify(cls: Any, mode: _RestifyMode = 'fully-qualified-except-typing') -> s
+             return f':py:class:`{module_prefix}{_INVALID_BUILTIN_CLASSES[cls]}`'
+         elif _is_annotated_form(cls):
+             args = restify(cls.__args__[0], mode)
+-            meta = ', '.join(map(repr, cls.__metadata__))
++            meta_args = []
++            for m in cls.__metadata__:
++                if isinstance(m, type):
++                    meta_args.append(restify(m, mode))
++                elif dataclasses.is_dataclass(m):
++                    # use restify for the repr of field values rather than repr
++                    d_fields = ', '.join([
++                        fr"{f.name}=\ {restify(getattr(m, f.name), mode)}"
++                        for f in dataclasses.fields(m) if f.repr
++                    ])
++                    meta_args.append(fr'{restify(type(m), mode)}\ ({d_fields})')
++                else:
++                    meta_args.append(repr(m))
++            meta = ', '.join(meta_args)
+             if sys.version_info[:2] <= (3, 11):
+                 # Hardcoded to fix errors on Python 3.11 and earlier.
+                 return fr':py:class:`~typing.Annotated`\ [{args}, {meta}]'
+@@ -510,7 +525,25 @@ def stringify_annotation(
+             return f'{module_prefix}Literal[{args}]'
+         elif _is_annotated_form(annotation):  # for py39+
+             args = stringify_annotation(annotation_args[0], mode)
+-            meta = ', '.join(map(repr, annotation.__metadata__))
++            meta_args = []
++            for m in annotation.__metadata__:
++                if isinstance(m, type):
++                    meta_args.append(stringify_annotation(m, mode))
++                elif dataclasses.is_dataclass(m):
++                    # use stringify_annotation for the repr of field values rather than repr
++                    d_fields = ', '.join([
++                        f"{f.name}={stringify_annotation(getattr(m, f.name), mode)}"
++                        for f in dataclasses.fields(m) if f.repr
++                    ])
++                    meta_args.append(f'{stringify_annotation(type(m), mode)}({d_fields})')
++                else:
++                    meta_args.append(repr(m))
++            meta = ', '.join(meta_args)
++            if sys.version_info[:2] <= (3, 9):
++                if mode == 'smart':
++                    return f'~typing.Annotated[{args}, {meta}]'
++                if mode == 'fully-qualified':
++                    return f'typing.Annotated[{args}, {meta}]'
+             if sys.version_info[:2] <= (3, 11):
+                 if mode == 'fully-qualified-except-typing':
+                     return f'Annotated[{args}, {meta}]'

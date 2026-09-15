@@ -1,0 +1,3 @@
+[
+  "tests/platforms/linux/system/test_package__rpm.py::test_verify_rpmbuild_missing[rhel-Can't"
+]

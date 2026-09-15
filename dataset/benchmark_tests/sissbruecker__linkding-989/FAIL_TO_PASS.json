@@ -1,0 +1,4 @@
+[
+  "bookmarks/tests/test_bookmark_previews.py::BookmarkPreviewsTestCase::test_bulk_delete_bookmarks_deletes_preview_images",
+  "bookmarks/tests/test_bookmark_previews.py::BookmarkPreviewsTestCase::test_delete_bookmark_deletes_preview_image"
+]

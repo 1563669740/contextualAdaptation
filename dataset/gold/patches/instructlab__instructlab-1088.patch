@@ -1,0 +1,31 @@
+diff --git a/src/instructlab/lab.py b/src/instructlab/lab.py
+index 2e56ac09f4..f5868962e1 100644
+--- a/src/instructlab/lab.py
++++ b/src/instructlab/lab.py
+@@ -924,6 +924,13 @@ def train(
+             # generated input files reverse sorted by name (contains timestamp)
+             train_files = sorted(glob(input_dir + "/train_*"), reverse=True)
+             test_files = sorted(glob(input_dir + "/test_*"), reverse=True)
++
++            if not train_files or not test_files:
++                click.secho(
++                    f"{input_dir} does not contain training or test files, did you run `ilab generate`?",
++                    fg="red",
++                )
++                raise click.exceptions.Exit(1)
+             if len(train_files) > 1 or len(test_files) > 1:
+                 # pylint: disable=f-string-without-interpolation
+                 click.secho(
+@@ -945,12 +952,6 @@ def train(
+                 fg="red",
+             )
+             raise click.exceptions.Exit(1)
+-        except IndexError as exc:
+-            click.secho(
+-                f"Could not copy into data directory: {exc}",
+-                fg="red",
+-            )
+-            raise click.exceptions.Exit(1)
+ 
+     if not utils.is_macos_with_m_chip():
+         # Local

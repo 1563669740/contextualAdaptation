@@ -1,0 +1,1189 @@
+diff --git a/bookmarks/frontend/behaviors/filter-drawer.js b/bookmarks/frontend/behaviors/filter-drawer.js
+index 8645b737..e5c340e4 100644
+--- a/bookmarks/frontend/behaviors/filter-drawer.js
++++ b/bookmarks/frontend/behaviors/filter-drawer.js
+@@ -34,7 +34,7 @@ class FilterDrawerTriggerBehavior extends Behavior {
+           </button>
+         </div>
+         <div class="modal-body">
+-          <section class="content content-area"></div>
++          <div class="content"></div>
+         </div>
+       </div>    
+     `;
+@@ -70,13 +70,13 @@ class FilterDrawerBehavior extends ModalBehavior {
+ 
+   teleport() {
+     const content = this.element.querySelector(".content");
+-    const sidePanel = document.querySelector("section.side-panel");
++    const sidePanel = document.querySelector(".side-panel");
+     content.append(...sidePanel.children);
+     this.mapHeading(content, "h2", "h3");
+   }
+ 
+   teleportBack() {
+-    const sidePanel = document.querySelector("section.side-panel");
++    const sidePanel = document.querySelector(".side-panel");
+     const content = this.element.querySelector(".content");
+     sidePanel.append(...content.children);
+     this.mapHeading(sidePanel, "h3", "h2");
+diff --git a/bookmarks/styles/bookmark-form.css b/bookmarks/styles/bookmark-form.css
+index f84842e8..820fab8f 100644
+--- a/bookmarks/styles/bookmark-form.css
++++ b/bookmarks/styles/bookmark-form.css
+@@ -1,5 +1,5 @@
+ .bookmarks-form-page {
+-  section {
++  main {
+     max-width: 550px;
+     margin: 0 auto;
+   }
+diff --git a/bookmarks/styles/bookmark-page.css b/bookmarks/styles/bookmark-page.css
+index 223ec492..f3f5d7d1 100644
+--- a/bookmarks/styles/bookmark-page.css
++++ b/bookmarks/styles/bookmark-page.css
+@@ -30,11 +30,11 @@
+   }
+ 
+   &.collapse-side-panel {
+-    section.main {
++    main {
+       grid-column: span var(--grid-columns);
+     }
+ 
+-    section.side-panel {
++    .side-panel {
+       display: none;
+     }
+ 
+@@ -459,7 +459,7 @@ ul.bookmark-list {
+ 
+   /* Hide section border when bulk edit bar is opened, otherwise borders overlap in dark mode due to using contrast colors */
+ 
+-  &.active section:first-of-type .content-area-header {
++  &.active .main .section-header {
+     border-bottom-color: transparent;
+   }
+ 
+diff --git a/bookmarks/styles/components.css b/bookmarks/styles/components.css
+index b3c6f878..9f4c0217 100644
+--- a/bookmarks/styles/components.css
++++ b/bookmarks/styles/components.css
+@@ -1,36 +1,31 @@
+ /* Shared components */
+ 
+-/* Content area component */
+-section.content-area {
++/* Section header component */
++.section-header {
++  border-bottom: solid 1px var(--secondary-border-color);
++  display: flex;
++  flex-wrap: wrap;
++  column-gap: var(--unit-5);
++  padding-bottom: var(--unit-2);
++  margin-bottom: var(--unit-4);
++
++  h1,
+   h2,
+   h3 {
+     font-size: var(--font-size-lg);
++    flex: 0 0 auto;
++    line-height: var(--unit-9);
++    margin: 0;
+   }
+ 
+-  .content-area-header {
+-    border-bottom: solid 1px var(--secondary-border-color);
++  .header-controls {
++    flex: 1 1 0;
+     display: flex;
+-    flex-wrap: wrap;
+-    column-gap: var(--unit-5);
+-    padding-bottom: var(--unit-2);
+-    margin-bottom: var(--unit-4);
+-
+-    h2,
+-    h3 {
+-      flex: 0 0 auto;
+-      line-height: var(--unit-9);
+-      margin: 0;
+-    }
+-
+-    .header-controls {
+-      flex: 1 1 0;
+-      display: flex;
+-    }
+   }
+ }
+ 
+ @media (max-width: 600px) {
+-  section.content-area .content-area-header {
++  .section-header {
+     flex-direction: column;
+   }
+ }
+diff --git a/bookmarks/styles/layout.css b/bookmarks/styles/layout.css
+index 698a8dd2..bc951d16 100644
+--- a/bookmarks/styles/layout.css
++++ b/bookmarks/styles/layout.css
+@@ -11,18 +11,20 @@ body {
+ header {
+   margin-bottom: var(--unit-9);
+ 
+-  .logo {
+-    width: 28px;
+-    height: 28px;
++  a.app-link:hover {
++    text-decoration: none;
+   }
+ 
+-  a:hover {
+-    text-decoration: none;
++  .app-logo {
++    width: 28px;
++    height: 28px;
+   }
+ 
+-  h1 {
+-    margin: 0 0 0 var(--unit-3);
++  .app-name {
++    margin-left: var(--unit-3);
+     font-size: var(--font-size-lg);
++    font-weight: 500;
++    line-height: 1.2;
+   }
+ }
+ 
+diff --git a/bookmarks/styles/settings.css b/bookmarks/styles/settings.css
+index 0b24838c..1398538b 100644
+--- a/bookmarks/styles/settings.css
++++ b/bookmarks/styles/settings.css
+@@ -1,8 +1,14 @@
+ .settings-page {
+-  section.content-area {
++  h1 {
++    font-size: var(--font-size-xl);
++    margin-bottom: var(--unit-6);
++  }
++
++  section {
+     margin-bottom: var(--unit-10);
+ 
+     h2 {
++      font-size: var(--font-size-lg);
+       margin-bottom: var(--unit-3);
+     }
+   }
+diff --git a/bookmarks/styles/theme/variables.css b/bookmarks/styles/theme/variables.css
+index 2fecf737..9eb3751d 100644
+--- a/bookmarks/styles/theme/variables.css
++++ b/bookmarks/styles/theme/variables.css
+@@ -87,6 +87,7 @@
+   --font-size: 0.7rem;
+   --font-size-sm: 0.65rem;
+   --font-size-lg: 0.8rem;
++  --font-size-xl: 1rem;
+   --line-height: 1rem;
+ 
+   /* Sizes */
+diff --git a/bookmarks/templates/bookmarks/archive.html b/bookmarks/templates/bookmarks/archive.html
+index d7a6a222..cdf7afdb 100644
+--- a/bookmarks/templates/bookmarks/archive.html
++++ b/bookmarks/templates/bookmarks/archive.html
+@@ -8,9 +8,9 @@
+        class="bookmarks-page grid columns-md-1 {% if bookmark_list.collapse_side_panel %}collapse-side-panel{% endif %}">
+ 
+     {# Bookmark list #}
+-    <section class="main content-area col-2">
+-      <div class="content-area-header mb-0">
+-        <h2>Archived bookmarks</h2>
++    <main class="main col-2" aria-labelledby="main-heading">
++      <div class="section-header mb-0">
++        <h1 id="main-heading">Archived bookmarks</h1>
+         <div class="header-controls">
+           {% bookmark_search bookmark_list.search mode='archived' %}
+           {% include 'bookmarks/bulk_edit/toggle.html' %}
+@@ -28,17 +28,19 @@ <h2>Archived bookmarks</h2>
+           {% include 'bookmarks/bookmark_list.html' %}
+         </div>
+       </form>
+-    </section>
++    </main>
+ 
+     {# Tag cloud #}
+-    <section class="side-panel content-area col-1">
+-      <div class="content-area-header">
+-        <h2>Tags</h2>
+-      </div>
+-      <div id="tag-cloud-container">
+-        {% include 'bookmarks/tag_cloud.html' %}
+-      </div>
+-    </section>
++    <div class="side-panel col-1">
++      <section aria-labelledby="tags-heading">
++        <div class="section-header">
++          <h2 id="tags-heading">Tags</h2>
++        </div>
++        <div id="tag-cloud-container">
++          {% include 'bookmarks/tag_cloud.html' %}
++        </div>
++      </section>
++    </div>
+   </div>
+ {% endblock %}
+ 
+diff --git a/bookmarks/templates/bookmarks/bookmark_list.html b/bookmarks/templates/bookmarks/bookmark_list.html
+index e63fb722..39a2cbbc 100644
+--- a/bookmarks/templates/bookmarks/bookmark_list.html
++++ b/bookmarks/templates/bookmarks/bookmark_list.html
+@@ -5,160 +5,162 @@
+ {% if bookmark_list.is_empty %}
+   {% include 'bookmarks/empty_bookmarks.html' %}
+ {% else %}
+-  <ul class="bookmark-list{% if bookmark_list.show_notes %} show-notes{% endif %}"
+-      role="list" tabindex="-1"
+-      style="--ld-bookmark-description-max-lines:{{ bookmark_list.description_max_lines }};"
+-      data-bookmarks-total="{{ bookmark_list.bookmarks_total }}">
+-    {% for bookmark_item in bookmark_list.items %}
+-      <li ld-bookmark-item data-bookmark-id="{{ bookmark_item.id }}" role="listitem"
+-          {% if bookmark_item.css_classes %}class="{{ bookmark_item.css_classes }}"{% endif %}>
+-        <div class="content">
+-          <div class="title">
+-            <label class="form-checkbox bulk-edit-checkbox">
+-              <input type="checkbox" name="bookmark_id" value="{{ bookmark_item.id }}">
+-              <i class="form-icon"></i>
+-            </label>
+-            {% if bookmark_item.favicon_file and bookmark_list.show_favicons %}
+-              <img class="favicon" src="{% static bookmark_item.favicon_file %}" alt="">
+-            {% endif %}
+-            <a href="{{ bookmark_item.url }}" target="{{ bookmark_list.link_target }}" rel="noopener">
+-              <span>{{ bookmark_item.title }}</span>
+-            </a>
+-          </div>
+-          {% if bookmark_list.show_url %}
+-            <div class="url-path truncate">
+-              <a href="{{ bookmark_item.url }}" target="{{ bookmark_list.link_target }}" rel="noopener"
+-                 class="url-display">
+-                {{ bookmark_item.url }}
++  <section aria-label="Bookmark list">
++    <ul class="bookmark-list{% if bookmark_list.show_notes %} show-notes{% endif %}"
++        role="list" tabindex="-1"
++        style="--ld-bookmark-description-max-lines:{{ bookmark_list.description_max_lines }};"
++        data-bookmarks-total="{{ bookmark_list.bookmarks_total }}">
++      {% for bookmark_item in bookmark_list.items %}
++        <li ld-bookmark-item data-bookmark-id="{{ bookmark_item.id }}" role="listitem"
++            {% if bookmark_item.css_classes %}class="{{ bookmark_item.css_classes }}"{% endif %}>
++          <div class="content">
++            <div class="title">
++              <label class="form-checkbox bulk-edit-checkbox">
++                <input type="checkbox" name="bookmark_id" value="{{ bookmark_item.id }}">
++                <i class="form-icon"></i>
++              </label>
++              {% if bookmark_item.favicon_file and bookmark_list.show_favicons %}
++                <img class="favicon" src="{% static bookmark_item.favicon_file %}" alt="">
++              {% endif %}
++              <a href="{{ bookmark_item.url }}" target="{{ bookmark_list.link_target }}" rel="noopener">
++                <span>{{ bookmark_item.title }}</span>
+               </a>
+             </div>
+-          {% endif %}
+-          {% if bookmark_list.description_display == 'inline' %}
+-            <div class="description inline truncate">
+-              {% if bookmark_item.tag_names %}
+-                <span class="tags">
++            {% if bookmark_list.show_url %}
++              <div class="url-path truncate">
++                <a href="{{ bookmark_item.url }}" target="{{ bookmark_list.link_target }}" rel="noopener"
++                   class="url-display">
++                  {{ bookmark_item.url }}
++                </a>
++              </div>
++            {% endif %}
++            {% if bookmark_list.description_display == 'inline' %}
++              <div class="description inline truncate">
++                {% if bookmark_item.tag_names %}
++                  <span class="tags">
+                   {% for tag_name in bookmark_item.tag_names %}
+                     <a href="?{% add_tag_to_query tag_name %}">{{ tag_name|hash_tag }}</a>
+                   {% endfor %}
+                 </span>
+-              {% endif %}
+-              {% if bookmark_item.tag_names and bookmark_item.description %} | {% endif %}
++                {% endif %}
++                {% if bookmark_item.tag_names and bookmark_item.description %} | {% endif %}
++                {% if bookmark_item.description %}
++                  <span>{{ bookmark_item.description }}</span>
++                {% endif %}
++              </div>
++            {% else %}
+               {% if bookmark_item.description %}
+-                <span>{{ bookmark_item.description }}</span>
++                <div class="description separate">{{ bookmark_item.description }}</div>
+               {% endif %}
+-            </div>
+-          {% else %}
+-            {% if bookmark_item.description %}
+-              <div class="description separate">{{ bookmark_item.description }}</div>
+-            {% endif %}
+-            {% if bookmark_item.tag_names %}
+-              <div class="tags">
+-                {% for tag_name in bookmark_item.tag_names %}
+-                  <a href="?{% add_tag_to_query tag_name %}">{{ tag_name|hash_tag }}</a>
+-                {% endfor %}
+-              </div>
+-            {% endif %}
+-          {% endif %}
+-          {% if bookmark_item.notes %}
+-            <div class="notes">
+-              <div class="markdown">{% markdown bookmark_item.notes %}</div>
+-            </div>
+-          {% endif %}
+-          <div class="actions">
+-            {% if bookmark_item.display_date %}
+-              {% if bookmark_item.web_archive_snapshot_url %}
+-                <a href="{{ bookmark_item.web_archive_snapshot_url }}"
+-                   title="Show snapshot on the Internet Archive Wayback Machine"
+-                   target="{{ bookmark_list.link_target }}"
+-                   rel="noopener">
+-                  {{ bookmark_item.display_date }}
+-                </a>
+-              {% else %}
+-                <span>{{ bookmark_item.display_date }}</span>
++              {% if bookmark_item.tag_names %}
++                <div class="tags">
++                  {% for tag_name in bookmark_item.tag_names %}
++                    <a href="?{% add_tag_to_query tag_name %}">{{ tag_name|hash_tag }}</a>
++                  {% endfor %}
++                </div>
+               {% endif %}
+-              <span>|</span>
+             {% endif %}
+-            {# View link is visible for both owned and shared bookmarks #}
+-            {% if bookmark_list.show_view_action %}
+-              <a href="{{ bookmark_item.details_url }}" class="view-action"
+-                 data-turbo-action="replace" data-turbo-frame="details-modal">View</a>
++            {% if bookmark_item.notes %}
++              <div class="notes">
++                <div class="markdown">{% markdown bookmark_item.notes %}</div>
++              </div>
+             {% endif %}
+-            {% if bookmark_item.is_editable %}
+-              {# Bookmark owner actions #}
+-              {% if bookmark_list.show_edit_action %}
+-                <a href="{% url 'linkding:bookmarks.edit' bookmark_item.id %}?return_url={{ bookmark_list.return_url|urlencode }}">Edit</a>
+-              {% endif %}
+-              {% if bookmark_list.show_archive_action %}
+-                {% if bookmark_item.is_archived %}
+-                  <button type="submit" name="unarchive" value="{{ bookmark_item.id }}"
+-                          class="btn btn-link btn-sm">Unarchive
+-                  </button>
++            <div class="actions">
++              {% if bookmark_item.display_date %}
++                {% if bookmark_item.web_archive_snapshot_url %}
++                  <a href="{{ bookmark_item.web_archive_snapshot_url }}"
++                     title="Show snapshot on the Internet Archive Wayback Machine"
++                     target="{{ bookmark_list.link_target }}"
++                     rel="noopener">
++                    {{ bookmark_item.display_date }}
++                  </a>
+                 {% else %}
+-                  <button type="submit" name="archive" value="{{ bookmark_item.id }}"
+-                          class="btn btn-link btn-sm">Archive
+-                  </button>
++                  <span>{{ bookmark_item.display_date }}</span>
+                 {% endif %}
++                <span>|</span>
+               {% endif %}
+-              {% if bookmark_list.show_remove_action %}
+-                <button ld-confirm-button type="submit" name="remove" value="{{ bookmark_item.id }}"
+-                        class="btn btn-link btn-sm">Remove
+-                </button>
++              {# View link is visible for both owned and shared bookmarks #}
++              {% if bookmark_list.show_view_action %}
++                <a href="{{ bookmark_item.details_url }}" class="view-action"
++                   data-turbo-action="replace" data-turbo-frame="details-modal">View</a>
+               {% endif %}
+-            {% else %}
+-              {# Shared bookmark actions #}
+-              <span>Shared by
+-                <a href="?{% replace_query_param user=bookmark_item.owner.username %}">{{ bookmark_item.owner.username }}</a>
+-              </span>
+-            {% endif %}
+-            {% if bookmark_item.has_extra_actions %}
+-              <div class="extra-actions">
+-                <span class="hide-sm">|</span>
+-                {% if bookmark_item.show_mark_as_read %}
+-                  <button type="submit" name="mark_as_read" value="{{ bookmark_item.id }}"
+-                          class="btn btn-link btn-sm btn-icon"
+-                          ld-confirm-button ld-confirm-icon="ld-icon-read" ld-confirm-question="Mark as read?">
+-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+-                      <use xlink:href="#ld-icon-unread"></use>
+-                    </svg>
+-                    Unread
+-                  </button>
++              {% if bookmark_item.is_editable %}
++                {# Bookmark owner actions #}
++                {% if bookmark_list.show_edit_action %}
++                  <a href="{% url 'linkding:bookmarks.edit' bookmark_item.id %}?return_url={{ bookmark_list.return_url|urlencode }}">Edit</a>
+                 {% endif %}
+-                {% if bookmark_item.show_unshare %}
+-                  <button type="submit" name="unshare" value="{{ bookmark_item.id }}"
+-                          class="btn btn-link btn-sm btn-icon"
+-                          ld-confirm-button ld-confirm-icon="ld-icon-unshare" ld-confirm-question="Unshare?">
+-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+-                      <use xlink:href="#ld-icon-share"></use>
+-                    </svg>
+-                    Shared
+-                  </button>
++                {% if bookmark_list.show_archive_action %}
++                  {% if bookmark_item.is_archived %}
++                    <button type="submit" name="unarchive" value="{{ bookmark_item.id }}"
++                            class="btn btn-link btn-sm">Unarchive
++                    </button>
++                  {% else %}
++                    <button type="submit" name="archive" value="{{ bookmark_item.id }}"
++                            class="btn btn-link btn-sm">Archive
++                    </button>
++                  {% endif %}
+                 {% endif %}
+-                {% if bookmark_item.show_notes_button %}
+-                  <button type="button" class="btn btn-link btn-sm btn-icon toggle-notes">
+-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+-                      <use xlink:href="#ld-icon-note"></use>
+-                    </svg>
+-                    Notes
++                {% if bookmark_list.show_remove_action %}
++                  <button ld-confirm-button type="submit" name="remove" value="{{ bookmark_item.id }}"
++                          class="btn btn-link btn-sm">Remove
+                   </button>
+                 {% endif %}
++              {% else %}
++                {# Shared bookmark actions #}
++                <span>Shared by
++                <a href="?{% replace_query_param user=bookmark_item.owner.username %}">{{ bookmark_item.owner.username }}</a>
++              </span>
++              {% endif %}
++              {% if bookmark_item.has_extra_actions %}
++                <div class="extra-actions">
++                  <span class="hide-sm">|</span>
++                  {% if bookmark_item.show_mark_as_read %}
++                    <button type="submit" name="mark_as_read" value="{{ bookmark_item.id }}"
++                            class="btn btn-link btn-sm btn-icon"
++                            ld-confirm-button ld-confirm-icon="ld-icon-read" ld-confirm-question="Mark as read?">
++                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
++                        <use xlink:href="#ld-icon-unread"></use>
++                      </svg>
++                      Unread
++                    </button>
++                  {% endif %}
++                  {% if bookmark_item.show_unshare %}
++                    <button type="submit" name="unshare" value="{{ bookmark_item.id }}"
++                            class="btn btn-link btn-sm btn-icon"
++                            ld-confirm-button ld-confirm-icon="ld-icon-unshare" ld-confirm-question="Unshare?">
++                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
++                        <use xlink:href="#ld-icon-share"></use>
++                      </svg>
++                      Shared
++                    </button>
++                  {% endif %}
++                  {% if bookmark_item.show_notes_button %}
++                    <button type="button" class="btn btn-link btn-sm btn-icon toggle-notes">
++                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
++                        <use xlink:href="#ld-icon-note"></use>
++                      </svg>
++                      Notes
++                    </button>
++                  {% endif %}
++                </div>
++              {% endif %}
++            </div>
++          </div>
++          {% if bookmark_list.show_preview_images %}
++            {% if bookmark_item.preview_image_file %}
++              <img class="preview-image" src="{% static bookmark_item.preview_image_file %}" loading="lazy"/>
++            {% else %}
++              <div class="preview-image placeholder">
++                <div class="img"/>
+               </div>
+             {% endif %}
+-          </div>
+-        </div>
+-        {% if bookmark_list.show_preview_images %}
+-          {% if bookmark_item.preview_image_file %}
+-            <img class="preview-image" src="{% static bookmark_item.preview_image_file %}" loading="lazy"/>
+-          {% else %}
+-            <div class="preview-image placeholder">
+-              <div class="img"/>
+-            </div>
+           {% endif %}
+-        {% endif %}
+-      </li>
+-    {% endfor %}
+-  </ul>
++        </li>
++      {% endfor %}
++    </ul>
+ 
+-  <div class="bookmark-pagination{% if request.user_profile.sticky_pagination %} sticky{% endif %}">
+-    {% pagination bookmark_list.bookmarks_page %}
+-  </div>
++    <div class="bookmark-pagination{% if request.user_profile.sticky_pagination %} sticky{% endif %}">
++      {% pagination bookmark_list.bookmarks_page %}
++    </div>
++  </section>
+ {% endif %}
+diff --git a/bookmarks/templates/bookmarks/edit.html b/bookmarks/templates/bookmarks/edit.html
+index 4e1b7664..cbf0ddc3 100644
+--- a/bookmarks/templates/bookmarks/edit.html
++++ b/bookmarks/templates/bookmarks/edit.html
+@@ -1,15 +1,21 @@
+ {% extends 'bookmarks/layout.html' %}
+ 
++{% block head %}
++  {% with page_title="Edit bookmark - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
++
+ {% block content %}
+   <div class="bookmarks-form-page">
+-    <section class="content-area">
+-      <div class="content-area-header">
+-        <h2>Edit bookmark</h2>
++    <main aria-labelledby="main-heading">
++      <div class="section-header">
++        <h1 id="main-heading">Edit bookmark</h1>
+       </div>
+       <form action="{% url 'linkding:bookmarks.edit' bookmark_id %}?return_url={{ return_url|urlencode }}" method="post"
+             novalidate>
+         {% include 'bookmarks/form.html' %}
+       </form>
+-    </section>
++    </main>
+   </div>
+ {% endblock %}
+diff --git a/bookmarks/templates/bookmarks/head.html b/bookmarks/templates/bookmarks/head.html
+index 81b9c17f..1f64e9d9 100644
+--- a/bookmarks/templates/bookmarks/head.html
++++ b/bookmarks/templates/bookmarks/head.html
+@@ -12,7 +12,7 @@
+   <meta name="description" content="Self-hosted bookmark service">
+   <meta name="robots" content="index,follow">
+   <meta name="author" content="Sascha Ißbrücker">
+-  <title>linkding</title>
++  <title>{{ page_title|default:'Linkding' }}</title>
+   {# Include specific theme variant based on user profile setting #}
+   {% if request.user_profile.theme == 'light' %}
+     <link href="{% static 'theme-light.css' %}?v={{ app_version }}" rel="stylesheet" type="text/css"/>
+diff --git a/bookmarks/templates/bookmarks/index.html b/bookmarks/templates/bookmarks/index.html
+index e17f5e6c..93c4f7d6 100644
+--- a/bookmarks/templates/bookmarks/index.html
++++ b/bookmarks/templates/bookmarks/index.html
+@@ -3,14 +3,16 @@
+ {% load shared %}
+ {% load bookmarks %}
+ 
++{% block title %}Bookmarks - Linkding{% endblock %}
++
+ {% block content %}
+   <div ld-bulk-edit
+        class="bookmarks-page grid columns-md-1 {% if bookmark_list.collapse_side_panel %}collapse-side-panel{% endif %}">
+ 
+     {# Bookmark list #}
+-    <section class="main content-area col-2">
+-      <div class="content-area-header mb-0">
+-        <h2>Bookmarks</h2>
++    <main class="main col-2" aria-labelledby="main-heading">
++      <div class="section-header mb-0">
++        <h1 id="main-heading">Bookmarks</h1>
+         <div class="header-controls">
+           {% bookmark_search bookmark_list.search %}
+           {% include 'bookmarks/bulk_edit/toggle.html' %}
+@@ -28,17 +30,19 @@ <h2>Bookmarks</h2>
+           {% include 'bookmarks/bookmark_list.html' %}
+         </div>
+       </form>
+-    </section>
++    </main>
+ 
+     {# Tag cloud #}
+-    <section class="side-panel content-area col-1">
+-      <div class="content-area-header">
+-        <h2>Tags</h2>
+-      </div>
+-      <div id="tag-cloud-container">
+-        {% include 'bookmarks/tag_cloud.html' %}
+-      </div>
+-    </section>
++    <div class="side-panel col-1">
++      <section aria-labelledby="tags-heading">
++        <div class="section-header">
++          <h2 id="tags-heading">Tags</h2>
++        </div>
++        <div id="tag-cloud-container">
++          {% include 'bookmarks/tag_cloud.html' %}
++        </div>
++      </section>
++    </div>
+   </div>
+ {% endblock %}
+ 
+diff --git a/bookmarks/templates/bookmarks/layout.html b/bookmarks/templates/bookmarks/layout.html
+index fd42b813..9508cf62 100644
+--- a/bookmarks/templates/bookmarks/layout.html
++++ b/bookmarks/templates/bookmarks/layout.html
+@@ -3,7 +3,7 @@
+ <!DOCTYPE html>
+ {# Use data attributes as storage for access in static scripts #}
+ <html lang="en" data-api-base-url="{% url 'linkding:api-root' %}">
+-{% include 'bookmarks/head.html' %}
++{% block head %}{% include 'bookmarks/head.html' %}{% endblock %}
+ <body ld-global-shortcuts>
+ 
+ <div class="d-none">
+@@ -80,17 +80,19 @@
+     </div>
+   {% endif %}
+   <div class="d-flex justify-between">
+-    <a href="{% url 'linkding:root' %}" class="d-flex align-center">
+-      <img class="logo" src="{% static 'logo.png' %}" alt="Application logo">
+-      <h1>LINKDING</h1>
++    <a href="{% url 'linkding:root' %}" class="app-link d-flex align-center">
++      <img class="app-logo" src="{% static 'logo.png' %}" alt="Application logo">
++      <span class="app-name">LINKDING</span>
+     </a>
+-    {% if request.user.is_authenticated %}
+-      {# Only show nav items menu when logged in #}
+-      {% include 'bookmarks/nav_menu.html' %}
+-    {% else %}
+-      {# Otherwise show login link #}
+-      <a href="{% url 'login' %}" class="btn btn-link">Login</a>
+-    {% endif %}
++    <nav>
++      {% if request.user.is_authenticated %}
++        {# Only show nav items menu when logged in #}
++        {% include 'bookmarks/nav_menu.html' %}
++      {% else %}
++        {# Otherwise show login link #}
++        <a href="{% url 'login' %}" class="btn btn-link">Login</a>
++      {% endif %}
++    </nav>
+   </div>
+ </header>
+ <div class="content container">
+diff --git a/bookmarks/templates/bookmarks/nav_menu.html b/bookmarks/templates/bookmarks/nav_menu.html
+index c9a9d9be..f50edf75 100644
+--- a/bookmarks/templates/bookmarks/nav_menu.html
++++ b/bookmarks/templates/bookmarks/nav_menu.html
+@@ -27,7 +27,24 @@
+         </li>
+       </ul>
+     </div>
+-    <a href="{% url 'linkding:settings.index' %}" class="btn btn-link">Settings</a>
++    <div ld-dropdown class="dropdown">
++      <button class="btn btn-link dropdown-toggle" tabindex="0">
++        Settings
++      </button>
++      <ul class="menu" role="list" tabindex="-1">
++        <li class="menu-item">
++          <a href="{% url 'linkding:settings.general' %}" class="menu-link">General</a>
++        </li>
++        <li class="menu-item">
++          <a href="{% url 'linkding:settings.integrations' %}" class="menu-link">Integrations</a>
++        </li>
++        {% if request.user.is_superuser %}
++          <li class="menu-item">
++            <a href="{% url 'admin:index' %}" class="menu-link" data-turbo="false">Admin</a>
++          </li>
++        {% endif %}
++      </ul>
++    </div>
+     <form class="d-inline" action="{% url 'logout' %}" method="post" data-turbo="false">
+       {% csrf_token %}
+       <button type="submit" class="btn btn-link">Logout</button>
+@@ -54,11 +71,11 @@
+           <a href="{% url 'linkding:bookmarks.index' %}" class="menu-link">Bookmarks</a>
+         </li>
+         <li class="menu-item">
+-          <a href="{% url 'linkding:bookmarks.archived' %}" class="menu-link">Archived</a>
++          <a href="{% url 'linkding:bookmarks.archived' %}" class="menu-link">Archived bookmarks</a>
+         </li>
+         {% if request.user_profile.enable_sharing %}
+           <li class="menu-item">
+-            <a href="{% url 'linkding:bookmarks.shared' %}" class="menu-link">Shared</a>
++            <a href="{% url 'linkding:bookmarks.shared' %}" class="menu-link">Shared bookmarks</a>
+           </li>
+         {% endif %}
+         <li class="menu-item">
+@@ -69,8 +86,17 @@
+         </li>
+         <div class="divider"></div>
+         <li class="menu-item">
+-          <a href="{% url 'linkding:settings.index' %}" class="menu-link">Settings</a>
++          <a href="{% url 'linkding:settings.general' %}" class="menu-link">Settings</a>
++        </li>
++        <li class="menu-item">
++          <a href="{% url 'linkding:settings.integrations' %}" class="menu-link">Integrations</a>
+         </li>
++        {% if request.user.is_superuser %}
++          <li class="menu-item">
++            <a href="{% url 'admin:index' %}" class="menu-link" data-turbo="false">Admin</a>
++          </li>
++        {% endif %}
++        <div class="divider"></div>
+         <li class="menu-item">
+           <form class="d-inline" action="{% url 'logout' %}" method="post" data-turbo="false">
+             {% csrf_token %}
+diff --git a/bookmarks/templates/bookmarks/new.html b/bookmarks/templates/bookmarks/new.html
+index 6fa27a86..43fa7df0 100644
+--- a/bookmarks/templates/bookmarks/new.html
++++ b/bookmarks/templates/bookmarks/new.html
+@@ -1,14 +1,20 @@
+ {% extends 'bookmarks/layout.html' %}
+ 
++{% block head %}
++  {% with page_title="New bookmark - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
++
+ {% block content %}
+   <div class="bookmarks-form-page">
+-    <section class="content-area">
+-      <div class="content-area-header">
+-        <h2>New bookmark</h2>
++    <main aria-labelledby="main-heading">
++      <div class="section-header">
++        <h1 id="main-heading">New bookmark</h1>
+       </div>
+       <form action="{% url 'linkding:bookmarks.new' %}" method="post" novalidate>
+         {% include 'bookmarks/form.html' %}
+       </form>
+-    </section>
++    </main>
+   </div>
+ {% endblock %}
+diff --git a/bookmarks/templates/bookmarks/shared.html b/bookmarks/templates/bookmarks/shared.html
+index bc40d061..b60e1590 100644
+--- a/bookmarks/templates/bookmarks/shared.html
++++ b/bookmarks/templates/bookmarks/shared.html
+@@ -8,9 +8,9 @@
+       class="bookmarks-page grid columns-md-1 {% if bookmark_list.collapse_side_panel %}collapse-side-panel{% endif %}">
+ 
+     {# Bookmark list #}
+-    <section class="main content-area col-2">
+-      <div class="content-area-header">
+-        <h2>Shared bookmarks</h2>
++    <main class="main col-2" aria-labelledby="main-heading">
++      <div class="section-header">
++        <h1 id="main-heading">Shared bookmarks</h1>
+         <div class="header-controls">
+           {% bookmark_search bookmark_list.search mode='shared' %}
+           <button ld-filter-drawer-trigger class="btn ml-2">Filters</button>
+@@ -25,24 +25,28 @@ <h2>Shared bookmarks</h2>
+           {% include 'bookmarks/bookmark_list.html' %}
+         </div>
+       </form>
+-    </section>
++    </main>
+ 
+     {# Filters #}
+-    <section class="side-panel content-area col-1">
+-      <div class="content-area-header">
+-        <h2>User</h2>
+-      </div>
+-      <div>
+-        {% user_select bookmark_list.search users %}
+-        <br>
+-      </div>
+-      <div class="content-area-header">
+-        <h2>Tags</h2>
+-      </div>
+-      <div id="tag-cloud-container">
+-        {% include 'bookmarks/tag_cloud.html' %}
+-      </div>
+-    </section>
++    <div class="side-panel col-1">
++      <section aria-labelledby="user-heading">
++        <div class="section-header">
++          <h2 id="user-heading">User</h2>
++        </div>
++        <div>
++          {% user_select bookmark_list.search users %}
++          <br>
++        </div>
++      </section>
++      <section aria-labelledby="tags-heading">
++        <div class="section-header">
++          <h2 id="tags-heading">Tags</h2>
++        </div>
++        <div id="tag-cloud-container">
++          {% include 'bookmarks/tag_cloud.html' %}
++        </div>
++      </section>
++    </div>
+   </div>
+ {% endblock %}
+ 
+diff --git a/bookmarks/templates/django_registration/registration_complete.html b/bookmarks/templates/django_registration/registration_complete.html
+index fd727ed5..041566df 100644
+--- a/bookmarks/templates/django_registration/registration_complete.html
++++ b/bookmarks/templates/django_registration/registration_complete.html
+@@ -1,8 +1,19 @@
+ {% extends 'bookmarks/layout.html' %}
+ {% load widget_tweaks %}
+ 
+-{% block title %}Registration complete{% endblock %}
++{% block head %}
++  {% with page_title="Registration complete - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
+ 
+ {% block content %}
+-  <p>Registration complete. You can now use the application.</p>
++  <main class="mx-auto width-50 width-md-100" aria-labelledby="main-heading">
++    <div class="section-header">
++      <h1 id="main-heading">Registration complete</h1>
++    </div>
++    <p class="text-success">
++      You can now use the application.
++    </p>
++  </main>
+ {% endblock %}
+diff --git a/bookmarks/templates/django_registration/registration_form.html b/bookmarks/templates/django_registration/registration_form.html
+index dba0f54c..b02f25e4 100644
+--- a/bookmarks/templates/django_registration/registration_form.html
++++ b/bookmarks/templates/django_registration/registration_form.html
+@@ -1,12 +1,16 @@
+ {% extends 'bookmarks/layout.html' %}
+ {% load widget_tweaks %}
+ 
+-{% block title %}Registration{% endblock %}
++{% block head %}
++  {% with page_title="Registration - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
+ 
+ {% block content %}
+-  <section class="content-area mx-auto width-50 width-md-100">
+-    <div class="content-area-header">
+-      <h2>Register</h2>
++  <main class="mx-auto width-50 width-md-100" aria-labelledby="main-heading">
++    <div class="section-header">
++      <h1 id="main-heading">Register</h1>
+     </div>
+     <form method="post" action="{% url 'django_registration_register' %}" novalidate>
+       {% csrf_token %}
+@@ -34,5 +38,5 @@ <h2>Register</h2>
+       <input type="submit" value="Register" class="btn btn-primary btn-wide">
+       <input type="hidden" name="next" value="{{ next }}">
+     </form>
+-  </section>
++  </main>
+ {% endblock %}
+diff --git a/bookmarks/templates/registration/login.html b/bookmarks/templates/registration/login.html
+index 9b69a606..a94e63f2 100644
+--- a/bookmarks/templates/registration/login.html
++++ b/bookmarks/templates/registration/login.html
+@@ -1,12 +1,16 @@
+ {% extends 'bookmarks/layout.html' %}
+ {% load widget_tweaks %}
+ 
+-{% block title %}Login{% endblock %}
++{% block head %}
++  {% with page_title="Login - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
+ 
+ {% block content %}
+-  <section class="content-area mx-auto width-50 width-md-100">
+-    <div class="content-area-header">
+-      <h2>Login</h2>
++  <main class="mx-auto width-50 width-md-100" aria-labelledby="main-heading">
++    <div class="section-header">
++      <h1 id="main-heading">Login</h1>
+     </div>
+     <form method="post" action="{% url 'login' %}">
+       {% csrf_token %}
+@@ -36,5 +40,5 @@ <h2>Login</h2>
+         {% endif %}
+       </div>
+     </form>
+-  </section>
++  </main>
+ {% endblock %}
+diff --git a/bookmarks/templates/registration/password_change_done.html b/bookmarks/templates/registration/password_change_done.html
+index 15c1bd8d..4b47e4f0 100644
+--- a/bookmarks/templates/registration/password_change_done.html
++++ b/bookmarks/templates/registration/password_change_done.html
+@@ -1,15 +1,19 @@
+ {% extends 'bookmarks/layout.html' %}
+ {% load widget_tweaks %}
+ 
+-{% block title %}Password changed{% endblock %}
++{% block head %}
++  {% with page_title="Password changed - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
+ 
+ {% block content %}
+-  <section class="content-area mx-auto width-50 width-md-100">
+-    <div class="content-area-header">
+-      <h2>Password Changed</h2>
++  <main class="mx-auto width-50 width-md-100" aria-labelledby="main-heading">
++    <div class="section-header">
++      <h1 id="main-heading">Password Changed</h1>
+     </div>
+     <p class="text-success">
+       Your password was changed successfully.
+     </p>
+-  </section>
++  </main>
+ {% endblock %}
+diff --git a/bookmarks/templates/registration/password_change_form.html b/bookmarks/templates/registration/password_change_form.html
+index b4aedcd6..ebf42a9c 100644
+--- a/bookmarks/templates/registration/password_change_form.html
++++ b/bookmarks/templates/registration/password_change_form.html
+@@ -1,12 +1,16 @@
+ {% extends 'bookmarks/layout.html' %}
+ {% load widget_tweaks %}
+ 
+-{% block title %}Change Password{% endblock %}
++{% block head %}
++  {% with page_title="Change password - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
+ 
+ {% block content %}
+-  <section class="content-area mx-auto width-50 width-md-100">
+-    <div class="content-area-header">
+-      <h2>Change Password</h2>
++  <main class="mx-auto width-50 width-md-100" aria-labelledby="main-heading">
++    <div class="section-header">
++      <h1 id="main-heading">Change Password</h1>
+     </div>
+     <form method="post" action="{% url 'change_password' %}">
+       {% csrf_token %}
+@@ -41,5 +45,5 @@ <h2>Change Password</h2>
+       <br/>
+       <input type="submit" value="Change Password" class="btn btn-primary btn-wide">
+     </form>
+-  </section>
++  </main>
+ {% endblock %}
+diff --git a/bookmarks/templates/settings/general.html b/bookmarks/templates/settings/general.html
+index 7a1cde8c..c8cfc6d0 100644
+--- a/bookmarks/templates/settings/general.html
++++ b/bookmarks/templates/settings/general.html
+@@ -1,10 +1,15 @@
+ {% extends "bookmarks/layout.html" %}
+ {% load widget_tweaks %}
+ 
+-{% block content %}
+-  <div class="settings-page">
++{% block head %}
++  {% with page_title="Settings - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
+ 
+-    {% include 'settings/nav.html' %}
++{% block content %}
++  <main class="settings-page" aria-labelledby="main-heading">
++    <h1 id="main-heading">Settings</h1>
+ 
+     {# Profile section #}
+     {% if success_message %}
+@@ -14,8 +19,8 @@
+       <div class="toast toast-error mb-4">{{ error_message }}</div>
+     {% endif %}
+ 
+-    <section class="content-area">
+-      <h2>Profile</h2>
++    <section aria-labelledby="profile-heading">
++      <h2 id="profile-heading">Profile</h2>
+       <p>
+         <a href="{% url 'change_password' %}">Change password</a>
+       </p>
+@@ -278,8 +283,8 @@ <h2>Profile</h2>
+ 
+     {# Global settings section #}
+     {% if global_settings_form %}
+-      <section class="content-area">
+-        <h2>Global settings</h2>
++      <section aria-labelledby="global-settings-heading">
++        <h2 id="global-settings-heading">Global settings</h2>
+         <form action="{% url 'linkding:settings.update' %}" method="post" novalidate data-turbo="false">
+           {% csrf_token %}
+           <div class="form-group">
+@@ -318,8 +323,8 @@ <h2>Global settings</h2>
+     {% endif %}
+ 
+     {# Import section #}
+-    <section class="content-area">
+-      <h2>Import</h2>
++    <section aria-labelledby="import-heading">
++      <h2 id="import-heading">Import</h2>
+       <p>Import bookmarks and tags in the Netscape HTML format. This will execute a sync where new bookmarks are
+         added and existing ones are updated.</p>
+       <form method="post" enctype="multipart/form-data" action="{% url 'linkding:settings.import' %}">
+@@ -346,8 +351,8 @@ <h2>Import</h2>
+     </section>
+ 
+     {# Export section #}
+-    <section class="content-area">
+-      <h2>Export</h2>
++    <section aria-labelledby="export-heading">
++      <h2 id="export-heading">Export</h2>
+       <p>Export all bookmarks in Netscape HTML format.</p>
+       <a class="btn btn-primary" target="_blank" href="{% url 'linkding:settings.export' %}">Download (.html)</a>
+       {% if export_error %}
+@@ -360,8 +365,8 @@ <h2>Export</h2>
+     </section>
+ 
+     {# About section #}
+-    <section class="content-area about">
+-      <h2>About</h2>
++    <section class="about" aria-labelledby="about-heading">
++      <h2 id="about-heading">About</h2>
+       <table class="table">
+         <tbody>
+         <tr>
+@@ -384,7 +389,7 @@ <h2>About</h2>
+         </tbody>
+       </table>
+     </section>
+-  </div>
++  </main>
+ 
+   <script>
+     (function init() {
+diff --git a/bookmarks/templates/settings/integrations.html b/bookmarks/templates/settings/integrations.html
+index 66d9d6d5..de01b0bc 100644
+--- a/bookmarks/templates/settings/integrations.html
++++ b/bookmarks/templates/settings/integrations.html
+@@ -1,12 +1,17 @@
+ {% extends "bookmarks/layout.html" %}
+ 
+-{% block content %}
+-  <div class="settings-page">
++{% block head %}
++  {% with page_title="Integrations - Linkding" %}
++    {{ block.super }}
++  {% endwith %}
++{% endblock %}
+ 
+-    {% include 'settings/nav.html' %}
++{% block content %}
++  <main class="settings-page" aria-labelledby="main-heading">
++    <h1 id="main-heading">Integrations</h1>
+ 
+-    <section class="content-area">
+-      <h2>Browser Extension</h2>
++    <section aria-labelledby="browser-extension-heading">
++      <h2 id="browser-extension-heading">Browser Extension</h2>
+       <p>The browser extension allows you to quickly add new bookmarks without leaving the page that you are on. The
+         extension is available in the official extension stores for:</p>
+       <ul>
+@@ -31,8 +36,8 @@ <h2>Bookmarklet</h2>
+          class="btn btn-primary">📎 Add bookmark</a>
+     </section>
+ 
+-    <section class="content-area">
+-      <h2>REST API</h2>
++    <section aria-labelledby="rest-api-heading">
++      <h2 id="rest-api-heading">REST API</h2>
+       <p>The following token can be used to authenticate 3rd-party applications against the REST API:</p>
+       <div class="form-group">
+         <div class="width-50 width-md-100">
+@@ -48,8 +53,8 @@ <h2>REST API</h2>
+       </p>
+     </section>
+ 
+-    <section class="content-area">
+-      <h2>RSS Feeds</h2>
++    <section aria-labelledby="rss-feeds-heading">
++      <h2 id="rss-feeds-heading">RSS Feeds</h2>
+       <p>The following URLs provide RSS feeds for your bookmarks:</p>
+       <ul style="list-style-position: outside;">
+         <li><a target="_blank" href="{{ all_feed_url }}">All bookmarks</a></li>
+@@ -84,5 +89,5 @@ <h2>RSS Feeds</h2>
+         After deleting the feed token, new URLs will be generated when you reload this settings page.
+       </p>
+     </section>
+-  </div>
++  </main>
+ {% endblock %}
+diff --git a/bookmarks/templates/settings/nav.html b/bookmarks/templates/settings/nav.html
+deleted file mode 100644
+index 76d60334..00000000
+--- a/bookmarks/templates/settings/nav.html
++++ /dev/null
+@@ -1,24 +0,0 @@
+-{% url 'linkding:settings.index' as index_url %}
+-{% url 'linkding:settings.general' as general_url %}
+-{% url 'linkding:settings.integrations' as integrations_url %}
+-
+-<ul class="tab tab-block">
+-    <li class="tab-item {% if request.get_full_path == index_url or request.get_full_path == general_url%}active{% endif %}">
+-        <a href="{{ general_url }}">General</a>
+-    </li>
+-    <li class="tab-item {% if request.get_full_path == integrations_url %}active{% endif %}">
+-        <a href="{{ integrations_url }}">Integrations</a>
+-    </li>
+-    {% if request.user.is_superuser %}
+-    <li class="tab-item">
+-        <a href="{% url 'admin:index' %}" target="_blank">
+-            <span>Admin</span>
+-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="ml-1" style="width: 1.2em; height: 1.2em; vertical-align: -0.2em;">
+-                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+-                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+-            </svg>
+-        </a>
+-    </li>
+-    {% endif %}
+-</ul>
+-<br>
+diff --git a/bookmarks/views/bookmarks.py b/bookmarks/views/bookmarks.py
+index 42062cfe..f6bdebb2 100644
+--- a/bookmarks/views/bookmarks.py
++++ b/bookmarks/views/bookmarks.py
+@@ -51,6 +51,7 @@ def index(request: HttpRequest):
+         request,
+         "bookmarks/index.html",
+         {
++            "page_title": "Bookmarks - Linkding",
+             "bookmark_list": bookmark_list,
+             "tag_cloud": tag_cloud,
+             "details": bookmark_details,
+@@ -73,6 +74,7 @@ def archived(request: HttpRequest):
+         request,
+         "bookmarks/archive.html",
+         {
++            "page_title": "Archived bookmarks - Linkding",
+             "bookmark_list": bookmark_list,
+             "tag_cloud": tag_cloud,
+             "details": bookmark_details,
+@@ -97,6 +99,7 @@ def shared(request: HttpRequest):
+         request,
+         "bookmarks/shared.html",
+         {
++            "page_title": "Shared bookmarks - Linkding",
+             "bookmark_list": bookmark_list,
+             "tag_cloud": tag_cloud,
+             "details": bookmark_details,
+@@ -107,6 +110,9 @@ def shared(request: HttpRequest):
+ 
+ 
+ def render_bookmarks_view(request: HttpRequest, template_name, context):
++    if context["details"]:
++        context["page_title"] = "Bookmark details - Linkding"
++
+     if turbo.is_frame(request, "details-modal"):
+         return render(
+             request,

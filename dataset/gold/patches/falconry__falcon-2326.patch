@@ -1,0 +1,101 @@
+diff --git a/docs/_newsfragments/2325.newandimproved.rst b/docs/_newsfragments/2325.newandimproved.rst
+new file mode 100644
+index 000000000..62a61b81e
+--- /dev/null
++++ b/docs/_newsfragments/2325.newandimproved.rst
+@@ -0,0 +1,4 @@
++The :class:`~CORSMiddleware` now properly handles the missing ``Allow``
++header case, by denying the preflight CORS request.
++The static resource has been updated to properly support CORS request,
++by allowing GET requests.
+diff --git a/falcon/app.py b/falcon/app.py
+index b66247051..6ef6cda25 100644
+--- a/falcon/app.py
++++ b/falcon/app.py
+@@ -759,6 +759,15 @@ def add_sink(self, sink: SinkCallable, prefix: SinkPrefix = r'/') -> None:
+         impractical. For example, you might use a sink to create a smart
+         proxy that forwards requests to one or more backend services.
+ 
++        Note:
++            To support CORS preflight requests when using the default CORS middleware,
++            either by setting ``App.cors_enable=True`` or by adding the
++            :class:`~.CORSMiddleware` to the ``App.middleware``, the sink should
++            set the ``Allow`` header in the request to the allowed
++            method values when serving an ``OPTIONS`` request. If the ``Allow`` header
++            is missing from the response, the default CORS middleware will deny the
++            preflight request.
++
+         Args:
+             sink (callable): A callable taking the form ``func(req, resp, **kwargs)``.
+ 
+diff --git a/falcon/middleware.py b/falcon/middleware.py
+index 0e87275ed..d457a44b8 100644
+--- a/falcon/middleware.py
++++ b/falcon/middleware.py
+@@ -17,6 +17,15 @@ class CORSMiddleware(object):
+     * https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+     * https://www.w3.org/TR/cors/#resource-processing-model
+ 
++    Note:
++        Falcon will automatically add OPTIONS responders if they are missing from the
++        responder instances added to the routes. When providing a custom ``on_options``
++        method, the ``Allow`` headers in the response should be set to the allowed
++        method values. If the ``Allow`` header is missing from the response,
++        this middleware will deny the preflight request.
++
++        This is also valid when using a sink function.
++
+     Keyword Arguments:
+         allow_origins (Union[str, Iterable[str]]): List of origins to allow (case
+             sensitive). The string ``'*'`` acts as a wildcard, matching every origin.
+@@ -120,9 +129,17 @@ def process_response(
+                 'Access-Control-Request-Headers', default='*'
+             )
+ 
+-            resp.set_header('Access-Control-Allow-Methods', str(allow))
+-            resp.set_header('Access-Control-Allow-Headers', allow_headers)
+-            resp.set_header('Access-Control-Max-Age', '86400')  # 24 hours
++            if allow is None:
++                # there is no allow set, remove all access control headers
++                resp.delete_header('Access-Control-Allow-Methods')
++                resp.delete_header('Access-Control-Allow-Headers')
++                resp.delete_header('Access-Control-Max-Age')
++                resp.delete_header('Access-Control-Expose-Headers')
++                resp.delete_header('Access-Control-Allow-Origin')
++            else:
++                resp.set_header('Access-Control-Allow-Methods', allow)
++                resp.set_header('Access-Control-Allow-Headers', allow_headers)
++                resp.set_header('Access-Control-Max-Age', '86400')  # 24 hours
+ 
+     async def process_response_async(self, *args: Any) -> None:
+         self.process_response(*args)
+diff --git a/falcon/routing/static.py b/falcon/routing/static.py
+index 76ef4ed14..cc2a5ab92 100644
+--- a/falcon/routing/static.py
++++ b/falcon/routing/static.py
+@@ -183,6 +183,12 @@ def match(self, path: str) -> bool:
+     def __call__(self, req: Request, resp: Response, **kw: Any) -> None:
+         """Resource responder for this route."""
+         assert not kw
++        if req.method == 'OPTIONS':
++            # it's likely a CORS request. Set the allow header to the appropriate value.
++            resp.set_header('Allow', 'GET')
++            resp.set_header('Content-Length', '0')
++            return
++
+         without_prefix = req.path[len(self._prefix) :]
+ 
+         # NOTE(kgriffs): Check surrounding whitespace and strip trailing
+@@ -247,9 +253,9 @@ class StaticRouteAsync(StaticRoute):
+ 
+     async def __call__(self, req: asgi.Request, resp: asgi.Response, **kw: Any) -> None:  # type: ignore[override]
+         super().__call__(req, resp, **kw)
+-
+-        # NOTE(kgriffs): Fixup resp.stream so that it is non-blocking
+-        resp.stream = _AsyncFileReader(resp.stream)  # type: ignore[assignment,arg-type]
++        if resp.stream is not None:  # None when in an option request
++            # NOTE(kgriffs): Fixup resp.stream so that it is non-blocking
++            resp.stream = _AsyncFileReader(resp.stream)  # type: ignore[assignment,arg-type]
+ 
+ 
+ class _AsyncFileReader:

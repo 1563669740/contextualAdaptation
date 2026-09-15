@@ -1,0 +1,20 @@
+diff --git a/keras/backend/tensorflow/optimizer.py b/keras/backend/tensorflow/optimizer.py
+index 967c4e4d2a8b..1b2d3f5fcd2c 100644
+--- a/keras/backend/tensorflow/optimizer.py
++++ b/keras/backend/tensorflow/optimizer.py
+@@ -42,6 +42,15 @@ def stateless_apply(self, optimizer_variables, grads, trainable_variables):
+             "(as it is incompatible with tf.distribute)."
+         )
+ 
++    def assign(self, variable, value):
++        if isinstance(variable, KerasVariable):
++            variable = variable.value
++        value = tf.cast(value, variable.dtype)
++        if isinstance(value, tf.IndexedSlices):
++            variable.scatter_update(value)
++        else:
++            variable.assign(value)
++
+     def assign_add(self, variable, value):
+         if isinstance(variable, KerasVariable):
+             variable = variable.value

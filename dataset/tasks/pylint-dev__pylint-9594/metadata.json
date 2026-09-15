@@ -1,0 +1,41 @@
+{
+  "task_id": "pylint-dev__pylint-9594",
+  "repo": "pylint-dev/pylint",
+  "pull_number": "9594",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=2 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.79,
+  "base_commit": "3c8be8ee40babf9bcbaae53b9f2ec518c6d76ca7",
+  "repo_commit": "3c8be8ee40babf9bcbaae53b9f2ec518c6d76ca7",
+  "gold_commit": "1f2a0dab1f2d65bdbbc3fca695f2cc3d75c04ff9",
+  "gold_commit_count": 8,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 2,
+  "gold_loc_added": 7,
+  "gold_loc_deleted": 0,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 1828,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

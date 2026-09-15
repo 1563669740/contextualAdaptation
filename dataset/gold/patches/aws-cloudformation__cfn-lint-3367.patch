@@ -1,0 +1,113 @@
+diff --git a/src/cfnlint/data/schemas/extensions/aws_rds_dbcluster/serverless_exclusive.json b/src/cfnlint/data/schemas/extensions/aws_rds_dbcluster/serverless_exclusive.json
+index 53976a2ef7..5976fa7642 100644
+--- a/src/cfnlint/data/schemas/extensions/aws_rds_dbcluster/serverless_exclusive.json
++++ b/src/cfnlint/data/schemas/extensions/aws_rds_dbcluster/serverless_exclusive.json
+@@ -1,21 +1,56 @@
+ {
+  "additionalProperties": true,
+- "description": "When creating a serverless 'EngineMode' don't specify 'ScalingConfiguration'",
+- "else": {},
+- "if": {
+-  "properties": {
+-   "EngineMode": {
+-    "const": "serverless"
++ "allOf": [
++  {
++   "if": {
++    "properties": {
++     "EngineMode": {
++      "const": "provisioned"
++     }
++    },
++    "required": [
++     "EngineMode"
++    ],
++    "type": "object"
++   },
++   "then": {
++    "properties": {
++     "ScalingConfiguration": false
++    }
+    }
+   },
+-  "required": [
+-   "EngineMode"
+-  ],
+-  "type": "object"
+- },
+- "then": {
+-  "properties": {
+-   "ScalingConfiguration": false
++  {
++   "if": {
++    "properties": {
++     "EngineMode": {
++      "const": "serverless"
++     }
++    },
++    "required": [
++     "EngineMode"
++    ],
++    "type": "object"
++   },
++   "then": {
++    "properties": {
++     "ServerlessV2ScalingConfiguration": false
++    }
++   }
++  },
++  {
++   "if": {
++    "properties": {
++     "EngineMode": false
++    },
++    "type": "object"
++   },
++   "then": {
++    "properties": {
++     "ScalingConfiguration": false,
++     "ServerlessV2ScalingConfiguration": false
++    }
++   }
+   }
+- }
++ ],
++ "description": "When creating a serverless 'EngineMode' don't specify 'ServerlessV2ScalingConfiguration'"
+ }
+diff --git a/src/cfnlint/rules/resources/rds/DbClusterServerlessExclusive.py b/src/cfnlint/rules/resources/rds/DbClusterServerlessExclusive.py
+index 2540c634df..3e66e62521 100644
+--- a/src/cfnlint/rules/resources/rds/DbClusterServerlessExclusive.py
++++ b/src/cfnlint/rules/resources/rds/DbClusterServerlessExclusive.py
+@@ -14,11 +14,11 @@
+ 
+ class DbClusterServerlessExclusive(CfnLintJsonSchema):
+     id = "E3686"
+-    shortdesc = (
+-        "Validate when using a serverless RDS DB certain properties aren't needed"
+-    )
++    shortdesc = "Validate allowed properties when using a serverless RDS DB cluster"
+     description = (
+-        "When creating a serverless 'EngineMode' don't specify 'ScalingConfiguration'"
++        "Validate that when EngineMode is 'serverless' or 'provisioned' that the "
++        "appropriate allowed properties are provided. If 'EngineMode' is not provided "
++        "make sure serverless properties don't exist at all."
+     )
+     tags = ["resources"]
+ 
+@@ -32,4 +32,15 @@ def __init__(self) -> None:
+         )
+ 
+     def message(self, instance: Any, err: ValidationError) -> str:
+-        return "Additional properties are not allowed ('ScalingConfiguration')"
++
++        # validator None means the schema is falsy
++        if err.validator is None:
++            if instance.get("EngineMode") in ["serverless", "provisioned"]:
++                return (
++                    f"EngineMode {instance.get('EngineMode')!r} "
++                    f" doesn't allow additional properties {err.path[0]!r}"
++                )
++            else:
++                return "Additional properties are not allowed " f"({err.path[0]!r})"
++
++        return err.message

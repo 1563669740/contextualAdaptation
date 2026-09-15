@@ -1,0 +1,307 @@
+diff --git a/weasyprint/anchors.py b/weasyprint/anchors.py
+index e40992005..ab18e53f1 100644
+--- a/weasyprint/anchors.py
++++ b/weasyprint/anchors.py
+@@ -27,10 +27,11 @@ def rectangle_aabb(matrix, pos_x, pos_y, width, height):
+     return box_x1, box_y1, box_x2, box_y2
+ 
+ 
+-def gather_anchors(box, anchors, links, bookmarks, inputs, parent_matrix=None):
++def gather_anchors(box, anchors, links, bookmarks, forms, parent_matrix=None,
++                   parent_form=None):
+     """Gather anchors and other data related to specific positions in PDF.
+ 
+-    Currently finds anchors, links, bookmarks and inputs.
++    Currently finds anchors, links, bookmarks and forms.
+ 
+     """
+     # Get box transformation matrix.
+@@ -89,6 +90,11 @@ def gather_anchors(box, anchors, links, bookmarks, inputs, parent_matrix=None):
+     has_anchor = anchor_name and anchor_name not in anchors
+     is_input = box.is_input()
+ 
++    if box.is_form():
++        parent_form = box.element
++        if parent_form not in forms:
++            forms[parent_form] = []
++
+     if has_bookmark or has_link or has_anchor or is_input:
+         if is_input:
+             pos_x, pos_y = box.content_box_x(), box.content_box_y()
+@@ -106,7 +112,7 @@ def gather_anchors(box, anchors, links, bookmarks, inputs, parent_matrix=None):
+                 link_type = 'attachment'
+             links.append((link_type, target, rectangle, box))
+         if is_input:
+-            inputs.append((box.element, box.style, rectangle))
++            forms[parent_form].append((box.element, box.style, rectangle))
+         if matrix and (has_bookmark or has_anchor):
+             pos_x, pos_y = matrix.transform_point(pos_x, pos_y)
+         if has_bookmark:
+@@ -116,7 +122,7 @@ def gather_anchors(box, anchors, links, bookmarks, inputs, parent_matrix=None):
+             anchors[anchor_name] = pos_x, pos_y
+ 
+     for child in box.all_children():
+-        gather_anchors(child, anchors, links, bookmarks, inputs, matrix)
++        gather_anchors(child, anchors, links, bookmarks, forms, matrix, parent_form)
+ 
+ 
+ def make_page_bookmark_tree(page, skipped_levels, last_by_depth,
+diff --git a/weasyprint/css/html5_ua.css b/weasyprint/css/html5_ua.css
+index c28628081..67f846252 100644
+--- a/weasyprint/css/html5_ua.css
++++ b/weasyprint/css/html5_ua.css
+@@ -187,8 +187,10 @@ input[value]::before {
+   overflow: hidden;
+ }
+ input::before,
+-input[value=""]::before {
+-  content: " ";
++input[value=""]::before,
++input[type="checkbox"]::before,
++input[type="radio"]::before {
++  content: "";
+ }
+ select {
+   background: lightgrey;
+diff --git a/weasyprint/document.py b/weasyprint/document.py
+index 08b7e7f64..ffdab3a35 100644
+--- a/weasyprint/document.py
++++ b/weasyprint/document.py
+@@ -28,6 +28,7 @@ class Page:
+     instantiated directly.
+ 
+     """
++
+     def __init__(self, page_box):
+         #: The page width, including margins, in CSS pixels.
+         self.width = page_box.margin_width()
+@@ -67,14 +68,15 @@ def __init__(self, page_box):
+         #: ``(x, y)`` point in CSS pixels from the top-left of the page.
+         self.anchors = {}
+ 
+-        #: The :obj:`list` of ``(element, attributes, rectangle)`` :obj:`tuples
+-        #: <tuple>`. A ``rectangle`` is ``(x, y, width, height)``, in CSS
++        #: The :obj:`dict` mapping form elements to a list
++        #: of ``(element, attributes, rectangle)`` :obj:`tuples <tuple>`.
++        #: A ``rectangle`` is ``(x, y, width, height)``, in CSS
+         #: pixels from the top-left of the page. ``atributes`` is a
+         #: :obj:`dict` of HTML tag attributes and values.
+-        self.inputs = []
++        #: The key ``None`` will contain inputs that are not part of a form.
++        self.forms = {None: []}
+ 
+-        gather_anchors(
+-            page_box, self.anchors, self.links, self.bookmarks, self.inputs)
++        gather_anchors(page_box, self.anchors, self.links, self.bookmarks, self.forms)
+         self._page_box = page_box
+ 
+     def paint(self, stream, scale=1):
+@@ -105,6 +107,7 @@ class DocumentMetadata:
+     New attributes may be added in future versions of WeasyPrint.
+ 
+     """
++
+     def __init__(self, title=None, authors=None, description=None,
+                  keywords=None, generator=None, created=None, modified=None,
+                  attachments=None, lang=None, custom=None):
+@@ -162,6 +165,7 @@ class DiskCache:
+     (i.e. RasterImage instances) are still stored in memory.
+ 
+     """
++
+     def __init__(self, folder):
+         self._path = Path(folder)
+         self._path.mkdir(parents=True, exist_ok=True)
+diff --git a/weasyprint/formatting_structure/boxes.py b/weasyprint/formatting_structure/boxes.py
+index f755e5762..82fe683cb 100644
+--- a/weasyprint/formatting_structure/boxes.py
++++ b/weasyprint/formatting_structure/boxes.py
+@@ -336,6 +336,12 @@ def is_input(self):
+                 return not isinstance(self, (LineBox, TextBox))
+         return False
+ 
++    def is_form(self):
++        """Return whether this box is a form element."""
++        if self.element is None:
++            return False
++        return self.element.tag == 'form'
++
+ 
+ class ParentBox(Box):
+     """A box that has children."""
+diff --git a/weasyprint/pdf/__init__.py b/weasyprint/pdf/__init__.py
+index 7db96de28..b6f2b2b2d 100644
+--- a/weasyprint/pdf/__init__.py
++++ b/weasyprint/pdf/__init__.py
+@@ -11,7 +11,7 @@
+ from .stream import Stream
+ 
+ from .anchors import (  # isort:skip
+-    add_annotations, add_inputs, add_links, add_outlines, resolve_links,
++    add_annotations, add_forms, add_links, add_outlines, resolve_links,
+     write_pdf_attachment)
+ 
+ VARIANTS = {
+@@ -184,8 +184,8 @@ def generate_pdf(document, target, zoom, **options):
+         add_annotations(
+             links_and_anchors[0], matrix, document, pdf, pdf_page, annot_files,
+             compress)
+-        add_inputs(
+-            page.inputs, matrix, pdf, pdf_page, resources, stream,
++        add_forms(
++            page.forms, matrix, pdf, pdf_page, resources, stream,
+             document.font_config.font_map, compress)
+         page.paint(stream, scale)
+ 
+diff --git a/weasyprint/pdf/anchors.py b/weasyprint/pdf/anchors.py
+index 9843017da..383a6d539 100644
+--- a/weasyprint/pdf/anchors.py
++++ b/weasyprint/pdf/anchors.py
+@@ -1,7 +1,9 @@
+ """Insert anchors, links, bookmarks and inputs in PDFs."""
+ 
++import collections
+ import io
+ import mimetypes
++from base64 import b64encode
+ from hashlib import md5
+ from os.path import basename
+ from urllib.parse import unquote, urlsplit
+@@ -91,10 +93,10 @@ def add_outlines(pdf, bookmarks, parent=None):
+     return outlines, count
+ 
+ 
+-def add_inputs(inputs, matrix, pdf, page, resources, stream, font_map,
+-               compress):
++def add_forms(forms, matrix, pdf, page, resources, stream, font_map,
++              compress):
+     """Include form inputs in PDF."""
+-    if not inputs:
++    if not forms or not any(forms.values()):
+         return
+ 
+     if 'Annots' not in page:
+@@ -109,20 +111,43 @@ def add_inputs(inputs, matrix, pdf, page, resources, stream, font_map,
+     context = ffi.gc(
+         pango.pango_font_map_create_context(font_map),
+         gobject.g_object_unref)
+-    for i, (element, style, rectangle) in enumerate(inputs):
++    inputs_with_forms = [
++        (form, element, style, rectangle)
++        for form, inputs in forms.items()
++        for element, style, rectangle in inputs
++    ]
++    radio_groups = collections.defaultdict(dict)
++    for i, (form, element, style, rectangle) in enumerate(inputs_with_forms):
+         rectangle = (
+             *matrix.transform_point(*rectangle[:2]),
+             *matrix.transform_point(*rectangle[2:]))
+ 
+         input_type = element.attrib.get('type')
++        input_value = element.attrib.get('value', 'Yes')
+         default_name = f'unknown-{page_reference.decode()}-{i}'
+         input_name = element.attrib.get('name', default_name)
+         # TODO: where does this 0.75 scale come from?
+         font_size = style['font_size'] * 0.75
+         field_stream = pydyf.Stream(compress=compress)
+         field_stream.set_color_rgb(*style['color'][:3])
+-        if input_type == 'checkbox':
+-            # Checkboxes
++        if input_type in ('radio', 'checkbox'):
++            if input_type == 'radio':
++                if input_name not in radio_groups[form]:
++                    radio_groups[form][input_name] = group = pydyf.Dictionary({
++                        'FT': '/Btn',
++                        'Ff': (1 << (15 - 1)) + (1 << (16 - 1)),  # NoToggle & Radio
++                        'T': pydyf.String(f'{len(radio_groups)}'),
++                        'V': '/Off',
++                        'Kids': pydyf.Array(),
++                    })
++                    pdf.add_object(group)
++                    pdf.catalog['AcroForm']['Fields'].append(group.reference)
++                group = radio_groups[form][input_name]
++                character = 'l'  # Disc character in Dingbats
++            else:
++                character = '4'  # Check character in Dingbats
++
++            # Create stream when input is checked
+             width = rectangle[2] - rectangle[0]
+             height = rectangle[1] - rectangle[3]
+             checked_stream = pydyf.Stream(extra={
+@@ -135,17 +160,18 @@ def add_inputs(inputs, matrix, pdf, page, resources, stream, font_map,
+             checked_stream.begin_text()
+             checked_stream.set_color_rgb(*style['color'][:3])
+             checked_stream.set_font_size('ZaDb', font_size)
+-            # Center (let’s assume that Dingbat’s check has a 0.8em size)
+-            x = (width - font_size * 0.8) / 2
+-            y = (height - font_size * 0.8) / 2
++            # Center (let’s assume that Dingbat’s characters have a 0.75em size)
++            x = (width - font_size * 0.75) / 2
++            y = (height - font_size * 0.75) / 2
+             checked_stream.move_text_to(x, y)
+-            checked_stream.show_text_string('4')
++            checked_stream.show_text_string(character)
+             checked_stream.end_text()
+             checked_stream.pop_state()
+             pdf.add_object(checked_stream)
+ 
+             checked = 'checked' in element.attrib
+             field_stream.set_font_size('ZaDb', font_size)
++            key = b64encode(input_value.encode(), altchars=b"+-").decode()
+             field = pydyf.Dictionary({
+                 'Type': '/Annot',
+                 'Subtype': '/Widget',
+@@ -153,14 +179,21 @@ def add_inputs(inputs, matrix, pdf, page, resources, stream, font_map,
+                 'FT': '/Btn',
+                 'F': 1 << (3 - 1),  # Print flag
+                 'P': page.reference,
+-                'T': pydyf.String(input_name),
+-                'V': '/Yes' if checked else '/Off',
++                'AS': f'/{key}' if checked else '/Off',
+                 'AP': pydyf.Dictionary({'N': pydyf.Dictionary({
+-                    'Yes': checked_stream.reference,
+-                })}),
+-                'AS': '/Yes' if checked else '/Off',
++                    key: checked_stream.reference})}),
++                'MK': pydyf.Dictionary({'CA': pydyf.String(character)}),
+                 'DA': pydyf.String(b' '.join(field_stream.stream)),
+             })
++            pdf.add_object(field)
++            if input_type == 'radio':
++                field['Parent'] = group.reference
++                if checked:
++                    group['V'] = f'/{key}'
++                group['Kids'].append(field.reference)
++            else:
++                field['T'] = pydyf.String(input_name)
++                field['V'] = field['AS']
+         elif element.tag == 'select':
+             # Select fields
+             font_description = get_font_description(style)
+@@ -174,7 +207,7 @@ def add_inputs(inputs, matrix, pdf, page, resources, stream, font_map,
+             selected_values = []
+             for option in element:
+                 value = pydyf.String(option.attrib.get('value', ''))
+-                text = pydyf.String(option.text or "")
++                text = pydyf.String(option.text or '')
+                 options.append(pydyf.Array([value, text]))
+                 if 'selected' in option.attrib:
+                     selected_values.append(value)
+@@ -198,6 +231,7 @@ def add_inputs(inputs, matrix, pdf, page, resources, stream, font_map,
+                 field['V'] = (
+                     selected_values[-1] if selected_values
+                     else pydyf.String(''))
++            pdf.add_object(field)
+         else:
+             # Text, password, textarea, files, and unknown
+             font_description = get_font_description(style)
+@@ -231,8 +265,8 @@ def add_inputs(inputs, matrix, pdf, page, resources, stream, font_map,
+             maxlength = element.get('maxlength')
+             if maxlength and maxlength.isdigit():
+                 field['MaxLen'] = element.get('maxlength')
++            pdf.add_object(field)
+ 
+-        pdf.add_object(field)
+         page['Annots'].append(field.reference)
+         pdf.catalog['AcroForm']['Fields'].append(field.reference)
+ 

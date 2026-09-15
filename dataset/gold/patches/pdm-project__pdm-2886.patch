@@ -1,0 +1,26 @@
+diff --git a/news/2885.bugfix.md b/news/2885.bugfix.md
+new file mode 100644
+index 0000000000..27ccb2b9fe
+--- /dev/null
++++ b/news/2885.bugfix.md
+@@ -0,0 +1,1 @@
++Raise an error if the package given by `pdm update` does not exist in the select dependency group but in other groups.
+diff --git a/src/pdm/cli/commands/update.py b/src/pdm/cli/commands/update.py
+index 1ccaeb05b9..c52a4fdb09 100644
+--- a/src/pdm/cli/commands/update.py
++++ b/src/pdm/cli/commands/update.py
+@@ -149,6 +149,14 @@ def do_update(
+                             f"[req]{name}[/] does not exist in [primary]{group}[/] "
+                             f"{'dev-' if selection.dev else ''}dependencies nor is a transitive dependency."
+                         )
++                    look_in_other_group = next(
++                        (g for g, deps in all_dependencies.items() if normalized_name in deps and g != group), None
++                    )
++                    if look_in_other_group is not None:
++                        raise ProjectError(
++                            f"[req]{name}[/] does not exist in [primary]{group}[/], but exists in [primary]{look_in_other_group}[/]."
++                            " Please specify the correct group with `-G/--group`."
++                        )
+                     tracked_names.add(normalized_name)
+                 else:
+                     matched_req.prerelease = prerelease

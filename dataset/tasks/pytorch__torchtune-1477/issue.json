@@ -1,0 +1,13 @@
+{
+  "task_id": "pytorch__torchtune-1477",
+  "repo": "pytorch/torchtune",
+  "issue_number": "1474",
+  "issue_url": "https://github.com/pytorch/torchtune/issues/1474",
+  "issue_created_at": "1970-01-01 00:28:45.387550+00:00",
+  "issue_title": "Llama3 Tokenizer always appends \"eos_id\" for tokenize_messages",
+  "issue_body": "Llama3Tokenizer `tokenize_messages` method calls `truncate(tokens, self.max_seq_len, self.eos_id)` at the end of the method regardless of whether add_eos is True or False. `truncate` will add eos_id everytime self.eos_id is passed to it. There should be two fixes,  only truncate when `len(tokens) > self.max_seq_len`, and only pass `self.eos_id` to truncate when `add_eos` is True.",
+  "problem_statement": "Llama3 Tokenizer always appends \"eos_id\" for tokenize_messages\nLlama3Tokenizer `tokenize_messages` method calls `truncate(tokens, self.max_seq_len, self.eos_id)` at the end of the method regardless of whether add_eos is True or False. `truncate` will add eos_id everytime self.eos_id is passed to it. There should be two fixes,  only truncate when `len(tokens) > self.max_seq_len`, and only pass `self.eos_id` to truncate when `add_eos` is True.\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

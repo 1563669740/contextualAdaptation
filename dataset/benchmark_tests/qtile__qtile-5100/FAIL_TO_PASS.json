@@ -1,0 +1,4 @@
+[
+  "test/test_bar.py::test_prompt[1-x11-GBConfig]",
+  "test/test_window.py::test_can_steal_focus[1-x11]"
+]

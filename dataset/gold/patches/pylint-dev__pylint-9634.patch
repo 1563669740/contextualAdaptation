@@ -1,0 +1,27 @@
+diff --git a/doc/whatsnew/fragments/9627.false_positive b/doc/whatsnew/fragments/9627.false_positive
+new file mode 100644
+index 0000000000..2a9edb26d8
+--- /dev/null
++++ b/doc/whatsnew/fragments/9627.false_positive
+@@ -0,0 +1,4 @@
++Exclude if/else branches containing terminating functions (e.g. `sys.exit()`)
++from `possibly-used-before-assignment` checks.
++
++Closes #9627
+diff --git a/pylint/checkers/variables.py b/pylint/checkers/variables.py
+index 0a5a60c1b0..39c9051ed0 100644
+--- a/pylint/checkers/variables.py
++++ b/pylint/checkers/variables.py
+@@ -940,6 +940,12 @@ def _uncertain_nodes_in_except_blocks(
+     def _defines_name_raises_or_returns(name: str, node: nodes.NodeNG) -> bool:
+         if isinstance(node, (nodes.Raise, nodes.Assert, nodes.Return, nodes.Continue)):
+             return True
++        if (
++            isinstance(node, nodes.Expr)
++            and isinstance(node.value, nodes.Call)
++            and utils.is_terminating_func(node.value)
++        ):
++            return True
+         if (
+             isinstance(node, nodes.AnnAssign)
+             and node.value

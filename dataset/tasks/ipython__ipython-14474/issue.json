@@ -1,0 +1,13 @@
+{
+  "task_id": "ipython__ipython-14474",
+  "repo": "ipython/ipython",
+  "issue_number": "14470",
+  "issue_url": "https://github.com/ipython/ipython/issues/14470",
+  "issue_created_at": "1970-01-01 00:28:39.524687+00:00",
+  "issue_title": "Completion in indented lines incorrectly strips the prefix when jedi is disabled",
+  "issue_body": "Completion in indented lines incorrectly strips the prefix when jedi is disabled.\r\n\r\nOriginally reported in Notebook (https://github.com/jupyter/notebook/issues/7397) then JupyterLab (https://github.com/jupyterlab/jupyterlab/issues/16522), but narrowed down to IPython 8.8 / 8.11; https://github.com/ipython/ipython/pull/13943 fixed a related issue but did not cover this one.",
+  "problem_statement": "Completion in indented lines incorrectly strips the prefix when jedi is disabled\nCompletion in indented lines incorrectly strips the prefix when jedi is disabled.\r\n\r\nOriginally reported in Notebook (https://github.com/jupyter/notebook/issues/7397) then JupyterLab (https://github.com/jupyterlab/jupyterlab/issues/16522), but narrowed down to IPython 8.8 / 8.11; https://github.com/ipython/ipython/pull/13943 fixed a related issue but did not cover this one.\r\n\r\n\n",
+  "hints_text": "bisected to https://github.com/ipython/ipython/pull/13943\nSo It was trading one issue for another.\nFYI, we're also affected by this in Spyder because we disable Jedi support by default (until recently it had serious performance issues).\n@ccordoba12 would be great if you have time to confirm if https://github.com/ipython/ipython/pull/14474 helps (and does not introduce regressions elsewhere)\n\n",
+  "all_hints_text": "bisected to https://github.com/ipython/ipython/pull/13943\nSo It was trading one issue for another.\nFYI, we're also affected by this in Spyder because we disable Jedi support by default (until recently it had serious performance issues).\n@ccordoba12 would be great if you have time to confirm if https://github.com/ipython/ipython/pull/14474 helps (and does not introduce regressions elsewhere)\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

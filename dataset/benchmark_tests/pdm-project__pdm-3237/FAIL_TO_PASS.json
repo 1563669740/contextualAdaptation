@@ -1,0 +1,3 @@
+[
+  "tests/cli/test_build.py::test_build_command"
+]

@@ -1,0 +1,22 @@
+diff --git a/conans/client/graph/install_graph.py b/conans/client/graph/install_graph.py
+index 4a0fdaf9e21..b68dec9f2cc 100644
+--- a/conans/client/graph/install_graph.py
++++ b/conans/client/graph/install_graph.py
+@@ -66,7 +66,7 @@ def add(self, node):
+         self.nodes.append(node)
+ 
+     def _build_args(self):
+-        if self.binary != BINARY_BUILD:
++        if self.binary not in (BINARY_BUILD, BINARY_EDITABLE_BUILD):
+             return None
+         cmd = f"--requires={self.ref}" if self.context == "host" else f"--tool-requires={self.ref}"
+         compatible = "compatible:" if self.info and self.info.get("compatibility_delta") else ""
+@@ -290,7 +290,7 @@ def add(self, node):
+                     self.depends.append(dep.dst.pref)
+ 
+     def _build_args(self):
+-        if self.binary != BINARY_BUILD:
++        if self.binary not in (BINARY_BUILD, BINARY_EDITABLE_BUILD):
+             return None
+         cmd = f"--requires={self.ref}" if self.context == "host" else f"--tool-requires={self.ref}"
+         compatible = "compatible:" if self.info and self.info.get("compatibility_delta") else ""

@@ -1,0 +1,6 @@
+[
+  "IPython/core/tests/test_completer.py::TestCompleter::test_all_completions_dups",
+  "IPython/core/tests/test_completer.py::TestCompleter::test_greedy_completions",
+  "IPython/core/tests/test_completer.py::TestCompleter::test_limit_to__all__False_ok",
+  "IPython/core/tests/test_completer.py::TestCompleter::test_omit__names"
+]

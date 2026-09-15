@@ -1,0 +1,281 @@
+diff --git a/bookmarks/feeds.py b/bookmarks/feeds.py
+index 6c8d9f46..bb3472b0 100644
+--- a/bookmarks/feeds.py
++++ b/bookmarks/feeds.py
+@@ -2,7 +2,8 @@
+ from dataclasses import dataclass
+ 
+ from django.contrib.syndication.views import Feed
+-from django.db.models import QuerySet
++from django.db.models import QuerySet, prefetch_related_objects
++from django.http import HttpRequest
+ from django.urls import reverse
+ 
+ from bookmarks import queries
+@@ -11,6 +12,7 @@
+ 
+ @dataclass
+ class FeedContext:
++    request: HttpRequest
+     feed_token: FeedToken | None
+     query_set: QuerySet[Bookmark]
+ 
+@@ -26,13 +28,23 @@ def sanitize(text: str):
+ 
+ 
+ class BaseBookmarksFeed(Feed):
+-    def get_object(self, request, feed_key: str):
+-        feed_token = FeedToken.objects.get(key__exact=feed_key)
++    def get_object(self, request, feed_key: str | None):
++        feed_token = FeedToken.objects.get(key__exact=feed_key) if feed_key else None
+         search = BookmarkSearch(q=request.GET.get("q", ""))
+-        query_set = queries.query_bookmarks(
+-            feed_token.user, feed_token.user.profile, search
+-        )
+-        return FeedContext(feed_token, query_set)
++        query_set = self.get_query_set(feed_token, search)
++        return FeedContext(request, feed_token, query_set)
++
++    def get_query_set(self, feed_token: FeedToken, search: BookmarkSearch):
++        raise NotImplementedError
++
++    def items(self, context: FeedContext):
++        limit = context.request.GET.get("limit", 100)
++        if limit:
++            data = context.query_set[: int(limit)]
++        else:
++            data = list(context.query_set)
++        prefetch_related_objects(data, "tags")
++        return data
+ 
+     def item_title(self, item: Bookmark):
+         return sanitize(item.resolved_title)
+@@ -46,60 +58,56 @@ def item_link(self, item: Bookmark):
+     def item_pubdate(self, item: Bookmark):
+         return item.date_added
+ 
++    def item_categories(self, item: Bookmark):
++        return item.tag_names
++
+ 
+ class AllBookmarksFeed(BaseBookmarksFeed):
+     title = "All bookmarks"
+     description = "All bookmarks"
+ 
++    def get_query_set(self, feed_token: FeedToken, search: BookmarkSearch):
++        return queries.query_bookmarks(feed_token.user, feed_token.user.profile, search)
++
+     def link(self, context: FeedContext):
+         return reverse("bookmarks:feeds.all", args=[context.feed_token.key])
+ 
+-    def items(self, context: FeedContext):
+-        return context.query_set
+-
+ 
+ class UnreadBookmarksFeed(BaseBookmarksFeed):
+     title = "Unread bookmarks"
+     description = "All unread bookmarks"
+ 
++    def get_query_set(self, feed_token: FeedToken, search: BookmarkSearch):
++        return queries.query_bookmarks(
++            feed_token.user, feed_token.user.profile, search
++        ).filter(unread=True)
++
+     def link(self, context: FeedContext):
+         return reverse("bookmarks:feeds.unread", args=[context.feed_token.key])
+ 
+-    def items(self, context: FeedContext):
+-        return context.query_set.filter(unread=True)
+-
+ 
+ class SharedBookmarksFeed(BaseBookmarksFeed):
+     title = "Shared bookmarks"
+     description = "All shared bookmarks"
+ 
+-    def get_object(self, request, feed_key: str):
+-        feed_token = FeedToken.objects.get(key__exact=feed_key)
+-        search = BookmarkSearch(q=request.GET.get("q", ""))
+-        query_set = queries.query_shared_bookmarks(
++    def get_query_set(self, feed_token: FeedToken, search: BookmarkSearch):
++        return queries.query_shared_bookmarks(
+             None, feed_token.user.profile, search, False
+         )
+-        return FeedContext(feed_token, query_set)
+ 
+     def link(self, context: FeedContext):
+         return reverse("bookmarks:feeds.shared", args=[context.feed_token.key])
+ 
+-    def items(self, context: FeedContext):
+-        return context.query_set
+-
+ 
+ class PublicSharedBookmarksFeed(BaseBookmarksFeed):
+     title = "Public shared bookmarks"
+     description = "All public shared bookmarks"
+ 
+     def get_object(self, request):
+-        search = BookmarkSearch(q=request.GET.get("q", ""))
+-        default_profile = UserProfile()
+-        query_set = queries.query_shared_bookmarks(None, default_profile, search, True)
+-        return FeedContext(None, query_set)
++        return super().get_object(request, None)
++
++    def get_query_set(self, feed_token: FeedToken, search: BookmarkSearch):
++        return queries.query_shared_bookmarks(None, UserProfile(), search, True)
+ 
+     def link(self, context: FeedContext):
+         return reverse("bookmarks:feeds.public_shared")
+-
+-    def items(self, context: FeedContext):
+-        return context.query_set
+diff --git a/bookmarks/templates/settings/integrations.html b/bookmarks/templates/settings/integrations.html
+index c2781dea..02d3d408 100644
+--- a/bookmarks/templates/settings/integrations.html
++++ b/bookmarks/templates/settings/integrations.html
+@@ -1,70 +1,84 @@
+ {% extends "bookmarks/layout.html" %}
+ 
+ {% block content %}
+-    <div class="settings-page">
++  <div class="settings-page">
+ 
+-        {% include 'settings/nav.html' %}
++    {% include 'settings/nav.html' %}
+ 
+-        <section class="content-area">
+-            <h2>Browser Extension</h2>
+-            <p>The browser extension allows you to quickly add new bookmarks without leaving the page that you are on. The extension is available in the official extension stores for:</p>
+-            <ul>
+-                <li><a href="https://addons.mozilla.org/firefox/addon/linkding-extension/" target="_blank">Firefox</a></li>
+-                <li><a href="https://chrome.google.com/webstore/detail/linkding-extension/beakmhbijpdhipnjhnclmhgjlddhidpe" target="_blank">Chrome</a></li>
+-            </ul>
+-            <p>The extension is <a href="https://github.com/sissbruecker/linkding-extension" target="_blank">open source</a> as well, which enables you to build and manually load it into any browser that supports Chrome extensions.</p>
+-            <h2>Bookmarklet</h2>
+-            <p>The bookmarklet is an alternative, cross-browser way to quickly add new bookmarks without opening the linkding application
+-                first. Here's how it works:</p>
+-            <ul>
+-                <li>Drag the bookmarklet below into your browsers bookmark bar / toolbar</li>
+-                <li>Open the website that you want to bookmark</li>
+-                <li>Click the bookmarklet in your browsers toolbar</li>
+-                <li>linkding opens in a new window or tab and allows you to add a bookmark for the site</li>
+-                <li>After saving the bookmark the linkding window closes and you are back on your website</li>
+-            </ul>
+-            <p>Drag the following bookmarklet to your browsers toolbar:</p>
+-            <a href="javascript: {% include 'bookmarks/bookmarklet.js' %}"
+-               class="btn btn-primary">📎 Add bookmark</a>
+-        </section>
++    <section class="content-area">
++      <h2>Browser Extension</h2>
++      <p>The browser extension allows you to quickly add new bookmarks without leaving the page that you are on. The
++        extension is available in the official extension stores for:</p>
++      <ul>
++        <li><a href="https://addons.mozilla.org/firefox/addon/linkding-extension/" target="_blank">Firefox</a></li>
++        <li><a href="https://chrome.google.com/webstore/detail/linkding-extension/beakmhbijpdhipnjhnclmhgjlddhidpe"
++               target="_blank">Chrome</a></li>
++      </ul>
++      <p>The extension is <a href="https://github.com/sissbruecker/linkding-extension" target="_blank">open source</a>
++        as well, which enables you to build and manually load it into any browser that supports Chrome extensions.</p>
++      <h2>Bookmarklet</h2>
++      <p>The bookmarklet is an alternative, cross-browser way to quickly add new bookmarks without opening the linkding
++        application first. Here's how it works:</p>
++      <ul>
++        <li>Drag the bookmarklet below into your browsers bookmark bar / toolbar</li>
++        <li>Open the website that you want to bookmark</li>
++        <li>Click the bookmarklet in your browsers toolbar</li>
++        <li>linkding opens in a new window or tab and allows you to add a bookmark for the site</li>
++        <li>After saving the bookmark the linkding window closes and you are back on your website</li>
++      </ul>
++      <p>Drag the following bookmarklet to your browser's toolbar:</p>
++      <a href="javascript: {% include 'bookmarks/bookmarklet.js' %}"
++         class="btn btn-primary">📎 Add bookmark</a>
++    </section>
+ 
+-        <section class="content-area">
+-            <h2>REST API</h2>
+-            <p>The following token can be used to authenticate 3rd-party applications against the REST API:</p>
+-            <div class="form-group">
+-                <div class="columns">
+-                    <div class="column width-50 width-md-100">
+-                        <input class="form-input" value="{{ api_token }}" readonly>
+-                    </div>
+-                </div>
+-            </div>
+-            <p>
+-              <strong>Please treat this token as you would any other credential.</strong>
+-              Any party with access to this token can access and manage all your bookmarks.
+-              If you think that a token was compromised you can revoke (delete) it in the <a href="{% url 'admin:authtoken_tokenproxy_changelist' %}">admin panel</a>.
+-              After deleting the token, a new one will be generated when you reload this settings page.
+-            </p>
+-        </section>
++    <section class="content-area">
++      <h2>REST API</h2>
++      <p>The following token can be used to authenticate 3rd-party applications against the REST API:</p>
++      <div class="form-group">
++        <div class="columns">
++          <div class="column width-50 width-md-100">
++            <input class="form-input" value="{{ api_token }}" readonly>
++          </div>
++        </div>
++      </div>
++      <p>
++        <strong>Please treat this token as you would any other credential.</strong>
++        Any party with access to this token can access and manage all your bookmarks.
++        If you think that a token was compromised you can revoke (delete) it in the <a
++          href="{% url 'admin:authtoken_tokenproxy_changelist' %}">admin panel</a>.
++        After deleting the token, a new one will be generated when you reload this settings page.
++      </p>
++    </section>
+ 
+-        <section class="content-area">
+-            <h2>RSS Feeds</h2>
+-            <p>The following URLs provide RSS feeds for your bookmarks:</p>
+-            <ul style="list-style-position: outside;">
+-              <li><a href="{{ all_feed_url }}">All bookmarks</a></li>
+-              <li><a href="{{ unread_feed_url }}">Unread bookmarks</a></li>
+-              <li><a href="{{ shared_feed_url }}">Shared bookmarks</a></li>
+-              <li><a href="{{ public_shared_feed_url }}">Public shared bookmarks</a><br><span class="text-small text-gray">The public shared feed does not contain an authentication token and can be shared with other people. Only shows shared bookmarks from users who have explicitly enabled public sharing.</span></li>
+-            </ul>
+-            <p>
+-              All URLs support appending a <code>q</code> URL parameter for specifying a search query.
+-              You can get an example by doing a search in the bookmarks view and then copying the parameter from the URL.
+-            </p>
+-            <p>
+-              <strong>Please note that these URLs include an authentication token that should be treated like any other credential.</strong>
+-              Any party with access to these URLs can read all your bookmarks.
+-              If you think that a URL was compromised you can delete the feed token for your user in the <a href="{% url 'admin:bookmarks_feedtoken_changelist' %}">admin panel</a>.
+-              After deleting the feed token, new URLs will be generated when you reload this settings page.
+-            </p>
+-        </section>
+-    </div>
++    <section class="content-area">
++      <h2>RSS Feeds</h2>
++      <p>The following URLs provide RSS feeds for your bookmarks:</p>
++      <ul style="list-style-position: outside;">
++        <li><a href="{{ all_feed_url }}">All bookmarks</a></li>
++        <li><a href="{{ unread_feed_url }}">Unread bookmarks</a></li>
++        <li><a href="{{ shared_feed_url }}">Shared bookmarks</a></li>
++        <li><a href="{{ public_shared_feed_url }}">Public shared bookmarks</a><br><span class="text-small text-gray">The public shared feed does not contain an authentication token and can be shared with other people. Only shows shared bookmarks from users who have explicitly enabled public sharing.</span>
++        </li>
++      </ul>
++      <p>
++        All URLs support the following URL parameters:
++      </p>
++      <ul style="list-style-position: outside;">
++        <li>A <code>q</code> URL parameter for specifying a search query. You can get an example by doing a search in
++          the bookmarks view and then copying the parameter from the URL.
++        </li>
++        <li>A <code>limit</code> parameter for specifying the maximum number of bookmarks to include in the feed. By
++          default, only the latest 100 matching bookmarks are included.
++        </li>
++      </ul>
++      <p>
++        <strong>Please note that these URLs include an authentication token that should be treated like any other
++          credential.</strong>
++        Any party with access to these URLs can read all your bookmarks.
++        If you think that a URL was compromised you can delete the feed token for your user in the <a
++          href="{% url 'admin:bookmarks_feedtoken_changelist' %}">admin panel</a>.
++        After deleting the feed token, new URLs will be generated when you reload this settings page.
++      </p>
++    </section>
++  </div>
+ {% endblock %}

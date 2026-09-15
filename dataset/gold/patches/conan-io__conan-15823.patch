@@ -1,0 +1,38 @@
+diff --git a/conan/api/subapi/list.py b/conan/api/subapi/list.py
+index f748de9ac48..1e92cf74d98 100644
+--- a/conan/api/subapi/list.py
++++ b/conan/api/subapi/list.py
+@@ -223,7 +223,6 @@ def explain_missing_binaries(self, ref, conaninfo, remotes):
+                 ConanOutput().info(f"Finding binaries in remote {remote.name}")
+                 pkg_configurations = self.packages_configurations(ref, remote=remote)
+             except Exception as e:
+-                pass
+                 ConanOutput(f"ERROR IN REMOTE {remote.name}: {e}")
+             else:
+                 candidates.extend(_BinaryDistance(pref, data, conaninfo, remote)
+@@ -232,8 +231,7 @@ def explain_missing_binaries(self, ref, conaninfo, remotes):
+         candidates.sort()
+         pkglist = PackagesList()
+         pkglist.add_refs([ref])
+-        # If there are exact matches, only return the matches
+-        # else, limit to the number specified
++        # Return the closest matches, stop adding when distance is increased
+         candidate_distance = None
+         for candidate in candidates:
+             if candidate_distance and candidate.distance != candidate_distance:
+diff --git a/conan/cli/commands/graph.py b/conan/cli/commands/graph.py
+index b8fb4a36bda..b672d2cccab 100644
+--- a/conan/cli/commands/graph.py
++++ b/conan/cli/commands/graph.py
+@@ -22,6 +22,11 @@ def explain_formatter_text(data):
+         # we need to wrap this in a MultiPackagesList
+         pkglist = data["closest_binaries"]
+         prepare_pkglist_compact(pkglist)
++        # Now we make sure that if there are no binaries we will print something that makes sense
++        for ref, ref_info in pkglist.items():
++            for rrev, rrev_info in ref_info.items():
++                if not rrev_info:
++                    rrev_info["ERROR"] = "No package binaries exist"
+         print_serial(pkglist)
+ 
+ 

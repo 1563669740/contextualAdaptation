@@ -1,0 +1,230 @@
+{
+ "task_id": "python-babel__babel-1132",
+ "verified_utc": "2026-09-14T17:43:46Z",
+ "holdout_diff_sha256": "a38bf3e7a053db083f895491ed1feccb356464478da8fd54610857456b60b277",
+ "node_ids": [
+  "tests/messages/test_holdout_task.py"
+ ],
+ "runs_required": 5,
+ "attempts": {
+  "base": [
+   {
+    "run": 1,
+    "rc": 1,
+    "summary": "3 failed in 0.30s",
+    "outcome": {
+     "counts": {
+      "failed": 3
+     },
+     "failed": [
+      "tests/messages/test_holdout_task.py::test_hd_obsolete_context_roundtrips",
+      "tests/messages/test_holdout_task.py::test_hd_obsolete_without_context_is_distinct_from_obsolete_with_context",
+      "tests/messages/test_holdout_task.py::test_hd_two_obsolete_contexts_are_kept_separately"
+     ],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": "ertionError: roundtrip lost an entry: ['shared']\nE       assert 1 == 2\nE        +  where 1 = len(OrderedDict([('shared', <Message 'shared' (flags: [])>)]))\n\ntests\\messages\\test_holdout_task.py:79: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/messages/test_holdout_task.py::test_hd_two_obsolete_contexts_are_kept_separately\nFAILED tests/messages/test_holdout_task.py::test_hd_obsolete_without_context_is_distinct_from_obsolete_with_context\nFAILED tests/messages/test_holdout_task.py::test_hd_obsolete_context_roundtrips\n3 failed in 0.30s\n",
+    "stderr_tail": ""
+   }
+  ],
+  "gold": [
+   {
+    "run": 1,
+    "rc": 0,
+    "summary": "3 passed in 0.15s",
+    "outcome": {
+     "counts": {
+      "passed": 3
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1132.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": "...                                                                      [100%]\n3 passed in 0.15s\n",
+    "stderr_tail": ""
+   }
+  ],
+  "determinism": [
+   {
+    "run": 1,
+    "rc": 0,
+    "summary": "3 passed in 0.15s",
+    "outcome": {
+     "counts": {
+      "passed": 3
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1132.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": "...                                                                      [100%]\n3 passed in 0.15s\n",
+    "stderr_tail": ""
+   },
+   {
+    "run": 2,
+    "rc": 0,
+    "summary": "3 passed in 0.15s",
+    "outcome": {
+     "counts": {
+      "passed": 3
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1132.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": "...                                                                      [100%]\n3 passed in 0.15s\n",
+    "stderr_tail": ""
+   },
+   {
+    "run": 3,
+    "rc": 0,
+    "summary": "3 passed in 0.16s",
+    "outcome": {
+     "counts": {
+      "passed": 3
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1132.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": "...                                                                      [100%]\n3 passed in 0.16s\n",
+    "stderr_tail": ""
+   },
+   {
+    "run": 4,
+    "rc": 0,
+    "summary": "3 passed in 0.16s",
+    "outcome": {
+     "counts": {
+      "passed": 3
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1132.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": "...                                                                      [100%]\n3 passed in 0.16s\n",
+    "stderr_tail": ""
+   },
+   {
+    "run": 5,
+    "rc": 0,
+    "summary": "3 passed in 0.15s",
+    "outcome": {
+     "counts": {
+      "passed": 3
+     },
+     "failed": [],
+     "errored": []
+    },
+    "applied": [
+     {
+      "patch": "test_patch.diff",
+      "applied": true
+     },
+     {
+      "patch": "python-babel__babel-1132.patch",
+      "applied": true
+     },
+     {
+      "patch": "holdout.diff",
+      "applied": true
+     }
+    ],
+    "stdout_tail": "...                                                                      [100%]\n3 passed in 0.15s\n",
+    "stderr_tail": ""
+   }
+  ]
+ },
+ "verdict": {
+  "fails_at_base": true,
+  "passes_on_gold": true,
+  "deterministic_over_5_runs": true,
+  "distinct_outcomes": [
+   {
+    "counts": {
+     "passed": 3
+    },
+    "errored": [],
+    "failed": []
+   }
+  ],
+  "n_discriminating_tests": 3,
+  "n_tests_collected": 3,
+  "admitted": true
+ }
+}

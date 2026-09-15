@@ -1,0 +1,13 @@
+{
+  "task_id": "kozea__weasyprint-2300",
+  "repo": "Kozea/WeasyPrint",
+  "issue_number": "2292",
+  "issue_url": "https://github.com/Kozea/WeasyPrint/issues/2292",
+  "issue_created_at": "1970-01-01 00:28:51.322727+00:00",
+  "issue_title": "v63.0 flexbox issue overflow hidden",
+  "issue_body": "With v63.0 the following code breaks:\n\n```\n<html>\n<head>\n<style>\n    .wrapper {\n      display: flex;\n    }\n    .cell {\n      flex: 1;\n      border: 1px solid black;\n      padding: 10px;\n      overflow: hidden;\n    }\n  </style>\n</head>\n<body>\n  <div class=\"wrapper\">\n    <div class=\"cell\">one</div>\n    <div class=\"cell\">two</div>\n    <div class=\"cell\">three</div>\n    <div class=\"cell\">four</div>\n    <div class=\"cell\">five</div>\n    <div class=\"cell\">six</div>\n    <div class=\"cell\">seven</div>\n    <div class=\"cell\">eight</div>\n    <div class=\"cell\">nine</div>\n  </div>\n</body>\n</html>\n```\n\nWhen overflow: hidden is added to .cell, all cells appear on top of each other instead of next to each other.",
+  "problem_statement": "v63.0 flexbox issue overflow hidden\nWith v63.0 the following code breaks:\n\n```\n<html>\n<head>\n<style>\n    .wrapper {\n      display: flex;\n    }\n    .cell {\n      flex: 1;\n      border: 1px solid black;\n      padding: 10px;\n      overflow: hidden;\n    }\n  </style>\n</head>\n<body>\n  <div class=\"wrapper\">\n    <div class=\"cell\">one</div>\n    <div class=\"cell\">two</div>\n    <div class=\"cell\">three</div>\n    <div class=\"cell\">four</div>\n    <div class=\"cell\">five</div>\n    <div class=\"cell\">six</div>\n    <div class=\"cell\">seven</div>\n    <div class=\"cell\">eight</div>\n    <div class=\"cell\">nine</div>\n  </div>\n</body>\n</html>\n```\n\nWhen overflow: hidden is added to .cell, all cells appear on top of each other instead of next to each other.\n",
+  "hints_text": "Thanks for your useful sample (and on other issues too!)\n\n",
+  "all_hints_text": "Thanks for your useful sample (and on other issues too!)\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

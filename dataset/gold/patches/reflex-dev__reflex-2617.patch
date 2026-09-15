@@ -1,0 +1,15 @@
+diff --git a/reflex/vars.py b/reflex/vars.py
+index 98118b1d1c6..74c9d33c866 100644
+--- a/reflex/vars.py
++++ b/reflex/vars.py
+@@ -585,7 +585,9 @@ def __getitem__(self, i: Any) -> Var:
+ 
+             # Get the type of the indexed var.
+             if types.is_generic_alias(self._var_type):
+-                type_ = types.get_args(self._var_type)[0]
++                index = i if not isinstance(i, Var) else 0
++                type_ = types.get_args(self._var_type)
++                type_ = type_[index % len(type_)]
+             elif types._issubclass(self._var_type, str):
+                 type_ = str
+ 

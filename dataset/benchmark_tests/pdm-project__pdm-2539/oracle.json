@@ -1,0 +1,11 @@
+{
+  "task_id": "pdm-project__pdm-2539",
+  "log_parser": "pytest",
+  "test_cmds": [
+    "pdm run pytest -rA"
+  ],
+  "fail_to_pass_count": 4,
+  "pass_to_pass_count": 797,
+  "resolution_rule": "resolved iff every FAIL_TO_PASS test passes AND every PASS_TO_PASS test still passes after applying the candidate patch",
+  "visibility": "evaluation_only"
+}

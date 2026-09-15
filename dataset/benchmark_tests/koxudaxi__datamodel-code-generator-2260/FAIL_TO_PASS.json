@@ -1,0 +1,5 @@
+[
+  "tests/main/test_types.py::TestDataType::test_imports_with_literal_one",
+  "tests/main/test_types.py::TestDataType::test_imports_with_literal_python37",
+  "tests/main/test_types.py::TestDataType::test_imports_with_literal_one_and_optional"
+]

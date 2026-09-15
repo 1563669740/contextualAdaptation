@@ -1,0 +1,29 @@
+diff --git a/doc/whats-new.rst b/doc/whats-new.rst
+index 96005e17f78..f0778c1e021 100644
+--- a/doc/whats-new.rst
++++ b/doc/whats-new.rst
+@@ -40,6 +40,9 @@ Deprecations
+ 
+ Bug fixes
+ ~~~~~~~~~
++- Preserve conversion of timezone-aware pandas Datetime arrays to numpy object arrays
++  (:issue:`9026`, :pull:`9042`).
++  By `Ilan Gold <https://github.com/ilan-gold>`_.
+ 
+ - :py:meth:`DataArrayResample.interpolate` and :py:meth:`DatasetResample.interpolate` method now
+   support aribtrary kwargs such as ``order`` for polynomial interpolation. (:issue:`8762`).
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 09597670573..9b5f2262b6d 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -7420,7 +7420,9 @@ def from_dataframe(cls, dataframe: pd.DataFrame, sparse: bool = False) -> Self:
+         arrays = []
+         extension_arrays = []
+         for k, v in dataframe.items():
+-            if not is_extension_array_dtype(v):
++            if not is_extension_array_dtype(v) or isinstance(
++                v.array, (pd.arrays.DatetimeArray, pd.arrays.TimedeltaArray)
++            ):
+                 arrays.append((k, np.asarray(v)))
+             else:
+                 extension_arrays.append((k, v))

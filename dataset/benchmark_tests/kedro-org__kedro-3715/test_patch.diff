@@ -1,0 +1,44 @@
+diff --git a/tests/ipython/conftest.py b/tests/ipython/conftest.py
+index edc7dbc9e8..f263602741 100644
+--- a/tests/ipython/conftest.py
++++ b/tests/ipython/conftest.py
+@@ -111,7 +111,7 @@ def dummy_node_empty_input():
+     return node(
+         func=dummy_function,
+         inputs=["", ""],
+-        outputs=[None],
++        outputs=None,
+         name="dummy_node_empty_input",
+     )
+ 
+diff --git a/tests/pipeline/test_node.py b/tests/pipeline/test_node.py
+index ae68dff87e..3dcf3db790 100644
+--- a/tests/pipeline/test_node.py
++++ b/tests/pipeline/test_node.py
+@@ -252,6 +252,14 @@ def duplicate_output_list_node():
+     return identity, "A", ["A", "A"]
+ 
+ 
++def bad_input_variable_name():
++    return lambda x: None, {"a": 1, "b": "B"}, {"a": "A", "b": "B"}
++
++
++def bad_output_variable_name():
++    return lambda x: None, {"a": "A", "b": "B"}, {"a": "A", "b": 2}
++
++
+ @pytest.mark.parametrize(
+     "func, expected",
+     [
+@@ -275,6 +283,11 @@ def duplicate_output_list_node():
+             r"\(\[A\]\) -> \[A;A\] due to "
+             r"duplicate output\(s\) {\'A\'}.",
+         ),
++        (bad_input_variable_name, "names of variables used as inputs to the function "),
++        (
++            bad_output_variable_name,
++            "names of variables used as outputs of the function ",
++        ),
+     ],
+ )
+ def test_bad_node(func, expected):

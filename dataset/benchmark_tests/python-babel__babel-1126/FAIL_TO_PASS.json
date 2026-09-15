@@ -1,0 +1,4 @@
+[
+  "tests/messages/test_extract.py::ExtractPythonTestCase::test_comments_with_calls_that_spawn_multiple_lines",
+  "tests/messages/test_extract.py::ExtractPythonTestCase::test_nested_calls"
+]

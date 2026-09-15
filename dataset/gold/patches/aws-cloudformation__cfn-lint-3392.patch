@@ -1,0 +1,13 @@
+diff --git a/src/cfnlint/template/transforms/_language_extensions.py b/src/cfnlint/template/transforms/_language_extensions.py
+index 045a5714df..3733542626 100644
+--- a/src/cfnlint/template/transforms/_language_extensions.py
++++ b/src/cfnlint/template/transforms/_language_extensions.py
+@@ -364,7 +364,7 @@ def value(
+ 
+         if mapping:
+             try:
+-                t_map[1].value(cfn)
++                t_map[1].value(cfn, params, only_params)
+             except _ResolveError:
+                 try:
+                     t_map[2].value(cfn)

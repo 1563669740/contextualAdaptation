@@ -1,0 +1,25 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 3d5d3913326..1a7482024bf 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -17,6 +17,7 @@ Incompatible changes
+   Code-blokcs are unchanged as FreeMono is now loaded with ``Scale=0.9``.
+   An adjustement to existing projects is needed only if they used a custom
+   :ref:`fontpkg` configuration and did not set :ref:`fvset`.
++* #12875: Disable smartquotes for languages: ``zh_CN`` and ``zh_TW`` by default.
+ 
+ Deprecated
+ ----------
+diff --git a/sphinx/config.py b/sphinx/config.py
+index bae92140d59..0fd2102e732 100644
+--- a/sphinx/config.py
++++ b/sphinx/config.py
+@@ -271,7 +271,7 @@ class Config:
+         'smartquotes': _Opt(True, 'env', ()),
+         'smartquotes_action': _Opt('qDe', 'env', ()),
+         'smartquotes_excludes': _Opt(
+-            {'languages': ['ja'], 'builders': ['man', 'text']}, 'env', ()),
++            {'languages': ['ja', 'zh_CN', 'zh_TW'], 'builders': ['man', 'text']}, 'env', ()),
+         'option_emphasise_placeholders': _Opt(False, 'env', ()),
+     }
+ 

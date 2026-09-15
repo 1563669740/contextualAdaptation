@@ -1,0 +1,12 @@
+{
+  "task_id": "icloud-photos-downloader__icloud_photos_downloader-1061",
+  "log_parser": "pytest",
+  "test_cmds": [
+    "cat scripts/test",
+    "pytest -rA"
+  ],
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 174,
+  "resolution_rule": "resolved iff every FAIL_TO_PASS test passes AND every PASS_TO_PASS test still passes after applying the candidate patch",
+  "visibility": "evaluation_only"
+}

@@ -1,0 +1,66 @@
+diff --git a/sqllineage/core/parser/sqlfluff/extractors/create_insert.py b/sqllineage/core/parser/sqlfluff/extractors/create_insert.py
+index 526d7261..7610bac2 100644
+--- a/sqllineage/core/parser/sqlfluff/extractors/create_insert.py
++++ b/sqllineage/core/parser/sqlfluff/extractors/create_insert.py
+@@ -6,7 +6,6 @@
+ from sqllineage.core.parser.sqlfluff.extractors.select import SelectExtractor
+ from sqllineage.core.parser.sqlfluff.models import SqlFluffColumn, SqlFluffTable
+ from sqllineage.core.parser.sqlfluff.utils import (
+-    is_set_expression,
+     list_child_segments,
+ )
+ from sqllineage.utils.entities import AnalyzerContext
+@@ -56,14 +55,16 @@ def extract(
+                                         select_statement, holder
+                                     )
+             elif segment.type == "bracketed" and (
+-                self.list_subquery(segment) or is_set_expression(segment)
++                subquery_segments := list(
++                    segment.recursive_crawl(
++                        "select_statement", "set_expression", recurse_into=False
++                    )
++                )
+             ):
+                 # note regular subquery within SELECT statement is handled by SelectExtractor, this is only to handle
+                 # top-level subquery in DML like: 1) create table foo as (subquery); 2) insert into foo (subquery)
+                 # subquery here isn't added as read source, and it inherits DML-level write_columns if parsed
+-                if subquery_segment := segment.get_child(
+-                    "select_statement", "set_expression"
+-                ):
++                for subquery_segment in subquery_segments:
+                     holder |= self.delegate_to_select(subquery_segment, holder)
+ 
+             elif segment.type == "bracketed":
+diff --git a/sqllineage/core/parser/sqlfluff/extractors/cte.py b/sqllineage/core/parser/sqlfluff/extractors/cte.py
+index 656d8933..0cead854 100644
+--- a/sqllineage/core/parser/sqlfluff/extractors/cte.py
++++ b/sqllineage/core/parser/sqlfluff/extractors/cte.py
+@@ -46,23 +46,16 @@ def extract(
+                     UpdateExtractor, segment, AnalyzerContext(cte=holder.cte)
+                 )
+             elif segment.type == "common_table_expression":
+-                identifier = None
+-                segment_has_alias = any(
+-                    s for s in segment.get_children("keyword") if s.raw_upper == "AS"
+-                )
++                alias = None
+                 sub_segments = list_child_segments(segment)
+                 for sub_segment in sub_segments:
+                     if sub_segment.type == "identifier":
+-                        identifier = sub_segment.raw
+-                        if not segment_has_alias:
+-                            holder.add_cte(SqlFluffSubQuery.of(sub_segment, identifier))
+-                    if sub_segment.type == "bracketed":
++                        alias = sub_segment.raw
++                    elif sub_segment.type == "bracketed":
+                         for sq in self.list_subquery(sub_segment):
+-                            if identifier:
+-                                sq.alias = identifier
++                            sq.alias = alias
+                             subqueries.append(sq)
+-                        if segment_has_alias:
+-                            holder.add_cte(SqlFluffSubQuery.of(sub_segment, identifier))
++                        holder.add_cte(SqlFluffSubQuery.of(sub_segment, alias))
+ 
+         self.extract_subquery(subqueries, holder)
+ 

@@ -1,0 +1,70 @@
+diff --git a/doc/whatsnew/fragments/9403.bugfix b/doc/whatsnew/fragments/9403.bugfix
+new file mode 100644
+index 0000000000..478f5978fe
+--- /dev/null
++++ b/doc/whatsnew/fragments/9403.bugfix
+@@ -0,0 +1,3 @@
++`--enable` with `--disable=all` now produces an error, when an unknown msg code is used. Internal `pylint` messages are no longer affected by `--disable=all`.
++
++Closes #9403
+diff --git a/pylint/lint/message_state_handler.py b/pylint/lint/message_state_handler.py
+index 2ddd7d4db3..5c4498af96 100644
+--- a/pylint/lint/message_state_handler.py
++++ b/pylint/lint/message_state_handler.py
+@@ -18,7 +18,7 @@
+ )
+ from pylint.interfaces import HIGH
+ from pylint.message import MessageDefinition
+-from pylint.typing import ManagedMessage
++from pylint.typing import ManagedMessage, MessageDefinitionTuple
+ from pylint.utils.pragma_parser import (
+     OPTION_PO,
+     InvalidPragmaError,
+@@ -37,6 +37,11 @@ class _MessageStateHandler:
+ 
+     def __init__(self, linter: PyLinter) -> None:
+         self.linter = linter
++        self.default_enabled_messages: dict[str, MessageDefinitionTuple] = {
++            k: v
++            for k, v in self.linter.msgs.items()
++            if len(v) == 3 or v[3].get("default_enabled", True)
++        }
+         self._msgs_state: dict[str, bool] = {}
+         self._options_methods = {
+             "enable": self.enable,
+@@ -84,6 +89,14 @@ def _get_messages_to_set(
+                 message_definitions.extend(
+                     self._get_messages_to_set(_msgid, enable, ignore_unknown)
+                 )
++            if not enable:
++                # "all" should not disable pylint's own warnings
++                message_definitions = list(
++                    filter(
++                        lambda m: m.msgid not in self.default_enabled_messages,
++                        message_definitions,
++                    )
++                )
+             return message_definitions
+ 
+         # msgid is a category?
+diff --git a/pylint/lint/run.py b/pylint/lint/run.py
+index 1a8d594a04..2bbbb337b9 100644
+--- a/pylint/lint/run.py
++++ b/pylint/lint/run.py
+@@ -175,9 +175,13 @@ def __init__(
+                 sys.exit(code)
+             return
+ 
+-        # Display help if there are no files to lint or no checks enabled
+-        if not args or len(linter.config.disable) == len(
+-            linter.msgs_store._messages_definitions
++        # Display help if there are no files to lint or only internal checks enabled (`--disable=all`)
++        disable_all_msg_set = set(
++            msg.symbol for msg in linter.msgs_store.messages
++        ) - set(msg[1] for msg in linter.default_enabled_messages.values())
++        if not args or (
++            len(linter.config.enable) == 0
++            and set(linter.config.disable) == disable_all_msg_set
+         ):
+             print("No files to lint: exiting.")
+             sys.exit(32)

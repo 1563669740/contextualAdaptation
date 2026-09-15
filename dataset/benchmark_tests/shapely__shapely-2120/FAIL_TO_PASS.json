@@ -1,0 +1,3 @@
+[
+  "shapely/tests/geometry/test_point.py::TestPoint::test_point_empty"
+]

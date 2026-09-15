@@ -1,0 +1,4 @@
+[
+  "pvlib/tests/ivtools/test_sdm.py::test_fit_desoto_init_guess",
+  "pvlib/tests/ivtools/test_sdm.py::test_fit_desoto_init_bad_key"
+]

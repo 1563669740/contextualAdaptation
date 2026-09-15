@@ -1,0 +1,3 @@
+[
+  "test/test_window.py::test_can_steal_focus[1-x11]"
+]

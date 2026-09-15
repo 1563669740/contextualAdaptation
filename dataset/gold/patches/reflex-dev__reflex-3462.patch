@@ -1,0 +1,1029 @@
+diff --git a/reflex/app.py b/reflex/app.py
+index 65bc32438d5..fa6f9849274 100644
+--- a/reflex/app.py
++++ b/reflex/app.py
+@@ -751,10 +751,12 @@ def _should_compile(self) -> bool:
+         if should_skip_compile():
+             return False
+ 
++        nocompile = prerequisites.get_web_dir() / constants.NOCOMPILE_FILE
++
+         # Check the nocompile file.
+-        if os.path.exists(constants.NOCOMPILE_FILE):
++        if nocompile.exists():
+             # Delete the nocompile file
+-            os.remove(constants.NOCOMPILE_FILE)
++            nocompile.unlink()
+             return False
+ 
+         # By default, compile the app.
+diff --git a/reflex/compiler/compiler.py b/reflex/compiler/compiler.py
+index 81d8098de31..002c3b75058 100644
+--- a/reflex/compiler/compiler.py
++++ b/reflex/compiler/compiler.py
+@@ -20,6 +20,7 @@
+ from reflex.style import SYSTEM_COLOR_MODE
+ from reflex.utils.exec import is_prod_mode
+ from reflex.utils.imports import ImportVar
++from reflex.utils.prerequisites import get_web_dir
+ from reflex.vars import Var
+ 
+ 
+@@ -469,7 +470,7 @@ def compile_tailwind(
+         The compiled Tailwind config.
+     """
+     # Get the path for the output file.
+-    output_path = constants.Tailwind.CONFIG
++    output_path = get_web_dir() / constants.Tailwind.CONFIG
+ 
+     # Compile the config.
+     code = _compile_tailwind(config)
+@@ -483,7 +484,7 @@ def remove_tailwind_from_postcss() -> tuple[str, str]:
+         The path and code of the compiled postcss.config.js.
+     """
+     # Get the path for the output file.
+-    output_path = constants.Dirs.POSTCSS_JS
++    output_path = str(get_web_dir() / constants.Dirs.POSTCSS_JS)
+ 
+     code = [
+         line
+@@ -502,7 +503,7 @@ def purge_web_pages_dir():
+         return
+ 
+     # Empty out the web pages directory.
+-    utils.empty_dir(constants.Dirs.WEB_PAGES, keep_files=["_app.js"])
++    utils.empty_dir(get_web_dir() / constants.Dirs.PAGES, keep_files=["_app.js"])
+ 
+ 
+ class ExecutorSafeFunctions:
+diff --git a/reflex/compiler/utils.py b/reflex/compiler/utils.py
+index 9f389d81180..6049b528fec 100644
+--- a/reflex/compiler/utils.py
++++ b/reflex/compiler/utils.py
+@@ -3,9 +3,12 @@
+ from __future__ import annotations
+ 
+ import os
++from pathlib import Path
+ from typing import Any, Callable, Dict, Optional, Type, Union
+ from urllib.parse import urlparse
+ 
++from reflex.utils.prerequisites import get_web_dir
++
+ try:
+     from pydantic.v1.fields import ModelField
+ except ModuleNotFoundError:
+@@ -329,7 +332,7 @@ def get_page_path(path: str) -> str:
+     Returns:
+         The path of the compiled JS file.
+     """
+-    return os.path.join(constants.Dirs.WEB_PAGES, path + constants.Ext.JS)
++    return str(get_web_dir() / constants.Dirs.PAGES / (path + constants.Ext.JS))
+ 
+ 
+ def get_theme_path() -> str:
+@@ -338,8 +341,10 @@ def get_theme_path() -> str:
+     Returns:
+         The path of the theme style.
+     """
+-    return os.path.join(
+-        constants.Dirs.WEB_UTILS, constants.PageNames.THEME + constants.Ext.JS
++    return str(
++        get_web_dir()
++        / constants.Dirs.UTILS
++        / (constants.PageNames.THEME + constants.Ext.JS)
+     )
+ 
+ 
+@@ -349,8 +354,10 @@ def get_root_stylesheet_path() -> str:
+     Returns:
+         The path of the app root file.
+     """
+-    return os.path.join(
+-        constants.STYLES_DIR, constants.PageNames.STYLESHEET_ROOT + constants.Ext.CSS
++    return str(
++        get_web_dir()
++        / constants.Dirs.STYLES
++        / (constants.PageNames.STYLESHEET_ROOT + constants.Ext.CSS)
+     )
+ 
+ 
+@@ -360,9 +367,7 @@ def get_context_path() -> str:
+     Returns:
+         The path of the context module.
+     """
+-    return os.path.join(
+-        constants.Dirs.WEB, constants.Dirs.CONTEXTS_PATH + constants.Ext.JS
+-    )
++    return str(get_web_dir() / (constants.Dirs.CONTEXTS_PATH + constants.Ext.JS))
+ 
+ 
+ def get_components_path() -> str:
+@@ -371,7 +376,11 @@ def get_components_path() -> str:
+     Returns:
+         The path of the compiled components.
+     """
+-    return os.path.join(constants.Dirs.WEB_UTILS, "components" + constants.Ext.JS)
++    return str(
++        get_web_dir()
++        / constants.Dirs.UTILS
++        / (constants.PageNames.COMPONENTS + constants.Ext.JS),
++    )
+ 
+ 
+ def get_stateful_components_path() -> str:
+@@ -380,9 +389,10 @@ def get_stateful_components_path() -> str:
+     Returns:
+         The path of the compiled stateful components.
+     """
+-    return os.path.join(
+-        constants.Dirs.WEB_UTILS,
+-        constants.PageNames.STATEFUL_COMPONENTS + constants.Ext.JS,
++    return str(
++        get_web_dir()
++        / constants.Dirs.UTILS
++        / (constants.PageNames.STATEFUL_COMPONENTS + constants.Ext.JS)
+     )
+ 
+ 
+@@ -436,23 +446,24 @@ def write_page(path: str, code: str):
+         f.write(code)
+ 
+ 
+-def empty_dir(path: str, keep_files: list[str] | None = None):
++def empty_dir(path: str | Path, keep_files: list[str] | None = None):
+     """Remove all files and folders in a directory except for the keep_files.
+ 
+     Args:
+         path: The path to the directory that will be emptied
+         keep_files: List of filenames or foldernames that will not be deleted.
+     """
++    path = Path(path)
++
+     # If the directory does not exist, return.
+-    if not os.path.exists(path):
++    if not path.exists():
+         return
+ 
+     # Remove all files and folders in the directory.
+     keep_files = keep_files or []
+-    directory_contents = os.listdir(path)
+-    for element in directory_contents:
+-        if element not in keep_files:
+-            path_ops.rm(os.path.join(path, element))
++    for element in path.iterdir():
++        if element.name not in keep_files:
++            path_ops.rm(element)
+ 
+ 
+ def is_valid_url(url) -> bool:
+diff --git a/reflex/constants/__init__.py b/reflex/constants/__init__.py
+index 547de703e41..6389a8b0a63 100644
+--- a/reflex/constants/__init__.py
++++ b/reflex/constants/__init__.py
+@@ -62,7 +62,7 @@
+     RouteRegex,
+     RouteVar,
+ )
+-from .style import STYLES_DIR, Tailwind
++from .style import Tailwind
+ 
+ __ALL__ = [
+     ALEMBIC_CONFIG,
+@@ -113,7 +113,6 @@
+     SETTER_PREFIX,
+     SKIP_COMPILE_ENV_VAR,
+     SocketEvent,
+-    STYLES_DIR,
+     Tailwind,
+     Templates,
+     CompileVars,
+diff --git a/reflex/constants/base.py b/reflex/constants/base.py
+index fbbe517072c..3fca45e2f2c 100644
+--- a/reflex/constants/base.py
++++ b/reflex/constants/base.py
+@@ -25,30 +25,26 @@ class Dirs(SimpleNamespace):
+     EXTERNAL_APP_ASSETS = "external"
+     # The name of the utils file.
+     UTILS = "utils"
+-    # The name of the output static directory.
+-    STATIC = "_static"
+-    # The name of the public html directory served at "/"
+-    PUBLIC = "public"
+     # The name of the state file.
+     STATE_PATH = "/".join([UTILS, "state"])
+     # The name of the components file.
+     COMPONENTS_PATH = "/".join([UTILS, "components"])
+     # The name of the contexts file.
+     CONTEXTS_PATH = "/".join([UTILS, "context"])
+-    # The directory where the app pages are compiled to.
+-    WEB_PAGES = os.path.join(WEB, "pages")
+-    # The directory where the static build is located.
+-    WEB_STATIC = os.path.join(WEB, STATIC)
+-    # The directory where the utils file is located.
+-    WEB_UTILS = os.path.join(WEB, UTILS)
+-    # The directory where the assets are located.
+-    WEB_ASSETS = os.path.join(WEB, PUBLIC)
+-    # The env json file.
+-    ENV_JSON = os.path.join(WEB, "env.json")
+-    # The reflex json file.
+-    REFLEX_JSON = os.path.join(WEB, "reflex.json")
+-    # The path to postcss.config.js
+-    POSTCSS_JS = os.path.join(WEB, "postcss.config.js")
++    # The name of the output static directory.
++    STATIC = "_static"
++    # The name of the public html directory served at "/"
++    PUBLIC = "public"
++    # The directory where styles are located.
++    STYLES = "styles"
++    # The name of the pages directory.
++    PAGES = "pages"
++    # The name of the env json file.
++    ENV_JSON = "env.json"
++    # The name of the reflex json file.
++    REFLEX_JSON = "reflex.json"
++    # The name of the postcss config file.
++    POSTCSS_JS = "postcss.config.js"
+ 
+ 
+ class Reflex(SimpleNamespace):
+@@ -61,7 +57,7 @@ class Reflex(SimpleNamespace):
+     VERSION = metadata.version(MODULE_NAME)
+ 
+     # The reflex json file.
+-    JSON = os.path.join(Dirs.WEB, "reflex.json")
++    JSON = "reflex.json"
+ 
+     # Files and directories used to init a new project.
+     # The directory to store reflex dependencies.
+@@ -117,7 +113,7 @@ class Next(SimpleNamespace):
+     # The NextJS config file
+     CONFIG_FILE = "next.config.js"
+     # The sitemap config file.
+-    SITEMAP_CONFIG_FILE = os.path.join(Dirs.WEB, "next-sitemap.config.js")
++    SITEMAP_CONFIG_FILE = "next-sitemap.config.js"
+     # The node modules directory.
+     NODE_MODULES = "node_modules"
+     # The package lock file.
+diff --git a/reflex/constants/compiler.py b/reflex/constants/compiler.py
+index 96e8b03ba7e..0c71dae0d96 100644
+--- a/reflex/constants/compiler.py
++++ b/reflex/constants/compiler.py
+@@ -12,7 +12,7 @@
+ SETTER_PREFIX = "set_"
+ 
+ # The file used to specify no compilation.
+-NOCOMPILE_FILE = ".web/nocompile"
++NOCOMPILE_FILE = "nocompile"
+ 
+ 
+ class Ext(SimpleNamespace):
+@@ -80,6 +80,8 @@ class PageNames(SimpleNamespace):
+     DOCUMENT_ROOT = "_document"
+     # The name of the theme page.
+     THEME = "theme"
++    # The module containing components.
++    COMPONENTS = "components"
+     # The module containing shared stateful components
+     STATEFUL_COMPONENTS = "stateful_components"
+ 
+diff --git a/reflex/constants/installer.py b/reflex/constants/installer.py
+index 6fa0d2e3009..cb074e9f3e4 100644
+--- a/reflex/constants/installer.py
++++ b/reflex/constants/installer.py
+@@ -5,7 +5,7 @@
+ import platform
+ from types import SimpleNamespace
+ 
+-from .base import IS_WINDOWS, Dirs, Reflex
++from .base import IS_WINDOWS, Reflex
+ 
+ 
+ def get_fnm_name() -> str | None:
+@@ -105,7 +105,7 @@ class Commands(SimpleNamespace):
+         EXPORT_SITEMAP = "next build && next-sitemap"
+         PROD = "next start"
+ 
+-    PATH = os.path.join(Dirs.WEB, "package.json")
++    PATH = "package.json"
+ 
+     DEPENDENCIES = {
+         "@emotion/react": "11.11.1",
+diff --git a/reflex/constants/style.py b/reflex/constants/style.py
+index d0f72995e82..cd0fa1a2ad0 100644
+--- a/reflex/constants/style.py
++++ b/reflex/constants/style.py
+@@ -1,13 +1,6 @@
+ """Style constants."""
+-
+-import os
+ from types import SimpleNamespace
+ 
+-from reflex.constants.base import Dirs
+-
+-# The directory where styles are located.
+-STYLES_DIR = os.path.join(Dirs.WEB, "styles")
+-
+ 
+ class Tailwind(SimpleNamespace):
+     """Tailwind constants."""
+@@ -15,8 +8,8 @@ class Tailwind(SimpleNamespace):
+     # The Tailwindcss version
+     VERSION = "tailwindcss@3.3.2"
+     # The Tailwind config.
+-    CONFIG = os.path.join(Dirs.WEB, "tailwind.config.js")
++    CONFIG = "tailwind.config.js"
+     # Default Tailwind content paths
+     CONTENT = ["./pages/**/*.{js,ts,jsx,tsx}", "./utils/**/*.{js,ts,jsx,tsx}"]
+-    # Relative tailwind style path to root stylesheet in STYLES_DIR.
++    # Relative tailwind style path to root stylesheet in Dirs.STYLES.
+     ROOT_STYLE_PATH = "./tailwind.css"
+diff --git a/reflex/utils/build.py b/reflex/utils/build.py
+index 65bb8b04c4d..7a67ec32e94 100644
+--- a/reflex/utils/build.py
++++ b/reflex/utils/build.py
+@@ -18,7 +18,7 @@
+ def set_env_json():
+     """Write the upload url to a REFLEX_JSON."""
+     path_ops.update_json_file(
+-        constants.Dirs.ENV_JSON,
++        str(prerequisites.get_web_dir() / constants.Dirs.ENV_JSON),
+         {endpoint.name: endpoint.get_url() for endpoint in constants.Endpoint},
+     )
+ 
+@@ -55,8 +55,8 @@ def generate_sitemap_config(deploy_url: str, export=False):
+ 
+     config = json.dumps(config)
+ 
+-    with open(constants.Next.SITEMAP_CONFIG_FILE, "w") as f:
+-        f.write(templates.SITEMAP_CONFIG(config=config))
++    sitemap = prerequisites.get_web_dir() / constants.Next.SITEMAP_CONFIG_FILE
++    sitemap.write_text(templates.SITEMAP_CONFIG(config=config))
+ 
+ 
+ def _zip(
+@@ -129,85 +129,89 @@ def _zip(
+             zipf.write(file, os.path.relpath(file, root_dir))
+ 
+ 
+-def export(
+-    backend: bool = True,
++def zip_app(
+     frontend: bool = True,
+-    zip: bool = False,
++    backend: bool = True,
+     zip_dest_dir: str = os.getcwd(),
+-    deploy_url: str | None = None,
+     upload_db_file: bool = False,
+ ):
+-    """Export the app for deployment.
++    """Zip up the app.
+ 
+     Args:
+-        backend: Whether to zip up the backend app.
+         frontend: Whether to zip up the frontend app.
+-        zip: Whether to zip the app.
+-        zip_dest_dir: The destination directory for created zip files (if any)
+-        deploy_url: The URL of the deployed app.
+-        upload_db_file: Whether to include local sqlite db files from the backend zip.
++        backend: Whether to zip up the backend app.
++        zip_dest_dir: The directory to export the zip file to.
++        upload_db_file: Whether to upload the database file.
+     """
+-    # Remove the static folder.
+-    path_ops.rm(constants.Dirs.WEB_STATIC)
+-
+-    # The export command to run.
+-    command = "export"
++    files_to_exclude = {
++        constants.ComponentName.FRONTEND.zip(),
++        constants.ComponentName.BACKEND.zip(),
++    }
+ 
+     if frontend:
+-        checkpoints = [
+-            "Linting and checking ",
+-            "Creating an optimized production build",
+-            "Route (pages)",
+-            "prerendered as static HTML",
+-            "Collecting page data",
+-            "Finalizing page optimization",
+-            "Collecting build traces",
+-        ]
++        _zip(
++            component_name=constants.ComponentName.FRONTEND,
++            target=os.path.join(zip_dest_dir, constants.ComponentName.FRONTEND.zip()),
++            root_dir=str(prerequisites.get_web_dir() / constants.Dirs.STATIC),
++            files_to_exclude=files_to_exclude,
++            exclude_venv_dirs=False,
++        )
+ 
+-        # Generate a sitemap if a deploy URL is provided.
+-        if deploy_url is not None:
+-            generate_sitemap_config(deploy_url, export=zip)
+-            command = "export-sitemap"
++    if backend:
++        _zip(
++            component_name=constants.ComponentName.BACKEND,
++            target=os.path.join(zip_dest_dir, constants.ComponentName.BACKEND.zip()),
++            root_dir=".",
++            dirs_to_exclude={"__pycache__"},
++            files_to_exclude=files_to_exclude,
++            top_level_dirs_to_exclude={"assets"},
++            exclude_venv_dirs=True,
++            upload_db_file=upload_db_file,
++        )
+ 
+-            checkpoints.extend(["Loading next-sitemap", "Generation completed"])
+ 
+-        # Start the subprocess with the progress bar.
+-        process = processes.new_process(
+-            [prerequisites.get_package_manager(), "run", command],
+-            cwd=constants.Dirs.WEB,
+-            shell=constants.IS_WINDOWS,
+-        )
+-        processes.show_progress("Creating Production Build", process, checkpoints)
+-
+-    # Zip up the app.
+-    if zip:
+-        files_to_exclude = {
+-            constants.ComponentName.FRONTEND.zip(),
+-            constants.ComponentName.BACKEND.zip(),
+-        }
+-        if frontend:
+-            _zip(
+-                component_name=constants.ComponentName.FRONTEND,
+-                target=os.path.join(
+-                    zip_dest_dir, constants.ComponentName.FRONTEND.zip()
+-                ),
+-                root_dir=constants.Dirs.WEB_STATIC,
+-                files_to_exclude=files_to_exclude,
+-                exclude_venv_dirs=False,
+-            )
+-        if backend:
+-            _zip(
+-                component_name=constants.ComponentName.BACKEND,
+-                target=os.path.join(
+-                    zip_dest_dir, constants.ComponentName.BACKEND.zip()
+-                ),
+-                root_dir=".",
+-                dirs_to_exclude={"__pycache__"},
+-                files_to_exclude=files_to_exclude,
+-                top_level_dirs_to_exclude={"assets"},
+-                exclude_venv_dirs=True,
+-                upload_db_file=upload_db_file,
+-            )
++def build(
++    deploy_url: str | None = None,
++    for_export: bool = False,
++):
++    """Build the app for deployment.
++
++    Args:
++        deploy_url: The deployment URL.
++        for_export: Whether the build is for export.
++    """
++    wdir = prerequisites.get_web_dir()
++
++    # Clean the static directory if it exists.
++    path_ops.rm(str(wdir / constants.Dirs.STATIC))
++
++    # The export command to run.
++    command = "export"
++
++    checkpoints = [
++        "Linting and checking ",
++        "Creating an optimized production build",
++        "Route (pages)",
++        "prerendered as static HTML",
++        "Collecting page data",
++        "Finalizing page optimization",
++        "Collecting build traces",
++    ]
++
++    # Generate a sitemap if a deploy URL is provided.
++    if deploy_url is not None:
++        generate_sitemap_config(deploy_url, export=for_export)
++        command = "export-sitemap"
++
++        checkpoints.extend(["Loading next-sitemap", "Generation completed"])
++
++    # Start the subprocess with the progress bar.
++    process = processes.new_process(
++        [prerequisites.get_package_manager(), "run", command],
++        cwd=wdir,
++        shell=constants.IS_WINDOWS,
++    )
++    processes.show_progress("Creating Production Build", process, checkpoints)
+ 
+ 
+ def setup_frontend(
+@@ -226,7 +230,7 @@ def setup_frontend(
+     # Copy asset files to public folder.
+     path_ops.cp(
+         src=str(root / constants.Dirs.APP_ASSETS),
+-        dest=str(root / constants.Dirs.WEB_ASSETS),
++        dest=str(root / prerequisites.get_web_dir() / constants.Dirs.PUBLIC),
+     )
+ 
+     # Set the environment variables in client (env.json).
+@@ -242,7 +246,7 @@ def setup_frontend(
+                 "telemetry",
+                 "disable",
+             ],
+-            cwd=constants.Dirs.WEB,
++            cwd=prerequisites.get_web_dir(),
+             stdout=subprocess.DEVNULL,
+             shell=constants.IS_WINDOWS,
+         )
+@@ -259,7 +263,7 @@ def setup_frontend_prod(
+         disable_telemetry: Whether to disable the Next telemetry.
+     """
+     setup_frontend(root, disable_telemetry)
+-    export(deploy_url=get_config().deploy_url)
++    build(deploy_url=get_config().deploy_url)
+ 
+ 
+ def _looks_like_venv_dir(dir_to_check: str) -> bool:
+diff --git a/reflex/utils/exec.py b/reflex/utils/exec.py
+index 3af5b803413..effefc315e7 100644
+--- a/reflex/utils/exec.py
++++ b/reflex/utils/exec.py
+@@ -17,6 +17,7 @@
+ from reflex import constants
+ from reflex.config import get_config
+ from reflex.utils import console, path_ops
++from reflex.utils.prerequisites import get_web_dir
+ from reflex.utils.watch import AssetFolderWatch
+ 
+ # For uvicorn windows bug fix (#2335)
+@@ -82,8 +83,8 @@ def run_process_and_launch_url(run_command: list[str], backend_present=True):
+     """
+     from reflex.utils import processes
+ 
+-    json_file_path = os.path.join(constants.Dirs.WEB, "package.json")
+-    last_hash = detect_package_change(json_file_path)
++    json_file_path = get_web_dir() / constants.PackageJson.PATH
++    last_hash = detect_package_change(str(json_file_path))
+     process = None
+     first_run = True
+ 
+@@ -94,7 +95,7 @@ def run_process_and_launch_url(run_command: list[str], backend_present=True):
+                 kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore
+             process = processes.new_process(
+                 run_command,
+-                cwd=constants.Dirs.WEB,
++                cwd=get_web_dir(),
+                 shell=constants.IS_WINDOWS,
+                 **kwargs,
+             )
+@@ -121,7 +122,7 @@ def run_process_and_launch_url(run_command: list[str], backend_present=True):
+                             "`REFLEX_USE_NPM=1 reflex init`\n"
+                             "`REFLEX_USE_NPM=1 reflex run`"
+                         )
+-                    new_hash = detect_package_change(json_file_path)
++                    new_hash = detect_package_change(str(json_file_path))
+                     if new_hash != last_hash:
+                         last_hash = new_hash
+                         kill(process.pid)
+@@ -194,10 +195,10 @@ def run_backend(
+     config = get_config()
+     app_module = f"reflex.app_module_for_backend:{constants.CompileVars.APP}"
+ 
++    web_dir = get_web_dir()
+     # Create a .nocompile file to skip compile for backend.
+-    if os.path.exists(constants.Dirs.WEB):
+-        with open(constants.NOCOMPILE_FILE, "w"):
+-            pass
++    if web_dir.exists():
++        (web_dir / constants.NOCOMPILE_FILE).touch()
+ 
+     # Run the backend in development mode.
+     uvicorn.run(
+@@ -207,7 +208,7 @@ def run_backend(
+         log_level=loglevel.value,
+         reload=True,
+         reload_dirs=[config.app_name],
+-        reload_excludes=[constants.Dirs.WEB],
++        reload_excludes=[str(web_dir)],
+     )
+ 
+ 
+diff --git a/reflex/utils/export.py b/reflex/utils/export.py
+index 3116f48594d..14cde291c84 100644
+--- a/reflex/utils/export.py
++++ b/reflex/utils/export.py
+@@ -55,15 +55,18 @@ def export(
+         # Set up .web directory and install frontend dependencies.
+         build.setup_frontend(Path.cwd())
+ 
+-    # Export the app.
+-    build.export(
+-        backend=backend,
+-        frontend=frontend,
+-        zip=zipping,
+-        zip_dest_dir=zip_dest_dir,
+-        deploy_url=config.deploy_url,
+-        upload_db_file=upload_db_file,
+-    )
++    # Build the static app.
++    if frontend:
++        build.build(deploy_url=config.deploy_url, for_export=True)
++
++    # Zip up the app.
++    if zipping:
++        build.zip_app(
++            frontend=frontend,
++            backend=backend,
++            zip_dest_dir=zip_dest_dir,
++            upload_db_file=upload_db_file,
++        )
+ 
+     # Post a telemetry event.
+     telemetry.send("export")
+diff --git a/reflex/utils/path_ops.py b/reflex/utils/path_ops.py
+index 3073dca0eca..39f2138f8f7 100644
+--- a/reflex/utils/path_ops.py
++++ b/reflex/utils/path_ops.py
+@@ -14,19 +14,20 @@
+ join = os.linesep.join
+ 
+ 
+-def rm(path: str):
++def rm(path: str | Path):
+     """Remove a file or directory.
+ 
+     Args:
+         path: The path to the file or directory.
+     """
+-    if os.path.isdir(path):
++    path = Path(path)
++    if path.is_dir():
+         shutil.rmtree(path)
+-    elif os.path.isfile(path):
+-        os.remove(path)
++    elif path.is_file():
++        path.unlink()
+ 
+ 
+-def cp(src: str, dest: str, overwrite: bool = True) -> bool:
++def cp(src: str | Path, dest: str | Path, overwrite: bool = True) -> bool:
+     """Copy a file or directory.
+ 
+     Args:
+@@ -37,11 +38,12 @@ def cp(src: str, dest: str, overwrite: bool = True) -> bool:
+     Returns:
+         Whether the copy was successful.
+     """
++    src, dest = Path(src), Path(dest)
+     if src == dest:
+         return False
+-    if not overwrite and os.path.exists(dest):
++    if not overwrite and dest.exists():
+         return False
+-    if os.path.isdir(src):
++    if src.is_dir():
+         rm(dest)
+         shutil.copytree(src, dest)
+     else:
+@@ -49,7 +51,7 @@ def cp(src: str, dest: str, overwrite: bool = True) -> bool:
+     return True
+ 
+ 
+-def mv(src: str, dest: str, overwrite: bool = True) -> bool:
++def mv(src: str | Path, dest: str | Path, overwrite: bool = True) -> bool:
+     """Move a file or directory.
+ 
+     Args:
+@@ -60,25 +62,26 @@ def mv(src: str, dest: str, overwrite: bool = True) -> bool:
+     Returns:
+         Whether the move was successful.
+     """
++    src, dest = Path(src), Path(dest)
+     if src == dest:
+         return False
+-    if not overwrite and os.path.exists(dest):
++    if not overwrite and dest.exists():
+         return False
+     rm(dest)
+     shutil.move(src, dest)
+     return True
+ 
+ 
+-def mkdir(path: str):
++def mkdir(path: str | Path):
+     """Create a directory.
+ 
+     Args:
+         path: The path to the directory.
+     """
+-    os.makedirs(path, exist_ok=True)
++    Path(path).mkdir(parents=True, exist_ok=True)
+ 
+ 
+-def ln(src: str, dest: str, overwrite: bool = False) -> bool:
++def ln(src: str | Path, dest: str | Path, overwrite: bool = False) -> bool:
+     """Create a symbolic link.
+ 
+     Args:
+@@ -89,19 +92,20 @@ def ln(src: str, dest: str, overwrite: bool = False) -> bool:
+     Returns:
+         Whether the link was successful.
+     """
++    src, dest = Path(src), Path(dest)
+     if src == dest:
+         return False
+-    if not overwrite and (os.path.exists(dest) or os.path.islink(dest)):
++    if not overwrite and (dest.exists() or dest.is_symlink()):
+         return False
+-    if os.path.isdir(src):
++    if src.is_dir():
+         rm(dest)
+-        os.symlink(src, dest, target_is_directory=True)
++        src.symlink_to(dest, target_is_directory=True)
+     else:
+-        os.symlink(src, dest)
++        src.symlink_to(dest)
+     return True
+ 
+ 
+-def which(program: str) -> str | None:
++def which(program: str | Path) -> str | Path | None:
+     """Find the path to an executable.
+ 
+     Args:
+@@ -110,7 +114,7 @@ def which(program: str) -> str | None:
+     Returns:
+         The path to the executable.
+     """
+-    return shutil.which(program)
++    return shutil.which(str(program))
+ 
+ 
+ def get_node_bin_path() -> str | None:
+@@ -119,10 +123,11 @@ def get_node_bin_path() -> str | None:
+     Returns:
+         The path to the node bin folder.
+     """
+-    if not os.path.exists(constants.Node.BIN_PATH):
++    bin_path = Path(constants.Node.BIN_PATH)
++    if not bin_path.exists():
+         str_path = which("node")
+         return str(Path(str_path).parent.resolve()) if str_path else str_path
+-    return str(Path(constants.Node.BIN_PATH).resolve())
++    return str(bin_path.resolve())
+ 
+ 
+ def get_node_path() -> str | None:
+@@ -131,9 +136,10 @@ def get_node_path() -> str | None:
+     Returns:
+         The path to the node binary file.
+     """
+-    if not os.path.exists(constants.Node.PATH):
+-        return which("node")
+-    return constants.Node.PATH
++    node_path = Path(constants.Node.PATH)
++    if not node_path.exists():
++        return str(which("node"))
++    return str(node_path)
+ 
+ 
+ def get_npm_path() -> str | None:
+@@ -142,12 +148,13 @@ def get_npm_path() -> str | None:
+     Returns:
+         The path to the npm binary file.
+     """
+-    if not os.path.exists(constants.Node.PATH):
+-        return which("npm")
+-    return constants.Node.NPM_PATH
++    npm_path = Path(constants.Node.NPM_PATH)
++    if not npm_path.exists():
++        return str(which("npm"))
++    return str(npm_path)
+ 
+ 
+-def update_json_file(file_path: str, update_dict: dict[str, int | str]):
++def update_json_file(file_path: str | Path, update_dict: dict[str, int | str]):
+     """Update the contents of a json file.
+ 
+     Args:
+@@ -176,7 +183,7 @@ def update_json_file(file_path: str, update_dict: dict[str, int | str]):
+         json.dump(json_object, f, ensure_ascii=False)
+ 
+ 
+-def find_replace(directory: str, find: str, replace: str):
++def find_replace(directory: str | Path, find: str, replace: str):
+     """Recursively find and replace text in files in a directory.
+ 
+     Args:
+@@ -184,11 +191,10 @@ def find_replace(directory: str, find: str, replace: str):
+         find: The text to find.
+         replace: The text to replace.
+     """
++    directory = Path(directory)
+     for root, _dirs, files in os.walk(directory):
+         for file in files:
+-            filepath = os.path.join(root, file)
+-            with open(filepath, "r", encoding="utf-8") as f:
+-                text = f.read()
++            filepath = Path(root, file)
++            text = filepath.read_text(encoding="utf-8")
+             text = re.sub(find, replace, text)
+-            with open(filepath, "w") as f:
+-                f.write(text)
++            filepath.write_text(text)
+diff --git a/reflex/utils/prerequisites.py b/reflex/utils/prerequisites.py
+index 8bdb4dde065..40dcf3348f2 100644
+--- a/reflex/utils/prerequisites.py
++++ b/reflex/utils/prerequisites.py
+@@ -58,6 +58,18 @@ class CpuInfo(Base):
+     address_width: Optional[int]
+ 
+ 
++def get_web_dir() -> Path:
++    """Get the working directory for the next.js commands.
++
++    Can be overriden with REFLEX_WEB_WORKDIR.
++
++    Returns:
++        The working directory.
++    """
++    workdir = Path(os.getenv("REFLEX_WEB_WORKDIR", constants.Dirs.WEB))
++    return workdir
++
++
+ def check_latest_package_version(package_name: str):
+     """Check if the latest version of the package is installed.
+ 
+@@ -91,15 +103,15 @@ def get_or_set_last_reflex_version_check_datetime():
+     Returns:
+         The last version check datetime.
+     """
+-    if not os.path.exists(constants.Reflex.JSON):
++    reflex_json_file = get_web_dir() / constants.Reflex.JSON
++    if not reflex_json_file.exists():
+         return None
+     # Open and read the file
+-    with open(constants.Reflex.JSON, "r") as file:
+-        data: dict = json.load(file)
++    data = json.loads(reflex_json_file.read_text())
+     last_version_check_datetime = data.get("last_version_check_datetime")
+     if not last_version_check_datetime:
+         data.update({"last_version_check_datetime": str(datetime.now())})
+-        path_ops.update_json_file(constants.Reflex.JSON, data)
++        path_ops.update_json_file(reflex_json_file, data)
+     return last_version_check_datetime
+ 
+ 
+@@ -513,12 +525,11 @@ def get_project_hash(raise_on_fail: bool = False) -> int | None:
+     Returns:
+         project_hash: The app hash.
+     """
+-    if not os.path.exists(constants.Reflex.JSON) and not raise_on_fail:
++    json_file = get_web_dir() / constants.Reflex.JSON
++    if not json_file.exists() and not raise_on_fail:
+         return None
+-    # Open and read the file
+-    with open(constants.Reflex.JSON, "r") as file:
+-        data = json.load(file)
+-        return data.get("project_hash")
++    data = json.loads(json_file.read_text())
++    return data.get("project_hash")
+ 
+ 
+ def initialize_web_directory():
+@@ -528,11 +539,11 @@ def initialize_web_directory():
+     # Re-use the hash if one is already created, so we don't over-write it when running reflex init
+     project_hash = get_project_hash()
+ 
+-    path_ops.cp(constants.Templates.Dirs.WEB_TEMPLATE, constants.Dirs.WEB)
++    path_ops.cp(constants.Templates.Dirs.WEB_TEMPLATE, str(get_web_dir()))
+ 
+     initialize_package_json()
+ 
+-    path_ops.mkdir(constants.Dirs.WEB_ASSETS)
++    path_ops.mkdir(get_web_dir() / constants.Dirs.PUBLIC)
+ 
+     update_next_config()
+ 
+@@ -555,10 +566,9 @@ def _compile_package_json():
+ 
+ def initialize_package_json():
+     """Render and write in .web the package.json file."""
+-    output_path = constants.PackageJson.PATH
++    output_path = get_web_dir() / constants.PackageJson.PATH
+     code = _compile_package_json()
+-    with open(output_path, "w") as file:
+-        file.write(code)
++    output_path.write_text(code)
+ 
+ 
+ def init_reflex_json(project_hash: int | None):
+@@ -583,7 +593,7 @@ def init_reflex_json(project_hash: int | None):
+         "version": constants.Reflex.VERSION,
+         "project_hash": project_hash,
+     }
+-    path_ops.update_json_file(constants.Reflex.JSON, reflex_json)
++    path_ops.update_json_file(get_web_dir() / constants.Reflex.JSON, reflex_json)
+ 
+ 
+ def update_next_config(export=False, transpile_packages: Optional[List[str]] = None):
+@@ -593,7 +603,7 @@ def update_next_config(export=False, transpile_packages: Optional[List[str]] = N
+         export: if the method run during reflex export.
+         transpile_packages: list of packages to transpile via next.config.js.
+     """
+-    next_config_file = Path(constants.Dirs.WEB, constants.Next.CONFIG_FILE)
++    next_config_file = get_web_dir() / constants.Next.CONFIG_FILE
+ 
+     next_config = _update_next_config(
+         get_config(), export=export, transpile_packages=transpile_packages
+@@ -845,9 +855,7 @@ def _inner(*args, **kwargs):
+ 
+ 
+ @cached_procedure(
+-    cache_file=os.path.join(
+-        constants.Dirs.WEB, "reflex.install_frontend_packages.cached"
+-    ),
++    cache_file=str(get_web_dir() / "reflex.install_frontend_packages.cached"),
+     payload_fn=lambda p, c: f"{repr(sorted(list(p)))},{c.json()}",
+ )
+ def install_frontend_packages(packages: set[str], config: Config):
+@@ -874,7 +882,7 @@ def install_frontend_packages(packages: set[str], config: Config):
+         fallback=fallback_command,
+         analytics_enabled=True,
+         show_status_message="Installing base frontend packages",
+-        cwd=constants.Dirs.WEB,
++        cwd=get_web_dir(),
+         shell=constants.IS_WINDOWS,
+     )
+ 
+@@ -890,7 +898,7 @@ def install_frontend_packages(packages: set[str], config: Config):
+             fallback=fallback_command,
+             analytics_enabled=True,
+             show_status_message="Installing tailwind",
+-            cwd=constants.Dirs.WEB,
++            cwd=get_web_dir(),
+             shell=constants.IS_WINDOWS,
+         )
+ 
+@@ -901,7 +909,7 @@ def install_frontend_packages(packages: set[str], config: Config):
+             fallback=fallback_command,
+             analytics_enabled=True,
+             show_status_message="Installing frontend packages from config and components",
+-            cwd=constants.Dirs.WEB,
++            cwd=get_web_dir(),
+             shell=constants.IS_WINDOWS,
+         )
+ 
+@@ -933,7 +941,7 @@ def needs_reinit(frontend: bool = True) -> bool:
+         return True
+ 
+     # Make sure the .web directory exists in frontend mode.
+-    if not os.path.exists(constants.Dirs.WEB):
++    if not get_web_dir().exists():
+         return True
+ 
+     # If the template is out of date, then we need to re-init
+@@ -971,10 +979,10 @@ def is_latest_template() -> bool:
+     Returns:
+         Whether the app is using the latest template.
+     """
+-    if not os.path.exists(constants.Reflex.JSON):
++    json_file = get_web_dir() / constants.Reflex.JSON
++    if not json_file.exists():
+         return False
+-    with open(constants.Reflex.JSON) as f:  # type: ignore
+-        app_version = json.load(f)["version"]
++    app_version = json.load(json_file.open()).get("version")
+     return app_version == constants.Reflex.VERSION
+ 
+ 
+@@ -1170,7 +1178,7 @@ def should_show_rx_chakra_migration_instructions() -> bool:
+         return False
+ 
+     existing_init_reflex_version = None
+-    reflex_json = Path(constants.Dirs.REFLEX_JSON)
++    reflex_json = get_web_dir() / constants.Dirs.REFLEX_JSON
+     if reflex_json.exists():
+         with reflex_json.open("r") as f:
+             data = json.load(f)
+diff --git a/reflex/utils/watch.py b/reflex/utils/watch.py
+index a56635d6eba..39b17769572 100644
+--- a/reflex/utils/watch.py
++++ b/reflex/utils/watch.py
+@@ -9,6 +9,7 @@
+ from watchdog.observers import Observer
+ 
+ from reflex.constants import Dirs
++from reflex.utils.prerequisites import get_web_dir
+ 
+ 
+ class AssetFolderWatch:
+@@ -90,5 +91,6 @@ def get_dest_path(self, src_path: str) -> str:
+             The public file path.
+         """
+         return src_path.replace(
+-            str(self.root / Dirs.APP_ASSETS), str(self.root / Dirs.WEB_ASSETS)
++            str(self.root / Dirs.APP_ASSETS),
++            str(self.root / get_web_dir() / Dirs.PUBLIC),
+         )

@@ -1,0 +1,20 @@
+diff --git a/news/2816.bugfix.md b/news/2816.bugfix.md
+new file mode 100644
+index 0000000000..9123b0531a
+--- /dev/null
++++ b/news/2816.bugfix.md
+@@ -0,0 +1,1 @@
++Don't cache editable installations.
+diff --git a/src/pdm/installers/manager.py b/src/pdm/installers/manager.py
+index 1835cfba16..2ad07e54d4 100644
+--- a/src/pdm/installers/manager.py
++++ b/src/pdm/installers/manager.py
+@@ -33,7 +33,7 @@ def install(self, candidate: Candidate) -> Distribution:
+             prepared.build(),
+             self.environment,
+             direct_url=prepared.direct_url(),
+-            install_links=self.use_install_cache,
++            install_links=self.use_install_cache and not candidate.req.editable,
+             rename_pth=self.rename_pth,
+         )
+         return Distribution.at(dist_info)

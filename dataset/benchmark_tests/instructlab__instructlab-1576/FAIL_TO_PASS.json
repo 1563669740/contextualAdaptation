@@ -1,0 +1,4 @@
+[
+  "tests/test_backends.py::test_get_backend_auto_detection_failure_vllm_dir_but_not_linux",
+  "tests/test_backends.py::test_get_backend_auto_detection_failed_vllm_dir_darwin"
+]

@@ -1,0 +1,9 @@
+[
+  "tests/test_dates.py::test_week_numbering_isocalendar",
+  "tests/test_dates.py::test_week_numbering_monday_mindays_4",
+  "tests/test_dates.py::test_week_numbering_monday_mindays_1",
+  "tests/test_dates.py::test_week_numbering_sunday_mindays_1",
+  "tests/test_dates.py::test_week_numbering_sunday_mindays_4",
+  "tests/test_dates.py::test_week_numbering_friday_mindays_1",
+  "tests/test_dates.py::test_week_numbering_saturday_mindays_1"
+]

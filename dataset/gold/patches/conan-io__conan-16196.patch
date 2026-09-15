@@ -1,0 +1,500 @@
+diff --git a/conan/api/subapi/new.py b/conan/api/subapi/new.py
+index 573ce75d49d..a0cde2d20c6 100644
+--- a/conan/api/subapi/new.py
++++ b/conan/api/subapi/new.py
+@@ -26,6 +26,8 @@ def get_builtin_template(template_name):
+         from conan.internal.api.new.msbuild_exe import msbuild_exe_files
+         from conan.internal.api.new.bazel_lib import bazel_lib_files
+         from conan.internal.api.new.bazel_exe import bazel_exe_files
++        from conan.internal.api.new.bazel_7_lib import bazel_lib_files_7
++        from conan.internal.api.new.bazel_7_exe import bazel_exe_files_7
+         from conan.internal.api.new.autotools_lib import autotools_lib_files
+         from conan.internal.api.new.autoools_exe import autotools_exe_files
+         from conan.internal.api.new.local_recipes_index import local_recipes_index_files
+@@ -36,8 +38,11 @@ def get_builtin_template(template_name):
+                          "meson_exe": meson_exe_files,
+                          "msbuild_lib": msbuild_lib_files,
+                          "msbuild_exe": msbuild_exe_files,
++                         # TODO: Rename xxx_7 to xxx when dropped Bazel 6.x compatibility
+                          "bazel_lib": bazel_lib_files,
+                          "bazel_exe": bazel_exe_files,
++                         "bazel_7_lib": bazel_lib_files_7,
++                         "bazel_7_exe": bazel_exe_files_7,
+                          "autotools_lib": autotools_lib_files,
+                          "autotools_exe": autotools_exe_files,
+                          "alias": alias_file,
+diff --git a/conan/internal/api/new/bazel_7_exe.py b/conan/internal/api/new/bazel_7_exe.py
+new file mode 100644
+index 00000000000..570482a1d65
+--- /dev/null
++++ b/conan/internal/api/new/bazel_7_exe.py
+@@ -0,0 +1,70 @@
++from conan.internal.api.new.cmake_lib import source_cpp, source_h, test_main
++
++
++conanfile_exe = """
++import os
++from conan import ConanFile
++from conan.tools.google import Bazel, bazel_layout
++from conan.tools.files import copy
++
++
++class {{package_name}}Recipe(ConanFile):
++    name = "{{name}}"
++    version = "{{version}}"
++    package_type = "application"
++
++    # Binary configuration
++    settings = "os", "compiler", "build_type", "arch"
++
++    # Sources are located in the same place as this recipe, copy them to the recipe
++    exports_sources = "main/*", "MODULE.bazel"
++
++    generators = "BazelToolchain"
++
++    def layout(self):
++        bazel_layout(self)
++
++    def build(self):
++        bazel = Bazel(self)
++        bazel.build(target="//main:{{name}}")
++
++    def package(self):
++        dest_bin = os.path.join(self.package_folder, "bin")
++        build = os.path.join(self.build_folder, "bazel-bin", "main")
++        copy(self, "{{name}}", build, dest_bin, keep_path=False)
++        copy(self, "{{name}}.exe", build, dest_bin, keep_path=False)
++        """
++
++test_conanfile_exe_v2 = """from conan import ConanFile
++from conan.tools.build import can_run
++
++
++class {{package_name}}Test(ConanFile):
++    settings = "os", "compiler", "build_type", "arch"
++
++    def requirements(self):
++        self.requires(self.tested_reference_str)
++
++    def test(self):
++        if can_run(self):
++            self.run("{{name}}", env="conanrun")
++"""
++
++_bazel_build_exe = """\
++cc_binary(
++    name = "{{name}}",
++    srcs = ["main.cpp", "{{name}}.cpp", "{{name}}.h"]
++)
++"""
++
++_bazel_workspace = " "  # Important not empty, so template doesn't discard it
++
++
++bazel_exe_files_7 = {"conanfile.py": conanfile_exe,
++                     "main/{{name}}.cpp": source_cpp,
++                     "main/{{name}}.h": source_h,
++                     "main/main.cpp": test_main,
++                     "main/BUILD": _bazel_build_exe,
++                     "MODULE.bazel": _bazel_workspace,
++                     "test_package/conanfile.py": test_conanfile_exe_v2
++                   }
+diff --git a/conan/internal/api/new/bazel_7_lib.py b/conan/internal/api/new/bazel_7_lib.py
+new file mode 100644
+index 00000000000..024a0f23e8c
+--- /dev/null
++++ b/conan/internal/api/new/bazel_7_lib.py
+@@ -0,0 +1,142 @@
++from conan.internal.api.new.cmake_lib import source_cpp, source_h, test_main
++
++conanfile_sources_v2 = """
++import os
++from conan import ConanFile
++from conan.tools.google import Bazel, bazel_layout
++from conan.tools.files import copy
++
++class {{package_name}}Recipe(ConanFile):
++    name = "{{name}}"
++    version = "{{version}}"
++    package_type = "library"
++
++    # Binary configuration
++    settings = "os", "compiler", "build_type", "arch"
++    options = {"shared": [True, False], "fPIC": [True, False]}
++    default_options = {"shared": False, "fPIC": True}
++
++    # Sources are located in the same place as this recipe, copy them to the recipe
++    exports_sources = "main/*", "MODULE.bazel"
++    generators = "BazelToolchain"
++
++    def config_options(self):
++        if self.settings.os == "Windows":
++            self.options.rm_safe("fPIC")
++
++    def configure(self):
++        if self.options.shared:
++            self.options.rm_safe("fPIC")
++
++    def layout(self):
++        bazel_layout(self)
++
++    def build(self):
++        bazel = Bazel(self)
++        # On Linux platforms, Bazel creates both shared and static libraries by default, and
++        # it is getting naming conflicts if we use the cc_shared_library rule
++        if self.options.shared and self.settings.os != "Linux":
++            # We need to add '--experimental_cc_shared_library' because the project uses
++            # cc_shared_library to create shared libraries
++            bazel.build(args=["--experimental_cc_shared_library"], target="//main:{{name}}_shared")
++        else:
++            bazel.build(target="//main:{{name}}")
++
++    def package(self):
++        dest_lib = os.path.join(self.package_folder, "lib")
++        dest_bin = os.path.join(self.package_folder, "bin")
++        build = os.path.join(self.build_folder, "bazel-bin", "main")
++        copy(self, "*.so", build, dest_lib, keep_path=False)
++        copy(self, "*.dll", build, dest_bin, keep_path=False)
++        copy(self, "*.dylib", build, dest_lib, keep_path=False)
++        copy(self, "*.a", build, dest_lib, keep_path=False)
++        copy(self, "*.lib", build, dest_lib, keep_path=False)
++        copy(self, "{{name}}.h", os.path.join(self.source_folder, "main"),
++             os.path.join(self.package_folder, "include"), keep_path=False)
++
++    def package_info(self):
++        if self.options.shared and self.settings.os != "Linux":
++            self.cpp_info.libs = ["{{name}}_shared"]
++        else:
++            self.cpp_info.libs = ["{{name}}"]
++"""
++
++
++test_conanfile_v2 = """import os
++from conan import ConanFile
++from conan.tools.google import Bazel, bazel_layout
++from conan.tools.build import can_run
++
++
++class {{package_name}}TestConan(ConanFile):
++    settings = "os", "compiler", "build_type", "arch"
++    generators = "BazelToolchain", "BazelDeps"
++
++    def requirements(self):
++        self.requires(self.tested_reference_str)
++
++    def build(self):
++        bazel = Bazel(self)
++        bazel.build(target="//main:example")
++
++    def layout(self):
++        bazel_layout(self)
++
++    def test(self):
++        if can_run(self):
++            cmd = os.path.join(self.cpp.build.bindir, "main", "example")
++            self.run(cmd, env="conanrun")
++"""
++
++
++_bazel_build_test = """\
++cc_binary(
++    name = "example",
++    srcs = ["example.cpp"],
++    deps = [
++        "@{{name}}//:{{name}}",
++    ],
++)
++"""
++
++_bazel_build = """\
++cc_library(
++    name = "{{name}}",
++    srcs = ["{{name}}.cpp"],
++    hdrs = ["{{name}}.h"],
++)
++"""
++
++_bazel_build_shared = """
++cc_shared_library(
++    name = "{{name}}_shared",
++    shared_lib_name = "lib{{name}}_shared.%s",
++    deps = [":{{name}}"],
++)
++"""
++
++_bazel_workspace = " "  # Important not empty, so template doesn't discard it
++_test_bazel_module_bazel = """\
++load_conan_dependencies = use_extension("//conan:conan_deps_module_extension.bzl", "conan_extension")
++use_repo(load_conan_dependencies, "{{name}}")
++"""
++
++
++def _get_bazel_build():
++    import platform
++    os_ = platform.system()
++    ret = _bazel_build
++    if os_ != "Linux":
++        ret += _bazel_build_shared % ("dylib" if os_ == "Darwin" else "dll")
++    return ret
++
++
++bazel_lib_files_7 = {"conanfile.py": conanfile_sources_v2,
++                     "main/{{name}}.cpp": source_cpp,
++                     "main/{{name}}.h": source_h,
++                     "main/BUILD": _get_bazel_build(),
++                     "MODULE.bazel": _bazel_workspace,
++                     "test_package/conanfile.py": test_conanfile_v2,
++                     "test_package/main/example.cpp": test_main,
++                     "test_package/main/BUILD": _bazel_build_test,
++                     "test_package/MODULE.bazel": _test_bazel_module_bazel}
+diff --git a/conan/internal/api/new/bazel_exe.py b/conan/internal/api/new/bazel_exe.py
+index e8e733110a4..a68271d8556 100644
+--- a/conan/internal/api/new/bazel_exe.py
++++ b/conan/internal/api/new/bazel_exe.py
+@@ -18,13 +18,16 @@ class {{package_name}}Recipe(ConanFile):
+ 
+     # Sources are located in the same place as this recipe, copy them to the recipe
+     exports_sources = "main/*", "WORKSPACE"
+-
+     generators = "BazelToolchain"
+ 
+     def layout(self):
+         bazel_layout(self)
+ 
+     def build(self):
++        from conan.api.output import ConanOutput
++        ConanOutput().warning("This is the template for Bazel 6.x version, "
++                              "but it will be overridden by the 'bazel_7_exe' template "
++                              "(Bazel >= 7.1 compatible).", warn_tag="deprecated")
+         bazel = Bazel(self)
+         bazel.build(target="//main:{{name}}")
+ 
+@@ -51,8 +54,6 @@ def test(self):
+ """
+ 
+ _bazel_build_exe = """\
+-load("@rules_cc//cc:defs.bzl", "cc_binary")
+-
+ cc_binary(
+     name = "{{name}}",
+     srcs = ["main.cpp", "{{name}}.cpp", "{{name}}.h"]
+diff --git a/conan/internal/api/new/bazel_lib.py b/conan/internal/api/new/bazel_lib.py
+index 222dba65918..28328b20d97 100644
+--- a/conan/internal/api/new/bazel_lib.py
++++ b/conan/internal/api/new/bazel_lib.py
+@@ -32,6 +32,10 @@ def layout(self):
+         bazel_layout(self)
+ 
+     def build(self):
++        from conan.api.output import ConanOutput
++        ConanOutput().warning("This is the template for Bazel 6.x version, "
++                              "but it will be overridden by the 'bazel_7_lib' template "
++                              "(Bazel >= 7.1 compatible).", warn_tag="deprecated")
+         bazel = Bazel(self)
+         # On Linux platforms, Bazel creates both shared and static libraries by default, and
+         # it is getting naming conflicts if we use the cc_shared_library rule
+@@ -90,8 +94,6 @@ def test(self):
+ 
+ 
+ _bazel_build_test = """\
+-load("@rules_cc//cc:defs.bzl", "cc_binary")
+-
+ cc_binary(
+     name = "example",
+     srcs = ["example.cpp"],
+@@ -102,8 +104,6 @@ def test(self):
+ """
+ 
+ _bazel_build = """\
+-load("@rules_cc//cc:defs.bzl", "cc_library")
+-
+ cc_library(
+     name = "{{name}}",
+     srcs = ["{{name}}.cpp"],
+diff --git a/conan/tools/google/bazel.py b/conan/tools/google/bazel.py
+index baa5a5e8eb5..e0a8cbb4d9d 100644
+--- a/conan/tools/google/bazel.py
++++ b/conan/tools/google/bazel.py
+@@ -53,6 +53,8 @@ def build(self, args=None, target="//...", clean=True):
+         # See more info in https://bazel.build/run/bazelrc
+         bazelrc_paths.extend(self._conanfile.conf.get("tools.google.bazel:bazelrc_path", default=[],
+                                                       check_type=list))
++        # Note: In case of error like this: ... https://bcr.bazel.build/: PKIX path building failed
++        # Check this comment: https://github.com/bazelbuild/bazel/issues/3915#issuecomment-1120894057
+         command = "bazel"
+         for rc in bazelrc_paths:
+             rc = rc.replace("\\", "/")
+diff --git a/conan/tools/google/bazeldeps.py b/conan/tools/google/bazeldeps.py
+index b2d64f985c5..4cb213e8878 100644
+--- a/conan/tools/google/bazeldeps.py
++++ b/conan/tools/google/bazeldeps.py
+@@ -205,16 +205,22 @@ def _relativize_path(path, pattern):
+ 
+ class _BazelDependenciesBZLGenerator:
+     """
+-    Bazel needs to know all the dependencies for its current project. So, the only way
++    Bazel 6.0 needs to know all the dependencies for its current project. So, the only way
+     to do that is to tell the WORKSPACE file how to load all the Conan ones. This is the goal
+     of the function created by this class, the ``load_conan_dependencies`` one.
+ 
+     More information:
+         * https://bazel.build/reference/be/workspace#new_local_repository
++
++    Bazel >= 7.1 needs to know all the dependencies as well, but provided via the MODULE.bazel file.
++    Therefor we provide a static repository rule to load the dependencies. This rule is used by a
++    module extension, passing the package path and the BUILD file path to the repository rule.
+     """
+ 
+-    filename = "dependencies.bzl"
+-    template = textwrap.dedent("""\
++    repository_filename = "dependencies.bzl"
++    modules_filename = "conan_deps_module_extension.bzl"
++    repository_rules_filename = "conan_deps_repo_rules.bzl"
++    repository_template = textwrap.dedent("""\
+         # This Bazel module should be loaded by your WORKSPACE file.
+         # Add these lines to your WORKSPACE one (assuming that you're using the "bazel_layout"):
+         # load("@//conan:dependencies.bzl", "load_conan_dependencies")
+@@ -229,19 +235,95 @@ def load_conan_dependencies():
+             )
+         {% endfor %}
+         """)
++    module_template = textwrap.dedent("""\
++        # This module provides a repo for each requires-dependency in your conanfile.
++        # It's generated by the BazelDeps, and should be used in your Module.bazel file.
++        load(":conan_deps_repo_rules.bzl", "conan_dependency_repo")
++
++        def _load_dependenies_impl(mctx):
++        {% for repository_name, pkg_folder, pkg_build_file_path in dependencies %}
++            conan_dependency_repo(
++                name = "{{repository_name}}",
++                package_path = "{{pkg_folder}}",
++                build_file_path = "{{pkg_build_file_path}}",
++            )
++        {% endfor %}
++
++            return mctx.extension_metadata(
++                # It will only warn you if any direct
++                # dependency is not imported by the 'use_repo' or even it is imported
++                # but not created. Notice that root_module_direct_dev_deps can not be None as we
++                # are giving 'all' value to root_module_direct_deps.
++                # Fix the 'use_repo' calls by running 'bazel mod tidy'
++                root_module_direct_deps = 'all',
++                root_module_direct_dev_deps = [],
++
++                # Prevent writing function content to lockfiles:
++                # - https://bazel.build/rules/lib/builtins/module_ctx#extension_metadata
++                # Important for remote build. Actually it's not reproducible, as local paths will
++                # be different on different machines. But we assume that conan works correctly here.
++                # IMPORTANT: Not compatible with bazel < 7.1
++                reproducible = True,
++            )
++
++        conan_extension = module_extension(
++            implementation = _load_dependenies_impl,
++            os_dependent = True,
++            arch_dependent = True,
++        )
++        """)
++    repository_rules_content = textwrap.dedent("""\
++        # This bazel repository rule is used to load Conan dependencies into the Bazel workspace.
++        # It's used by a generated module file that provides information about the conan packages.
++        # Each conan package is loaded into a bazel repository rule, with having the name of the
++        # package. The whole method is based on symlinks to not copy the whole package into the
++        # Bazel workspace, which is expensive.
++        def _conan_dependency_repo(rctx):
++            package_path = rctx.workspace_root.get_child(rctx.attr.package_path)
++
++            child_packages = package_path.readdir()
++            for child in child_packages:
++                rctx.symlink(child, child.basename)
++
++            rctx.symlink(rctx.attr.build_file_path, "BUILD.bazel")
++
++        conan_dependency_repo = repository_rule(
++            implementation = _conan_dependency_repo,
++            attrs = {
++                "package_path": attr.string(
++                    mandatory = True,
++                    doc = "The path to the Conan package in conan cache.",
++                ),
++                "build_file_path": attr.string(
++                    mandatory = True,
++                    doc = "The path to the BUILD file.",
++                ),
++            },
++        )
++        """)
+ 
+     def __init__(self, conanfile, dependencies):
+         self._conanfile = conanfile
+         self._dependencies = dependencies
+ 
++    def _generate_6x_compatible(self):
++        repository_template = Template(self.repository_template, trim_blocks=True,
++                                       lstrip_blocks=True,
++                                       undefined=StrictUndefined)
++        content = repository_template.render(dependencies=self._dependencies)
++        # dependencies.bzl file (Bazel 6.x compatible)
++        save(self.repository_filename, content)
++
+     def generate(self):
+-        template = Template(self.template, trim_blocks=True, lstrip_blocks=True,
+-                            undefined=StrictUndefined)
+-        content = template.render(dependencies=self._dependencies)
+-        # Saving the BUILD (empty) and dependencies.bzl files
+-        save(self.filename, content)
+-        save("BUILD.bazel", "# This is an empty BUILD file to be able to load the "
+-                            "dependencies.bzl one.")
++        # Keeping available Bazel 6.x, but it'll likely be dropped soon
++        self._generate_6x_compatible()
++        # Bazel 7.x files
++        module_template = Template(self.module_template, trim_blocks=True, lstrip_blocks=True,
++                                   undefined=StrictUndefined)
++        content = module_template.render(dependencies=self._dependencies)
++        save(self.modules_filename, content)
++        save(self.repository_rules_filename, self.repository_rules_content)
++        save("BUILD.bazel", "# This is an empty BUILD file.")
+ 
+ 
+ class _BazelBUILDGenerator:
+@@ -336,8 +418,6 @@ class _BazelBUILDGenerator:
+     )
+     {% endif %}
+     {% endmacro %}
+-    load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
+-
+     # Components precompiled libs
+     {% for component in components %}
+     {{ cc_import_macro(component["libs"]) }}
+@@ -557,14 +637,28 @@ def __init__(self, conanfile):
+ 
+     def generate(self):
+         """
+-        Generates all the targets <DEP>/BUILD.bazel files and the dependencies.bzl one in the
+-        build folder. It's important to highlight that the dependencies.bzl file should be loaded
+-        by your WORKSPACE Bazel file:
++        Generates all the targets <DEP>/BUILD.bazel files, a dependencies.bzl (for bazel<7), a
++        conan_deps_repo_rules.bzl and a conan_deps_module_extension.bzl file (for bazel>=7.1) one in the
++        build folder.
++
++        In case of bazel < 7, it's important to highlight that the ``dependencies.bzl`` file should
++        be loaded by your WORKSPACE Bazel file:
+ 
+         .. code-block:: python
+ 
+             load("@//[BUILD_FOLDER]:dependencies.bzl", "load_conan_dependencies")
+             load_conan_dependencies()
++
++        In case of bazel >= 7.1, the ``conan_deps_module_extension.bzl`` file should be loaded by your
++        Module.bazel file, e.g. like this:
++
++        .. code-block:: python
++
++            load_conan_dependencies = use_extension(
++                "//build:conan_deps_module_extension.bzl",
++                "conan_extension"
++            )
++            use_repo(load_conan_dependencies, "dep-1", "dep-2", ...)
+         """
+         check_duplicated_generator(self, self._conanfile)
+         requirements = _get_requirements(self._conanfile, self.build_context_activated)

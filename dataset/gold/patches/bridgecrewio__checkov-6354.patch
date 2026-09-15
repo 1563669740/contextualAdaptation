@@ -1,0 +1,32 @@
+diff --git a/checkov/terraform/checks/module/base_module_check.py b/checkov/terraform/checks/module/base_module_check.py
+index 62f0d0eceb..df2189d8e5 100644
+--- a/checkov/terraform/checks/module/base_module_check.py
++++ b/checkov/terraform/checks/module/base_module_check.py
+@@ -45,3 +45,7 @@ def scan_entity_conf(self, conf: Dict[str, List[Any]], entity_type: str) -> Chec
+     @abstractmethod
+     def scan_module_conf(self, conf: Dict[str, List[Any]]) -> CheckResult:
+         raise NotImplementedError()
++
++    @staticmethod
++    def is_git_source(source: str) -> bool:
++        return source.startswith('git@') or source.startswith('git::') or source.startswith('github.com') or source.startswith('bitbucket.org')
+diff --git a/checkov/terraform/checks/module/generic/RevisionVersionTag.py b/checkov/terraform/checks/module/generic/RevisionVersionTag.py
+index 14626ecf02..34a7b85072 100644
+--- a/checkov/terraform/checks/module/generic/RevisionVersionTag.py
++++ b/checkov/terraform/checks/module/generic/RevisionVersionTag.py
+@@ -27,8 +27,13 @@ def scan_module_conf(self, conf: dict[str, list[Any]]) -> CheckResult:
+         source = conf.get("source")
+         if source and isinstance(source, list):
+             source_url = source[0]
+-            if ("?ref" in source_url or "&ref" in source_url) and re.search(VERSION_PATTERN, source_url):
+-                return CheckResult.PASSED
++            if BaseModuleCheck.is_git_source(source_url):
++                if ("?ref" in source_url or "&ref" in source_url) and re.search(VERSION_PATTERN, source_url):
++                    return CheckResult.PASSED
++            else:
++                version = conf.get("version")
++                if source and isinstance(version, list):
++                    return CheckResult.PASSED
+ 
+         return CheckResult.FAILED
+ 

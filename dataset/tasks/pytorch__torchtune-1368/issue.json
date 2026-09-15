@@ -1,0 +1,13 @@
+{
+  "task_id": "pytorch__torchtune-1368",
+  "repo": "pytorch/torchtune",
+  "issue_number": "1327",
+  "issue_url": "https://github.com/pytorch/torchtune/issues/1327",
+  "issue_created_at": "1970-01-01 00:28:44.097701+00:00",
+  "issue_title": "Add validation to `ToMessages` classes `column_map` params",
+  "issue_body": "If the `column_map` is looking for \"input\" or \"user\" then we should throw an error if someone passes in a column map that does not match the correct key.\r\n\r\nexample:\r\n\r\n```\r\n>>> InputOutputToMessages(train_on_input=False, column_map={\"bananas\": \"input\"})\r\nValidationError(For this class you must specify a key of either \"input\" or \"output\", got \"bananas\")\r\n```",
+  "problem_statement": "Add validation to `ToMessages` classes `column_map` params\nIf the `column_map` is looking for \"input\" or \"user\" then we should throw an error if someone passes in a column map that does not match the correct key.\r\n\r\nexample:\r\n\r\n```\r\n>>> InputOutputToMessages(train_on_input=False, column_map={\"bananas\": \"input\"})\r\nValidationError(For this class you must specify a key of either \"input\" or \"output\", got \"bananas\")\r\n```\n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

@@ -1,0 +1,46 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 675c7f77c0a..39a6d2c6a14 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -73,6 +73,9 @@ Bugs fixed
+ * #12459: Add valid-type arguments to the ``linkcheck_rate_limit_timeout``
+   configuration setting.
+   Patch by James Addison.
++* #12331: Resolve data-URI-image-extraction regression from v7.3.0 affecting
++  builders without native support for data-URIs in their output format.
++  Patch by James Addison.
+ 
+ Improvements
+ ------------
+diff --git a/sphinx/builders/__init__.py b/sphinx/builders/__init__.py
+index bfbf116570e..de25ab06a2d 100644
+--- a/sphinx/builders/__init__.py
++++ b/sphinx/builders/__init__.py
+@@ -71,9 +71,9 @@ class Builder:
+     #: The list of MIME types of image formats supported by the builder.
+     #: Image files are searched in the order in which they appear here.
+     supported_image_types: list[str] = []
+-    #: The builder supports remote images or not.
++    #: The builder can produce output documents that may fetch external images when opened.
+     supported_remote_images = False
+-    #: The builder supports data URIs or not.
++    #: The file format produced by the builder allows images to be embedded using data-URIs.
+     supported_data_uri_images = False
+ 
+     def __init__(self, app: Sphinx, env: BuildEnvironment) -> None:
+diff --git a/sphinx/transforms/post_transforms/images.py b/sphinx/transforms/post_transforms/images.py
+index 589a8d6abb9..b679481e83d 100644
+--- a/sphinx/transforms/post_transforms/images.py
++++ b/sphinx/transforms/post_transforms/images.py
+@@ -115,10 +115,8 @@ class DataURIExtractor(BaseImageConverter):
+     default_priority = 150
+ 
+     def match(self, node: nodes.image) -> bool:
+-        if not self.app.builder.supported_remote_images:
+-            return False
+         if self.app.builder.supported_data_uri_images is True:
+-            return False
++            return False  # do not transform the image; data URIs are valid in the build output
+         return node['uri'].startswith('data:')
+ 
+     def handle(self, node: nodes.image) -> None:

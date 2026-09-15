@@ -1,0 +1,251 @@
+diff --git a/MANIFEST.in b/MANIFEST.in
+index 3aaf04a960..86910941db 100644
+--- a/MANIFEST.in
++++ b/MANIFEST.in
+@@ -1,6 +1,7 @@
+ include README.md
+ include LICENSE.md
+ include kedro/framework/project/default_logging.yml
++include kedro/framework/project/rich_logging.yml
+ include kedro/ipython/*.png
+ include kedro/ipython/*.svg
+ recursive-include kedro/templates *
+diff --git a/RELEASE.md b/RELEASE.md
+index 8f36fd345d..fabff95266 100644
+--- a/RELEASE.md
++++ b/RELEASE.md
+@@ -1,6 +1,7 @@
+ # Upcoming Release 0.19.6
+ 
+ ## Major features and improvements
++* It is now possible to use Kedro without having `rich` installed.
+ 
+ ## Bug fixes and other changes
+ * User defined catch-all dataset factory patterns now override the default pattern provided by the runner.
+diff --git a/docs/source/conf.py b/docs/source/conf.py
+index 21b9d6c4b4..49c0f119a7 100644
+--- a/docs/source/conf.py
++++ b/docs/source/conf.py
+@@ -234,6 +234,7 @@
+     # "anchor not found" but it's a valid selector for code examples
+     "https://docs.delta.io/latest/delta-update.html#language-python",
+     "https://github.com/kedro-org/kedro/blob/main/kedro/framework/project/default_logging.yml",
++    "https://github.com/kedro-org/kedro/blob/main/kedro/framework/project/rich_logging.yml",
+     "https://github.com/kedro-org/kedro/blob/main/README.md#the-humans-behind-kedro",  # "anchor not found" but is valid
+     "https://opensource.org/license/apache2-0-php/",
+     "https://docs.github.com/en/rest/overview/other-authentication-methods#via-username-and-password",
+diff --git a/docs/source/configuration/configuration_basics.md b/docs/source/configuration/configuration_basics.md
+index 7a4bebadee..ef69d149de 100644
+--- a/docs/source/configuration/configuration_basics.md
++++ b/docs/source/configuration/configuration_basics.md
+@@ -241,3 +241,21 @@ Customise the configuration loader arguments in `settings.py` as follows if your
+ ```python
+ CONFIG_LOADER_ARGS = {"default_run_env": "base"}
+ ```
++
++### How to use Kedro without the rich library
++
++If you prefer not to have the `rich` library in your Kedro project, you have the option to uninstall it. However, it's important to note that versions of the `cookiecutter` library above 2.3 have a dependency on rich. You will need to downgrade `cookiecutter` to a version below 2.3 to have Kedro work without `rich`.
++
++To uninstall the rich library, run:
++
++```bash
++pip uninstall rich
++```
++
++To downgrade cookiecutter to a version that does not require rich, you can specify a version below 2.3. For example:
++
++```bash
++pip install cookiecutter==2.2.0
++```
++
++These changes will affect the visual appearance and formatting of Kedro's logging, prompts, and the output of the `kedro ipython` command. While using a version of `cookiecutter` below 2.3, the appearance of the prompts will be plain even with `rich` installed.
+diff --git a/docs/source/faq/faq.md b/docs/source/faq/faq.md
+index 6193d96740..fdb9502bff 100644
+--- a/docs/source/faq/faq.md
++++ b/docs/source/faq/faq.md
+@@ -35,6 +35,7 @@ This is a growing set of technical FAQs. The [product FAQs on the Kedro website]
+ * [How do I specify additional configuration environments](../configuration/configuration_basics.md#how-to-specify-additional-configuration-environments)?
+ * [How do I change the default overriding configuration environment](../configuration/configuration_basics.md#how-to-change-the-default-overriding-environment)?
+ * [How do I use only one configuration environment](../configuration/configuration_basics.md#how-to-use-only-one-configuration-environment)?
++* [How do I use Kedro without the rich library](../configuration/configuration_basics.md#how-to-use-kedro-without-the-rich-library)?
+ 
+ ### Advanced topics
+ 
+diff --git a/docs/source/logging/index.md b/docs/source/logging/index.md
+index 7b0226e3bd..b38679a3c7 100644
+--- a/docs/source/logging/index.md
++++ b/docs/source/logging/index.md
+@@ -194,3 +194,21 @@ You must provide a value for both `COLUMNS` and `LINES` even if you only wish to
+ ## How to enable rich logging in Jupyter
+ 
+ Rich also formats the logs in JupyterLab and Jupyter Notebook. The size of the output console does not adapt to your window but can be controlled through the `JUPYTER_COLUMNS` and `JUPYTER_LINES` environment variables. The default values (115 and 100 respectively) should be suitable for most users, but if you require a different output console size then you should alter the values of `JUPYTER_COLUMNS` and `JUPYTER_LINES`.
++
++### How to use logging without the rich library
++
++If you prefer not to have the `rich` library in your Kedro project, you have the option to uninstall it. However, it's important to note that versions of the `cookiecutter` library above 2.3 have a dependency on rich. You will need to downgrade `cookiecutter` to a version below 2.3 to have Kedro work without `rich`.
++
++To uninstall the rich library, run:
++
++```bash
++pip uninstall rich
++```
++
++To downgrade cookiecutter to a version that does not require rich, you can specify a version below 2.3. For example:
++
++```bash
++pip install cookiecutter==2.2.0
++```
++
++These changes will affect the visual appearance and formatting of Kedro's logging, prompts, and the output of the `kedro ipython` command. While using a version of `cookiecutter` below 2.3, the appearance of the prompts will be plain even with `rich` installed.
+diff --git a/kedro/framework/project/__init__.py b/kedro/framework/project/__init__.py
+index b996b08387..7cfd2a9957 100644
+--- a/kedro/framework/project/__init__.py
++++ b/kedro/framework/project/__init__.py
+@@ -224,7 +224,14 @@ def __init__(self) -> None:
+         # Check if the default logging configuration exists
+         default_logging_path = Path("conf/logging.yml")
+         if not default_logging_path.exists():
+-            default_logging_path = Path(__file__).parent / "default_logging.yml"
++            default_logging_path = Path(
++                os.environ.get(
++                    "KEDRO_LOGGING_CONFIG",
++                    Path(__file__).parent / "rich_logging.yml"
++                    if importlib.util.find_spec("rich")
++                    else Path(__file__).parent / "default_logging.yml",
++                )
++            )
+ 
+         # Use the user path if available, otherwise, use the default path
+         if user_logging_path and Path(user_logging_path).exists():
+diff --git a/kedro/framework/project/default_logging.yml b/kedro/framework/project/default_logging.yml
+index 87fae8a25c..27feb17542 100644
+--- a/kedro/framework/project/default_logging.yml
++++ b/kedro/framework/project/default_logging.yml
+@@ -2,17 +2,30 @@ version: 1
+ 
+ disable_existing_loggers: False
+ 
++formatters:
++  simple:
++    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
++
+ handlers:
+-  rich:
+-    class: kedro.logging.RichHandler
+-    rich_tracebacks: True
+-    # Advance options for customisation.
+-    # See https://docs.kedro.org/en/stable/logging/logging.html#project-side-logging-configuration
+-    # tracebacks_show_locals: False
++  console:
++    class: logging.StreamHandler
++    level: INFO
++    formatter: simple
++    stream: ext://sys.stdout
++
++  info_file_handler:
++    class: logging.handlers.RotatingFileHandler
++    level: INFO
++    formatter: simple
++    filename: info.log
++    maxBytes: 10485760 # 10MB
++    backupCount: 20
++    encoding: utf8
++    delay: True
+ 
+ loggers:
+   kedro:
+     level: INFO
+ 
+ root:
+-  handlers: [rich]
++  handlers: [console]
+diff --git a/kedro/framework/project/rich_logging.yml b/kedro/framework/project/rich_logging.yml
+new file mode 100644
+index 0000000000..87fae8a25c
+--- /dev/null
++++ b/kedro/framework/project/rich_logging.yml
+@@ -0,0 +1,18 @@
++version: 1
++
++disable_existing_loggers: False
++
++handlers:
++  rich:
++    class: kedro.logging.RichHandler
++    rich_tracebacks: True
++    # Advance options for customisation.
++    # See https://docs.kedro.org/en/stable/logging/logging.html#project-side-logging-configuration
++    # tracebacks_show_locals: False
++
++loggers:
++  kedro:
++    level: INFO
++
++root:
++  handlers: [rich]
+diff --git a/kedro/ipython/__init__.py b/kedro/ipython/__init__.py
+index 182ff403f1..ee487582e8 100644
+--- a/kedro/ipython/__init__.py
++++ b/kedro/ipython/__init__.py
+@@ -5,6 +5,7 @@
+ 
+ from __future__ import annotations
+ 
++import importlib
+ import inspect
+ import logging
+ import os
+@@ -18,8 +19,12 @@
+ from IPython.core.getipython import get_ipython
+ from IPython.core.magic import needs_local_scope, register_line_magic
+ from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
+-from rich.console import Console
+-from rich.syntax import Syntax
++
++try:
++    import rich.console as rich_console
++    import rich.syntax as rich_syntax
++except ImportError:  # pragma: no cover
++    pass
+ 
+ from kedro.framework.cli import load_entry_points
+ from kedro.framework.cli.project import CONF_SOURCE_HELP, PARAMS_ARG_HELP
+@@ -39,6 +44,8 @@
+ 
+ FunctionParameters = MappingProxyType
+ 
++RICH_INSTALLED = True if importlib.util.find_spec("rich") is not None else False
++
+ 
+ def load_ipython_extension(ipython: Any) -> None:
+     """
+@@ -281,8 +288,14 @@ def _create_cell_with_text(text: str, is_jupyter: bool = True) -> None:
+ 
+ def _print_cells(cells: list[str]) -> None:
+     for cell in cells:
+-        Console().print("")
+-        Console().print(Syntax(cell, "python", theme="monokai", line_numbers=False))
++        if RICH_INSTALLED is True:
++            rich_console.Console().print("")
++            rich_console.Console().print(
++                rich_syntax.Syntax(cell, "python", theme="monokai", line_numbers=False)
++            )
++        else:
++            print("")  # noqa: T201
++            print(cell)  # noqa: T201
+ 
+ 
+ def _load_node(node_name: str, pipelines: _ProjectPipelines) -> list[str]:
+diff --git a/kedro/logging.py b/kedro/logging.py
+index 72d85d41c5..83e8204fec 100644
+--- a/kedro/logging.py
++++ b/kedro/logging.py
+@@ -1,7 +1,3 @@
+-"""
+-This module contains a logging handler class which produces coloured logs and tracebacks.
+-"""
+-
+ import logging
+ import sys
+ from pathlib import Path

@@ -1,0 +1,10 @@
+[
+  "tests/test_config.py::TestConfig::test_config",
+  "tests/test_config.py::TestConfig::test_config_missing_arguments",
+  "tests/test_config.py::TestConfig::test_config_unexpected_arguments",
+  "tests/test_lab_download.py::TestLabDownload::test_download",
+  "tests/test_lab_download.py::TestLabDownload::test_download_error",
+  "tests/test_lab_init.py::TestLabInit::test_config_pydantic",
+  "tests/test_lab_init.py::TestLabInit::test_init",
+  "tests/test_lab_init.py::TestLabInit::test_init_git_error"
+]

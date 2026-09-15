@@ -1,0 +1,15 @@
+[
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_video_only",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_audio_only",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_with_videoaudio_only[Only",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_with_videoaudio_only[With",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_audio_single",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_audio_multi",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_audio_multi_lang",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_audio_multi_lang_alpha3",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_audio_invalid_lang",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_audio_multi_lang_locale",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_duplicated_resolutions",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_duplicated_resolutions_sorted_bandwidth",
+  "tests/stream/dash/test_dash.py::TestDASHStreamParseManifest::test_segments_number_time"
+]

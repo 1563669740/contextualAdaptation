@@ -1,0 +1,308 @@
+diff --git a/docs/docs/usage/config.md b/docs/docs/usage/config.md
+index 70c9a95acc..84d7e1b4d0 100644
+--- a/docs/docs/usage/config.md
++++ b/docs/docs/usage/config.md
+@@ -324,6 +324,19 @@ In this example, PDM will resolve the above packages into the given versions no
+     By using `[tool.pdm.resolution.overrides]` setting, you are at your own risk of any incompatibilities from that resolution. It can only be used if there is no valid resolution for your requirements and you know the specific version works.
+     Most of the time, you can just add any transient constraints to the `dependencies` array.
+ 
++## Exclude specific packages and their dependencies from the lock file
++
++_New in version 2.12.0_
++
++Sometimes you don't even want to include certain packages in the locked file because you are sure they won't be used by any code. In this case, you can completely skip them and their dependencies during dependency resolution:
++
++```toml
++[tool.pdm.resolution]
++excludes = ["requests"]
++```
++
++With this config, `requests` will be locked in the lockfile, and its dependencies such as `urllib3` and `idna` will also not show up in the resolution result, if not depended on by other packages. The installer will not be able to pick them up either.
++
+ ## Passing constant arguments to every pdm invocation
+ 
+ _New in version 2.7.0_
+diff --git a/docs/docs/usage/dependency.md b/docs/docs/usage/dependency.md
+index 665194b317..948b95c81a 100644
+--- a/docs/docs/usage/dependency.md
++++ b/docs/docs/usage/dependency.md
+@@ -509,7 +509,7 @@ Unable to find a resolution for asgiref because of the following conflicts:
+ To fix this, you could loosen the dependency version constraints in pyproject.toml. If that is not possible, you could also override the resolved version in `[tool.pdm.resolution.overrides]` table.
+ ```
+ 
+-You can either change to a lower version of `django` or remove the upper bound of `asgiref`. But if it is not eligible for your project, you can try [overriding the resolved package versions](./config.md#override-the-resolved-package-versions) in `pyproject.toml`.
++You can either change to a lower version of `django` or remove the upper bound of `asgiref`. But if it is not eligible for your project, you can try [overriding the resolved package versions](./config.md#override-the-resolved-package-versions) or even [don't lock that specific package](./config.md#exclude-specific-packages-and-their-dependencies-from-the-lock-file) in `pyproject.toml`.
+ 
+ ## Manage global project
+ 
+diff --git a/news/1316.bugfix.md b/news/1316.bugfix.md
+new file mode 100644
+index 0000000000..3708ad7969
+--- /dev/null
++++ b/news/1316.bugfix.md
+@@ -0,0 +1,1 @@
++`tool.pdm.resolution` settings won't be honored when installing dependencies into the build environment.
+diff --git a/news/1316.feature.md b/news/1316.feature.md
+new file mode 100644
+index 0000000000..7da631cf84
+--- /dev/null
++++ b/news/1316.feature.md
+@@ -0,0 +1,1 @@
++Allow excluding packages from the lockfile via `tool.pdm.resolution.excludes` setting, the dependencies will also be skipped.
+diff --git a/src/pdm/environments/__init__.py b/src/pdm/environments/__init__.py
+index 244af85071..592faa5987 100644
+--- a/src/pdm/environments/__init__.py
++++ b/src/pdm/environments/__init__.py
+@@ -3,20 +3,15 @@
+ from pdm.environments.base import BareEnvironment, BaseEnvironment
+ from pdm.environments.local import PythonLocalEnvironment
+ from pdm.environments.python import PythonEnvironment
++from pdm.utils import deprecation_warning
+ 
+ _deprecated = {"Environment": PythonLocalEnvironment, "GlobalEnvironment": PythonEnvironment}
+ 
+ 
+ def __getattr__(name: str) -> Any:
+     if name in _deprecated:
+-        import warnings
+-
+         real = _deprecated[name]
+-        warnings.warn(
+-            f"{name} is deprecated, please use {real.__name__} instead",
+-            DeprecationWarning,
+-            stacklevel=2,
+-        )
++        deprecation_warning(f"{name} is deprecated, please use {real.__name__} instead", stacklevel=2)
+         return real
+     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+ 
+diff --git a/src/pdm/environments/base.py b/src/pdm/environments/base.py
+index d1349e6f9c..7416d61d36 100644
+--- a/src/pdm/environments/base.py
++++ b/src/pdm/environments/base.py
+@@ -13,12 +13,7 @@
+ from typing import TYPE_CHECKING, Generator
+ 
+ from pdm.exceptions import BuildError, PdmUsageError
+-from pdm.models.in_process import (
+-    get_pep508_environment,
+-    get_python_abis,
+-    get_uname,
+-    sysconfig_get_platform,
+-)
++from pdm.models.in_process import get_pep508_environment, get_python_abis, get_uname, sysconfig_get_platform
+ from pdm.models.python import PythonInfo
+ from pdm.models.working_set import WorkingSet
+ from pdm.utils import get_trusted_hosts, is_pip_compatible_with_python
+diff --git a/src/pdm/exceptions.py b/src/pdm/exceptions.py
+index 0eb87f6a0f..42a10ef827 100644
+--- a/src/pdm/exceptions.py
++++ b/src/pdm/exceptions.py
+@@ -1,5 +1,6 @@
+ from __future__ import annotations
+ 
++import warnings
+ from typing import TYPE_CHECKING
+ 
+ if TYPE_CHECKING:
+@@ -41,7 +42,7 @@ def __init__(self, candidate: Candidate) -> None:
+         super().__init__(message)
+ 
+ 
+-class PDMWarning(UserWarning):
++class PDMWarning(Warning):
+     pass
+ 
+ 
+@@ -49,10 +50,13 @@ class PackageWarning(PDMWarning):
+     pass
+ 
+ 
+-class PDMDeprecationWarning(PDMWarning):
++class PDMDeprecationWarning(PDMWarning, DeprecationWarning):
+     pass
+ 
+ 
++warnings.simplefilter("default", category=PDMDeprecationWarning)
++
++
+ class ExtrasWarning(PDMWarning):
+     def __init__(self, project_name: str, extras: list[str]) -> None:
+         super().__init__(f"Extras not found for {project_name}: [{','.join(extras)}]")
+diff --git a/src/pdm/installers/core.py b/src/pdm/installers/core.py
+index 32febcb3e9..69fbf86df0 100644
+--- a/src/pdm/installers/core.py
++++ b/src/pdm/installers/core.py
+@@ -15,6 +15,9 @@ def install_requirements(
+     # Rewrite the python requires to only resolve for the current python version.
+     environment.python_requires = PySpecSet(f"=={environment.interpreter.version}")
+     provider = project.get_provider(ignore_compatibility=False)
++    # Clear the overrides and excludes
++    provider.overrides = {}
++    provider.excludes = set()
+     reporter = project.get_reporter(reqs)
+     resolver = project.core.resolver_class(provider, reporter)
+     resolve_max_rounds = int(project.config["strategy.resolve_max_rounds"])
+diff --git a/src/pdm/models/environment.py b/src/pdm/models/environment.py
+index 3a5a184b1a..e44a85cc85 100644
+--- a/src/pdm/models/environment.py
++++ b/src/pdm/models/environment.py
+@@ -1,12 +1,11 @@
+ import sys
+-import warnings
+ 
+ from pdm import environments
++from pdm.utils import deprecation_warning
+ 
+-warnings.warn(
++deprecation_warning(
+     "pdm.models.environment is deprecated, please use pdm.environments instead. "
+     "This module will be removed in the future.",
+-    DeprecationWarning,
+     stacklevel=1,
+ )
+ 
+diff --git a/src/pdm/project/core.py b/src/pdm/project/core.py
+index bae163c732..31c63978b5 100644
+--- a/src/pdm/project/core.py
++++ b/src/pdm/project/core.py
+@@ -32,7 +32,6 @@
+     find_python_in_path,
+     is_conda_base,
+     is_conda_base_python,
+-    normalize_name,
+     path_to_url,
+ )
+ 
+@@ -431,7 +430,6 @@ def get_provider(
+ 
+         repository = self.get_repository(ignore_compatibility=ignore_compatibility)
+         allow_prereleases = self.allow_prereleases
+-        overrides = {normalize_name(k): v for k, v in self.pyproject.resolution_overrides.items()}
+         locked_repository: LockedRepository | None = None
+         if strategy != "all" or for_install:
+             try:
+@@ -442,13 +440,9 @@ def get_provider(
+                 self.core.ui.warn("Unable to reuse the lock file as it is not compatible with PDM")
+ 
+         if locked_repository is None:
+-            return BaseProvider(
+-                repository, allow_prereleases, overrides, direct_minimal_versions=direct_minimal_versions
+-            )
++            return BaseProvider(repository, allow_prereleases, direct_minimal_versions=direct_minimal_versions)
+         if for_install:
+-            return BaseProvider(
+-                locked_repository, allow_prereleases, overrides, direct_minimal_versions=direct_minimal_versions
+-            )
++            return BaseProvider(locked_repository, allow_prereleases, direct_minimal_versions=direct_minimal_versions)
+         provider_class = get_provider(strategy)
+         assert issubclass(provider_class, ReusePinProvider)
+         tracked_names = [strip_extras(name)[0] for name in tracked_names or ()]
+@@ -457,7 +451,6 @@ def get_provider(
+             tracked_names,
+             repository,
+             allow_prereleases,
+-            overrides,
+             direct_minimal_versions=direct_minimal_versions,
+         )
+ 
+diff --git a/src/pdm/project/project_file.py b/src/pdm/project/project_file.py
+index 5fca5310a2..b2c397ec0d 100644
+--- a/src/pdm/project/project_file.py
++++ b/src/pdm/project/project_file.py
+@@ -2,7 +2,7 @@
+ 
+ import hashlib
+ import json
+-from typing import Mapping
++from typing import Any, Mapping
+ 
+ from tomlkit import TOMLDocument, items
+ 
+@@ -60,12 +60,11 @@ def build_system(self) -> dict:
+         return self._data.get("build-system", {})
+ 
+     @property
+-    def resolution_overrides(self) -> Mapping[str, str]:
++    def resolution(self) -> Mapping[str, Any]:
+         """A compatible getter method for the resolution overrides
+         in the pyproject.toml file.
+         """
+-        settings = self.settings
+-        return settings.get("resolution", {}).get("overrides", {})
++        return self.settings.get("resolution", {})
+ 
+     def content_hash(self, algo: str = "sha256") -> str:
+         """Generate a hash of the sensible content of the pyproject.toml file.
+@@ -77,7 +76,7 @@ def content_hash(self, algo: str = "sha256") -> str:
+             "dev-dependencies": self.settings.get("dev-dependencies", {}),
+             "optional-dependencies": self.metadata.get("optional-dependencies", {}),
+             "requires-python": self.metadata.get("requires-python", ""),
+-            "overrides": self.resolution_overrides,
++            "overrides": self.resolution.get("overrides", {}),
+         }
+         pyproject_content = json.dumps(dump_data, sort_keys=True)
+         hasher = hashlib.new(algo)
+diff --git a/src/pdm/resolver/providers.py b/src/pdm/resolver/providers.py
+index c8728b83ed..7e408c2c64 100644
+--- a/src/pdm/resolver/providers.py
++++ b/src/pdm/resolver/providers.py
+@@ -11,14 +11,9 @@
+ from pdm.models.candidates import Candidate
+ from pdm.models.repositories import LockedRepository
+ from pdm.models.requirements import FileRequirement, parse_requirement, strip_extras
+-from pdm.resolver.python import (
+-    PythonCandidate,
+-    PythonRequirement,
+-    find_python_matches,
+-    is_python_satisfied_by,
+-)
++from pdm.resolver.python import PythonCandidate, PythonRequirement, find_python_matches, is_python_satisfied_by
+ from pdm.termui import logger
+-from pdm.utils import is_url, url_without_fragments
++from pdm.utils import deprecation_warning, is_url, normalize_name, url_without_fragments
+ 
+ if TYPE_CHECKING:
+     from typing import Any, Iterable, Iterator, Mapping, Sequence
+@@ -54,10 +49,18 @@ def __init__(
+         overrides: dict[str, str] | None = None,
+         direct_minimal_versions: bool = False,
+     ) -> None:
++        if overrides is not None:
++            deprecation_warning(
++                "The `overrides` argument is deprecated and will be removed in the future.", stacklevel=2
++            )
++        project = repository.environment.project
+         self.repository = repository
+         self.allow_prereleases = allow_prereleases  # Root allow_prereleases value
+         self.fetched_dependencies: dict[tuple[str, str | None], list[Requirement]] = {}
+-        self.overrides = overrides or {}
++        self.overrides: Mapping[str, str] = {
++            normalize_name(k): v for k, v in project.pyproject.resolution.get("overrides", {}).items()
++        }
++        self.excludes = {normalize_name(k) for k in project.pyproject.resolution.get("excludes", [])}
+         self.direct_minimal_versions = direct_minimal_versions
+         self._known_depth: dict[str, int] = {}
+ 
+@@ -247,6 +250,8 @@ def get_dependencies(self, candidate: Candidate) -> list[Requirement]:
+                 & self.repository.environment.python_requires
+             ).is_impossible:
+                 continue
++            if dep.identify() in self.excludes:
++                continue
+             dep.requires_python &= candidate.req.requires_python
+             valid_deps.append(dep)
+         self.fetched_dependencies[candidate.dep_key] = valid_deps[:]
+@@ -364,7 +369,11 @@ class ReuseInstalledProvider(ReusePinProvider):
+     """A provider that reuses installed packages if possible."""
+ 
+     def __init__(
+-        self, preferred_pins: dict[str, Candidate], tracked_names: Iterable[str], *args: Any, **kwargs: Any
++        self,
++        preferred_pins: dict[str, Candidate],
++        tracked_names: Iterable[str],
++        *args: Any,
++        **kwargs: Any,
+     ) -> None:
+         super().__init__(preferred_pins, tracked_names, *args, **kwargs)
+         self.installed = self.repository.environment.get_working_set()

@@ -1,0 +1,4 @@
+[
+  "bookmarks/tests/test_bookmark_new_view.py::BookmarkNewViewTestCase::test_should_check_unread_when_configured_in_profile",
+  "bookmarks/tests/test_settings_general_view.py::SettingsGeneralViewTestCase::test_update_profile"
+]

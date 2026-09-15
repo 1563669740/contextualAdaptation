@@ -1,0 +1,3 @@
+[
+  "tests/test_config.py::TestConfig::test_get_model_family"
+]

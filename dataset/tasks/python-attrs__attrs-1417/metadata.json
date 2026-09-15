@@ -1,0 +1,41 @@
+{
+  "task_id": "python-attrs__attrs-1417",
+  "repo": "python-attrs/attrs",
+  "pull_number": "1417",
+  "split": "held_out",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=6 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.9,
+  "base_commit": "19943b775d40c018e844f2cb1728442f58112a3b",
+  "repo_commit": "19943b775d40c018e844f2cb1728442f58112a3b",
+  "gold_commit": "017f9a984fab30fdf5774e966d481d4f49d07573",
+  "gold_commit_count": 2,
+  "estimated_difficulty": "Easy",
+  "estimated_completion_time_min": 25,
+  "gold_files_changed": 1,
+  "gold_loc_added": 1,
+  "gold_loc_deleted": 1,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 1423,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

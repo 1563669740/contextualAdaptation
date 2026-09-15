@@ -1,0 +1,28 @@
+diff --git a/docs/sphinx/source/whatsnew/v0.10.5.rst b/docs/sphinx/source/whatsnew/v0.10.5.rst
+index 41c55da8f9..7ee3be7613 100644
+--- a/docs/sphinx/source/whatsnew/v0.10.5.rst
++++ b/docs/sphinx/source/whatsnew/v0.10.5.rst
+@@ -15,6 +15,7 @@ Enhancements
+ 
+ Bug fixes
+ ~~~~~~~~~
++* Corrected equation for Ixx0 in :py:func:`pvlib.pvsystem.sapm` (:issue:`2016`, :pull:`2019`)
+ * Fixed :py:func:`pvlib.pvsystem.retrieve_sam` silently ignoring the `path` parameter
+   when `name` was provided. Now an exception is raised requesting to only provide one
+   of the two parameters. (:issue:`2018`, :pull:`2020`)
+diff --git a/pvlib/pvsystem.py b/pvlib/pvsystem.py
+index c5a0f55558..096d3896f5 100644
+--- a/pvlib/pvsystem.py
++++ b/pvlib/pvsystem.py
+@@ -2264,10 +2264,9 @@ def sapm(effective_irradiance, temp_cell, module):
+         module['IXO'] * (module['C4']*Ee + module['C5']*(Ee**2)) *
+         (1 + module['Aisc']*(temp_cell - temp_ref)))
+ 
+-    # the Ixx calculation in King 2004 has a typo (mixes up Aisc and Aimp)
+     out['i_xx'] = (
+         module['IXXO'] * (module['C6']*Ee + module['C7']*(Ee**2)) *
+-        (1 + module['Aisc']*(temp_cell - temp_ref)))
++        (1 + module['Aimp']*(temp_cell - temp_ref)))
+ 
+     if isinstance(out['i_sc'], pd.Series):
+         out = pd.DataFrame(out)

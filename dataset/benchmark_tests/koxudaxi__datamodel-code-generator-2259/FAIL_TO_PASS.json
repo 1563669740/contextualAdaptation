@@ -1,0 +1,5 @@
+[
+  "tests/parser/test_base.py::test_find_member_with_mixed_enum",
+  "tests/parser/test_base.py::test_find_member_with_string_enum",
+  "tests/parser/test_base.py::test_find_member_with_integer_enum"
+]

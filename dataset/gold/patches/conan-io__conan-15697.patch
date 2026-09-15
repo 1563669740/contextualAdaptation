@@ -1,0 +1,108 @@
+diff --git a/conan/api/subapi/list.py b/conan/api/subapi/list.py
+index 343992ac0a2..f748de9ac48 100644
+--- a/conan/api/subapi/list.py
++++ b/conan/api/subapi/list.py
+@@ -6,7 +6,7 @@
+ from conans.errors import ConanException, NotFoundException
+ from conans.model.info import load_binary_info
+ from conans.model.package_ref import PkgReference
+-from conans.model.recipe_ref import RecipeReference
++from conans.model.recipe_ref import RecipeReference, ref_matches
+ from conans.search.search import get_cache_packages_binary_info, filter_packages
+ from conans.util.dates import timelimit
+ 
+@@ -87,7 +87,35 @@ def filter_packages_configurations(pkg_configurations, query):
+         """
+         return filter_packages(query, pkg_configurations)
+ 
+-    def select(self, pattern, package_query=None, remote=None, lru=None):
++    @staticmethod
++    def filter_packages_profile(packages, profile, ref):
++        result = {}
++        profile_settings = profile.processed_settings.serialize()
++        # Options are those for dependencies, like *:shared=True
++        profile_options = profile.options._deps_package_options
++        for pref, data in packages.items():
++            settings = data.get("settings", {})
++            settings_match = options_match = True
++            for k, v in settings.items():  # Only the defined settings that don't match
++                value = profile_settings.get(k)
++                if value is not None and value != v:
++                    settings_match = False
++                    break
++            options = data.get("options", {})
++            for k, v in options.items():
++                for pattern, pattern_options in profile_options.items():
++                    if ref_matches(ref, pattern, None):
++                        value = pattern_options.get_safe(k)
++                        if value is not None and value != v:
++                            options_match = False
++                            break
++
++            if settings_match and options_match:
++                result[pref] = data
++
++        return result
++
++    def select(self, pattern, package_query=None, remote=None, lru=None, profile=None):
+         if package_query and pattern.package_id and "*" not in pattern.package_id:
+             raise ConanException("Cannot specify '-p' package queries, "
+                                  "if 'package_id' is not a pattern")
+@@ -150,6 +178,8 @@ def msg_format(msg, item, total):
+                     packages = self.packages_configurations(rrev, remote)
+                     if package_query is not None:
+                         packages = self.filter_packages_configurations(packages, package_query)
++                    if profile is not None:
++                        packages = self.filter_packages_profile(packages, profile, rrev)
+                     prefs = packages.keys()
+                     prefs = pattern.filter_prefs(prefs)
+                     packages = {pref: conf for pref, conf in packages.items() if pref in prefs}
+diff --git a/conan/cli/commands/list.py b/conan/cli/commands/list.py
+index 61b067a766d..743c30ac0dc 100644
+--- a/conan/cli/commands/list.py
++++ b/conan/cli/commands/list.py
+@@ -212,6 +212,12 @@ def list(conan_api: ConanAPI, parser, *args):
+     parser.add_argument('-p', '--package-query', default=None, action=OnceArgument,
+                         help="List only the packages matching a specific query, e.g, os=Windows AND "
+                              "(arch=x86 OR compiler=gcc)")
++    parser.add_argument('-fp', '--filter-profile', action="append",
++                        help="Profiles to filter the binaries")
++    parser.add_argument('-fs', '--filter-settings', action="append",
++                        help="Settings to filter the binaries")
++    parser.add_argument('-fo', '--filter-options', action="append",
++                        help="Options to filter the binaries")
+     parser.add_argument("-r", "--remote", default=None, action="append",
+                         help="Remote names. Accepts wildcards ('*' means all the remotes available)")
+     parser.add_argument("-c", "--cache", action='store_true', help="Search in the local cache")
+@@ -227,10 +233,13 @@ def list(conan_api: ConanAPI, parser, *args):
+ 
+     if args.pattern is None and args.graph is None:
+         raise ConanException("Missing pattern or graph json file")
+-    if args.pattern and args.graph:
+-        raise ConanException("Cannot define both the pattern and the graph json file")
+-    if args.graph and args.lru:
+-        raise ConanException("Cannot define lru when loading a graph json file")
++    if args.graph:  # a few arguments are not compatible with this
++        if args.pattern:
++            raise ConanException("Cannot define both the pattern and the graph json file")
++        if args.lru:
++            raise ConanException("Cannot define lru when loading a graph json file")
++        if args.filter_profile or args.filter_settings or args.filter_options:
++            raise ConanException("Filtering binaries cannot be done when loading a graph json file")
+     if (args.graph_recipes or args.graph_binaries) and not args.graph:
+         raise ConanException("--graph-recipes and --graph-binaries require a --graph input")
+     if args.remote and args.lru:
+@@ -245,8 +254,12 @@ def list(conan_api: ConanAPI, parser, *args):
+         pkglist = MultiPackagesList()
+         if args.cache or not args.remote:
+             try:
++                profile = conan_api.profiles.get_profile(args.filter_profile or [],
++                                                         args.filter_settings,
++                                                         args.filter_options) \
++                    if args.filter_profile or args.filter_settings or args.filter_options else None
+                 cache_list = conan_api.list.select(ref_pattern, args.package_query, remote=None,
+-                                                   lru=args.lru)
++                                                   lru=args.lru, profile=profile)
+             except Exception as e:
+                 pkglist.add_error("Local Cache", str(e))
+             else:

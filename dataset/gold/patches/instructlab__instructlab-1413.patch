@@ -1,0 +1,582 @@
+diff --git a/.pylintrc b/.pylintrc
+index 64ef3d1145..eb8b6714f5 100644
+--- a/.pylintrc
++++ b/.pylintrc
+@@ -446,7 +446,8 @@ disable=raw-checker-failed,
+         abstract-method,
+         pointless-statement,
+         wrong-import-order,
+-        line-too-long
++        line-too-long,
++        logging-fstring-interpolation,
+ 
+ # Enable the message, report, category or checker with the given id(s). You can
+ # either give multiple identifier separated by comma (,) or put this option
+diff --git a/src/instructlab/configuration.py b/src/instructlab/configuration.py
+index b43bdbcf17..8f2b818dfd 100644
+--- a/src/instructlab/configuration.py
++++ b/src/instructlab/configuration.py
+@@ -4,7 +4,6 @@
+ from os import path
+ from re import match
+ from typing import Optional
+-import logging
+ import os
+ import sys
+ 
+@@ -231,23 +230,6 @@ class Lab:
+     def __init__(self, config_obj: Config):
+         self.config = config_obj
+ 
+-        # Set up logging for the Lab class
+-        self.logger = logging.getLogger(__name__)
+-
+-        # Create a formatter
+-        formatter = log.CustomFormatter(log.FORMAT)
+-
+-        # Create a handler and set the formatter
+-        handler = logging.StreamHandler()
+-        handler.setFormatter(formatter)
+-
+-        logging.basicConfig(
+-            format=log.FORMAT,
+-            handlers=[handler],
+-        )
+-
+-        self.logger.setLevel(self.config.general.log_level.upper())
+-
+ 
+ def init(ctx, config_file):
+     if (
+@@ -267,6 +249,8 @@ def init(ctx, config_file):
+                 config_obj = read_config(config_file)
+             except ConfigException as ex:
+                 raise click.ClickException(str(ex))
++        # setup logging
++        log.configure_logging(log_level=config_obj.general.log_level.upper())
+         ctx.obj = Lab(config_obj)
+         # default_map holds a dictionary with default values for each command parameters
+         ctx.default_map = get_dict(ctx.obj.config)
+diff --git a/src/instructlab/data/generate.py b/src/instructlab/data/generate.py
+index 245bbfe521..55ca2ebe38 100644
+--- a/src/instructlab/data/generate.py
++++ b/src/instructlab/data/generate.py
+@@ -10,6 +10,8 @@
+ from instructlab import configuration as config
+ from instructlab import utils
+ 
++logger = logging.getLogger(__name__)
++
+ 
+ @click.command()
+ @click.option(
+@@ -157,10 +159,8 @@ def generate(
+ 
+     server_process = None
+     server_queue = None
+-    logger = logging.getLogger("TODO")
+     prompt_file_path = config.DEFAULT_PROMPT_FILE
+     if ctx.obj is not None:
+-        logger = ctx.obj.logger
+         prompt_file_path = ctx.obj.config.generate.prompt_file
+ 
+     if endpoint_url:
+@@ -180,7 +180,6 @@ def generate(
+ 
+         try:
+             server_process, api_base, server_queue = ensure_server(
+-                ctx.obj.logger,
+                 ctx.obj.config.serve,
+                 tls_insecure,
+                 tls_client_cert,
+@@ -198,7 +197,7 @@ def generate(
+             f"Generating synthetic data using '{model}' model, taxonomy:'{taxonomy_path}' against {api_base} server"
+         )
+         generate_data(
+-            logger=logger,
++            logger=logging.getLogger("instructlab.sdg"),  # TODO: remove
+             api_base=api_base,
+             api_key=api_key,
+             model_family=model_family,
+diff --git a/src/instructlab/lab.py b/src/instructlab/lab.py
+index 18bb1f1fe0..e41e96f9e2 100644
+--- a/src/instructlab/lab.py
++++ b/src/instructlab/lab.py
+@@ -3,9 +3,7 @@
+ # pylint: disable=too-many-lines
+ 
+ # Standard
+-import logging
+ import multiprocessing
+-import os
+ 
+ # Third Party
+ import click
+@@ -25,14 +23,6 @@
+ # Python 3.14 will switch to 'spawn' on all platforms.
+ multiprocessing.set_start_method(cfg.DEFAULT_MULTIPROCESSING_START_METHOD, force=True)
+ 
+-# Set logging level of OpenAI client and httpx library to ERROR to suppress INFO messages
+-logging.getLogger("openai").setLevel(logging.ERROR)
+-logging.getLogger("httpx").setLevel(logging.ERROR)
+-
+-# Intel Gaudi: workaround for race condition in oneMKL [HS-1795]
+-# Must be set before torch is imported by an application.
+-os.environ["MKL_NUM_THREADS"] = "1"
+-
+ 
+ class ExpandAliasesGroup(click.Group):
+     def __init__(self, *args, **kwargs):
+diff --git a/src/instructlab/log.py b/src/instructlab/log.py
+index 9a2218c5b5..6b1601cdf2 100644
+--- a/src/instructlab/log.py
++++ b/src/instructlab/log.py
+@@ -50,3 +50,26 @@ def stdout_stderr_to_logger(logger, log_file):
+ 
+     sys.stdout = LoggerWriter(logger.info)
+     sys.stderr = LoggerWriter(logger.error)
++
++
++def configure_logging(
++    *,
++    log_level: str,
++    fmt: str = FORMAT,
++) -> None:
++    """Configure logging framework"""
++    root = logging.getLogger()
++
++    # reset handlers, removes existing stream logger
++    for handler in root.handlers[:]:
++        root.removeHandler(handler)
++        handler.close()
++
++    stream = logging.StreamHandler()
++    stream.setFormatter(CustomFormatter(fmt=fmt))
++    root.addHandler(stream)
++    root.setLevel(log_level)
++
++    # Set logging level of OpenAI client and httpx library to ERROR to suppress INFO messages
++    logging.getLogger("openai").setLevel(logging.ERROR)
++    logging.getLogger("httpx").setLevel(logging.ERROR)
+diff --git a/src/instructlab/model/backends/llama.py b/src/instructlab/model/backends/llama.py
+index 7b91a48af0..fb3ebfed8a 100644
+--- a/src/instructlab/model/backends/llama.py
++++ b/src/instructlab/model/backends/llama.py
+@@ -10,6 +10,7 @@
+ import random
+ import signal
+ import socket
++import typing
+ 
+ # Third Party
+ from llama_cpp import llama_chat_format
+@@ -24,6 +25,12 @@
+ from ...configuration import get_api_base, get_model_family
+ from .backends import BackendServer
+ 
++if typing.TYPE_CHECKING:
++    # Standard
++    from types import FrameType
++
++logger = logging.getLogger(__name__)
++
+ templates = [
+     {
+         "model": "merlinite",
+@@ -44,7 +51,7 @@ class UvicornServer(uvicorn.Server):
+     """Override uvicorn.Server to handle SIGINT."""
+ 
+     def handle_exit(self, sig, frame):
+-        # type: (int, Optional[FrameType]) -> None
++        # type: (int, typing.Optional[FrameType]) -> None
+         if not is_temp_server_running() or sig != signal.SIGINT:
+             super().handle_exit(sig=sig, frame=frame)
+ 
+@@ -74,14 +81,14 @@ def run(self):
+         # ensure_server code here
+         try:
+             server(
+-                self.logger,
+-                self.model_path,
+-                self.gpu_layers,
+-                self.max_ctx_size,
+-                self.model_family,
+-                self.num_threads,
+-                self.host,
+-                self.port,
++                server_logger=self.logger,
++                model_path=self.model_path,
++                gpu_layers=self.gpu_layers,
++                max_ctx_size=self.max_ctx_size,
++                model_family=self.model_family,
++                threads=self.num_threads,
++                host=self.host,
++                port=self.port,
+             )
+         except ServerException as exc:
+             raise exc
+@@ -92,7 +99,6 @@ def shutdown(self):
+ 
+ 
+ def ensure_server(
+-    logger,
+     serve_config,
+     tls_insecure,
+     tls_client_cert,
+@@ -155,7 +161,7 @@ def ensure_server(
+         server_process = mpctx.Process(
+             target=server,
+             kwargs={
+-                "logger": server_logger,
++                "server_logger": server_logger,
+                 "model_path": serve_config.model_path,
+                 "gpu_layers": serve_config.gpu_layers,
+                 "max_ctx_size": serve_config.max_ctx_size,
+@@ -196,14 +202,14 @@ def ensure_server(
+ 
+ 
+ def server(
+-    logger,
+-    model_path,
+-    gpu_layers,
+-    max_ctx_size,
+-    model_family,
++    server_logger: logging.Logger,
++    model_path: pathlib.Path,
++    gpu_layers: int,
++    max_ctx_size: int,
++    model_family: str,
+     threads=None,
+-    host="localhost",
+-    port=8000,
++    host: str = "localhost",
++    port: int = 8000,
+     queue=None,
+ ):
+     """Start OpenAI-compatible server"""
+@@ -213,7 +219,7 @@ def server(
+         model=model_path,
+         n_ctx=max_ctx_size,
+         n_gpu_layers=gpu_layers,
+-        verbose=logger.level == logging.DEBUG,
++        verbose=server_logger.isEnabledFor(logging.DEBUG),
+     )
+     if threads is not None:
+         settings.n_threads = threads
+@@ -259,8 +265,8 @@ def read_root():
+             return
+         raise ServerException(f"failed creating the server application: {exc}") from exc
+ 
+-    logger.info("Starting server process, press CTRL+C to shutdown server...")
+-    logger.info(
++    server_logger.info("Starting server process, press CTRL+C to shutdown server...")
++    server_logger.info(
+         f"After application startup complete see http://{host}:{port}/docs for API."
+     )
+ 
+diff --git a/src/instructlab/model/chat.py b/src/instructlab/model/chat.py
+index a579802ed1..e95f0f2953 100644
+--- a/src/instructlab/model/chat.py
++++ b/src/instructlab/model/chat.py
+@@ -4,6 +4,7 @@
+ from typing import Optional
+ import datetime
+ import json
++import logging
+ import os
+ import sys
+ import time
+@@ -32,6 +33,8 @@
+ # Local
+ from ..utils import get_sysprompt, http_client
+ 
++logger = logging.getLogger(__name__)
++
+ HELP_MD = """
+ Help / TL;DR
+ - `/q`: **q**uit
+@@ -176,7 +179,6 @@ def chat(
+     else:
+         try:
+             server_process, api_base, server_queue = ensure_server(
+-                ctx.obj.logger,
+                 ctx.obj.config.serve,
+                 tls_insecure,
+                 tls_client_cert,
+@@ -674,7 +676,6 @@ def chat_cli(
+     max_tokens,
+ ):
+     """Starts a CLI-based chat with the server"""
+-    logger = ctx.obj.logger
+     client = OpenAI(
+         base_url=api_base,
+         api_key=ctx.params["api_key"],
+diff --git a/src/instructlab/model/convert.py b/src/instructlab/model/convert.py
+index e825563433..2542a38e04 100644
+--- a/src/instructlab/model/convert.py
++++ b/src/instructlab/model/convert.py
+@@ -3,6 +3,7 @@
+ # Standard
+ from glob import glob
+ from pathlib import Path
++import logging
+ import os
+ import shutil
+ 
+@@ -14,6 +15,8 @@
+ # First Party
+ from instructlab import utils
+ 
++logger = logging.getLogger(__name__)
++
+ 
+ @click.command()
+ @click.option(
+@@ -81,7 +84,7 @@ def convert(ctx, model_dir, adapter_file, skip_de_quantize, skip_quantize, model
+         )
+         raise click.exceptions.Exit(1)
+ 
+-    ctx.obj.logger.info(f"deleting {source_model_dir}...")
++    logger.info(f"deleting {source_model_dir}...")
+     shutil.rmtree(source_model_dir)
+ 
+     model_dir_fused_pt = f"{model_name}-trained"
+@@ -90,7 +93,7 @@ def convert(ctx, model_dir, adapter_file, skip_de_quantize, skip_quantize, model
+         hf_path=model_dir_fused, mlx_path=model_dir_fused_pt, local=True, to_pt=True
+     )
+ 
+-    ctx.obj.logger.info(f"deleting {model_dir_fused}...")
++    logger.info(f"deleting {model_dir_fused}...")
+     shutil.rmtree(model_dir_fused)
+ 
+     convert_llama_to_gguf(
+@@ -100,7 +103,7 @@ def convert(ctx, model_dir, adapter_file, skip_de_quantize, skip_quantize, model
+         outfile=f"{model_dir_fused_pt}/{model_name}.gguf",
+     )
+ 
+-    ctx.obj.logger.info(f"deleting safetensors files from {model_dir_fused_pt}...")
++    logger.info(f"deleting safetensors files from {model_dir_fused_pt}...")
+     for file in glob(os.path.join(model_dir_fused_pt, "*.safetensors")):
+         os.remove(file)
+ 
+@@ -110,5 +113,5 @@ def convert(ctx, model_dir, adapter_file, skip_de_quantize, skip_quantize, model
+         gguf_model_q_dir = f"{model_dir_fused_pt}/{model_name}-Q4_K_M.gguf"
+         run_quantize(gguf_model_dir, gguf_model_q_dir, "Q4_K_M")
+ 
+-    ctx.obj.logger.info(f"deleting {model_dir_fused_pt}/{model_name}.gguf...")
++    logger.info(f"deleting {model_dir_fused_pt}/{model_name}.gguf...")
+     os.remove(os.path.join(model_dir_fused_pt, f"{model_name}.gguf"))
+diff --git a/src/instructlab/model/serve.py b/src/instructlab/model/serve.py
+index 42b0cab26a..a28f4cb944 100644
+--- a/src/instructlab/model/serve.py
++++ b/src/instructlab/model/serve.py
+@@ -1,5 +1,8 @@
+ # SPDX-License-Identifier: Apache-2.0
+ 
++# Standard
++import logging
++
+ # Third Party
+ import click
+ 
+@@ -8,6 +11,8 @@
+ from instructlab import log, utils
+ from instructlab.model.backends.llama import ServerException, server
+ 
++logger = logging.getLogger(__name__)
++
+ 
+ @click.command()
+ @click.option(
+@@ -46,9 +51,9 @@ def serve(
+     """Start a local server"""
+ 
+     # Redirect server stdout and stderr to the logger
+-    log.stdout_stderr_to_logger(ctx.obj.logger, log_file)
++    log.stdout_stderr_to_logger(logger, log_file)
+ 
+-    ctx.obj.logger.info(
++    logger.info(
+         f"Using model '{model_path}' with {gpu_layers} gpu-layers and {max_ctx_size} max context size."
+     )
+ 
+@@ -60,7 +65,7 @@ def serve(
+ 
+     # Instantiate the llama server
+     llama_server = llama.Server(
+-        logger=ctx.obj.logger,
++        logger=logger,
+         model_path=model_path,
+         gpu_layers=gpu_layers,
+         max_ctx_size=max_ctx_size,
+diff --git a/src/instructlab/taxonomy/diff.py b/src/instructlab/taxonomy/diff.py
+index babbfe76d8..ed0ca1b93d 100644
+--- a/src/instructlab/taxonomy/diff.py
++++ b/src/instructlab/taxonomy/diff.py
+@@ -13,6 +13,8 @@
+ from instructlab import configuration as config
+ from instructlab import utils
+ 
++logger = logging.getLogger(__name__)
++
+ 
+ @click.command()
+ @click.option(
+@@ -50,10 +52,6 @@ def diff(ctx, taxonomy_path, taxonomy_base, yaml_rules, quiet):
+         taxonomy_base = ctx.obj.config.generate.taxonomy_base
+     if not taxonomy_path:
+         taxonomy_path = ctx.obj.config.generate.taxonomy_path
+-    if not ctx.obj:
+-        logger = logging.getLogger(__name__)
+-    else:
+-        logger = ctx.obj.logger
+ 
+     if not quiet:
+         is_file = os.path.isfile(taxonomy_path)
+@@ -71,7 +69,7 @@ def diff(ctx, taxonomy_path, taxonomy_base, yaml_rules, quiet):
+             for f in updated_taxonomy_files:
+                 click.echo(f)
+     try:
+-        read_taxonomy(logger, taxonomy_path, taxonomy_base, yaml_rules)
++        read_taxonomy(None, taxonomy_path, taxonomy_base, yaml_rules)
+     except (SystemExit, yaml.YAMLError) as exc:
+         if not quiet:
+             click.secho(
+diff --git a/src/instructlab/utils.py b/src/instructlab/utils.py
+index 1fd40ca38f..d12922577b 100644
+--- a/src/instructlab/utils.py
++++ b/src/instructlab/utils.py
+@@ -2,7 +2,6 @@
+ 
+ # Standard
+ from functools import cache, wraps
+-from logging import Logger
+ from pathlib import Path
+ from typing import Any, Dict, List, Mapping, Optional, Union
+ import copy
+@@ -27,6 +26,8 @@
+ # Local
+ from . import common
+ 
++logger = logging.getLogger(__name__)
++
+ DEFAULT_YAML_RULES = """\
+ extends: relaxed
+ 
+@@ -186,7 +187,6 @@ def get_taxonomy_diff(repo="taxonomy", base="origin/main"):
+ 
+ 
+ def get_documents(
+-    logger,
+     source: Dict[str, Union[str, List[str]]],
+     skip_checkout: bool = False,
+ ) -> List[str]:
+@@ -358,14 +358,11 @@ def _load_schema(path: "importlib.resources.abc.Traversable") -> "referencing.Re
+     return resource
+ 
+ 
+-def validate_yaml(
+-    logger: Logger, contents: Mapping[str, Any], taxonomy_path: Path
+-) -> int:
++def validate_yaml(contents: Mapping[str, Any], taxonomy_path: Path) -> int:
+     """Validate the parsed yaml document using the taxonomy path to
+     determine the proper schema.
+ 
+     Args:
+-        logger (Logger): The logger for errors/warnings.
+         contents (Mapping): The parsed yaml document to validate against the schema.
+         taxonomy_path (Path): Relative path of the taxonomy yaml document where the
+         first element is the schema to use.
+@@ -443,16 +440,16 @@ def get_version(contents: Mapping) -> int:
+ 
+ 
+ # pylint: disable=broad-exception-caught
+-def read_taxonomy_file(
+-    logger: Logger, file_path: str, yaml_rules: Optional[str] = None
+-):
++def read_taxonomy_file(file_path: str, yaml_rules: Optional[str] = None):
+     seed_instruction_data = []
+     warnings = 0
+     errors = 0
+     file_path = Path(file_path).resolve()
+     # file should end with ".yaml" explicitly
+     if file_path.suffix != ".yaml":
+-        logger.warn(f"Skipping {file_path}! Use lowercase '.yaml' extension instead.")
++        logger.warning(
++            f"Skipping {file_path}! Use lowercase '.yaml' extension instead."
++        )
+         warnings += 1
+         return None, warnings, errors
+     for i in range(len(file_path.parts) - 1, -1, -1):
+@@ -466,7 +463,7 @@ def read_taxonomy_file(
+         with open(file_path, "r", encoding="utf-8") as file:
+             contents = yaml.safe_load(file)
+         if not contents:
+-            logger.warn(f"Skipping {file_path} because it is empty!")
++            logger.warning(f"Skipping {file_path} because it is empty!")
+             warnings += 1
+             return None, warnings, errors
+         if not isinstance(contents, Mapping):
+@@ -526,7 +523,7 @@ def read_taxonomy_file(
+                 logger.error("\n".join(lint_messages))
+                 return None, warnings, errors
+ 
+-        validation_errors = validate_yaml(logger, contents, taxonomy_path)
++        validation_errors = validate_yaml(contents, taxonomy_path)
+         if validation_errors:
+             errors += validation_errors
+             return None, warnings, errors
+@@ -536,7 +533,7 @@ def read_taxonomy_file(
+         task_description = contents.get("task_description")
+         documents = contents.get("document")
+         if documents:
+-            documents = get_documents(source=documents, logger=logger)
++            documents = get_documents(source=documents)
+             logger.debug("Content from git repo fetched")
+ 
+         for seed_example in contents.get("seed_examples"):
+@@ -560,15 +557,16 @@ def read_taxonomy_file(
+     return seed_instruction_data, warnings, errors
+ 
+ 
+-def read_taxonomy(logger, taxonomy, taxonomy_base, yaml_rules):
++# TODO: remove `_logger` parameter after instructlab.sdg is fixed.
++def read_taxonomy(_logger, taxonomy, taxonomy_base, yaml_rules):
+     seed_instruction_data = []
+     is_file = os.path.isfile(taxonomy)
+     if is_file:  # taxonomy is file
+         seed_instruction_data, warnings, errors = read_taxonomy_file(
+-            logger, taxonomy, yaml_rules
++            taxonomy, yaml_rules
+         )
+         if warnings:
+-            logger.warn(
++            logger.warning(
+                 f"{warnings} warnings (see above) due to taxonomy file not (fully) usable."
+             )
+         if errors:
+@@ -584,13 +582,13 @@ def read_taxonomy(logger, taxonomy, taxonomy_base, yaml_rules):
+                 logger.debug(f"* {e}")
+         for f in updated_taxonomy_files:
+             file_path = os.path.join(taxonomy, f)
+-            data, warnings, errors = read_taxonomy_file(logger, file_path, yaml_rules)
++            data, warnings, errors = read_taxonomy_file(file_path, yaml_rules)
+             total_warnings += warnings
+             total_errors += errors
+             if data:
+                 seed_instruction_data.extend(data)
+         if total_warnings:
+-            logger.warn(
++            logger.warning(
+                 f"{total_warnings} warnings (see above) due to taxonomy files that were not (fully) usable."
+             )
+         if total_errors:
+@@ -622,7 +620,7 @@ def display_params(func):
+     @wraps(func)
+     def wrapper(*args, **kwargs):
+         try:
+-            if (args[0].obj.logger.level == logging.DEBUG) and (
++            if (logger.isEnabledFor(logging.DEBUG)) and (
+                 ("quiet" not in kwargs) or (not kwargs["quiet"])
+             ):
+                 print("===================using parameters ========================")

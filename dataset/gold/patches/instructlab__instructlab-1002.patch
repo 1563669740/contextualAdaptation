@@ -1,0 +1,327 @@
+diff --git a/src/instructlab/generator/generate_data.py b/src/instructlab/generator/generate_data.py
+index 5d5a1ecb88..68b5d06a0e 100644
+--- a/src/instructlab/generator/generate_data.py
++++ b/src/instructlab/generator/generate_data.py
+@@ -25,7 +25,7 @@
+ from . import utils
+ from .utils import GenerateException
+ 
+-DEFAULT_PROMPT_TEMPLATE = """\
++DEFAULT_PROMPT_TEMPLATE_MERLINITE = """\
+ You are asked to come up with a set of 5 diverse task instructions under {{taxonomy}}{{" for the task \\"%s\\""|format(task_description)  if task_description}}. These task instructions will be given to a GPT model and we will evaluate the GPT model for completing the instructions.
+ 
+ Here are the requirements:
+@@ -59,6 +59,36 @@
+ {% endif -%}
+ """
+ 
++DEFAULT_PROMPT_TEMPLATE_MIXTRAL = """\
++<s> [INST]You are a very knowledgeable AI Assistant that will faithfully assist the user with their task. You are asked to come up with a set of 5 diverse task instructions under {{taxonomy}}{{" for the task \\"%s\\""|format(task_description)  if task_description}}. These task instructions will be given to a GPT model and we will evaluate the GPT model for completing the instructions.
++Here are the requirements:
++1. Try not to repeat the verb for each instruction to maximize diversity.
++2. The language used for the instruction also should be diverse. For example, you should combine questions with imperative instructions.
++{% if not document -%}
++3. The type of instructions should not have topic diversity. The list should follow the same topic and category.
++{% else -%}
++3. The type of instructions should be similar to provided examples. The generated instruction and the output should be grounded in the provided document.
++{% endif -%}
++4. A GPT language model should be able to complete the instruction. For example, do not ask the assistant to create any visual or audio output. For another example, do not ask the assistant to wake you up at 5pm or set a reminder because it cannot perform any action.
++5. The instructions should be in English.
++6. The instructions should be 1 to 2 sentences long. Either an imperative sentence or a question is permitted.
++{% if not document -%}
++7. You should generate an appropriate input to the instruction. The input field should contain a specific example provided for the instruction. It should involve realistic data and should not contain simple placeholders. The input should provide substantial content to make the instruction challenging but should ideally not exceed 100 words.
++8. Not all instructions require input. For example, when an instruction asks about some general information, "what is the highest peak in the world", it is not necessary to provide a specific context. In this case, we simply put "<noinput>" in the input field.
++9. The output should be an appropriate response to the instruction and the input. Make sure the output is less than 100 words.
++{% else -%}
++7. The output should be an appropriate response to the input and the instruction. Long outputs are preferable.
++{% endif %}
++{% if not document -%}
++List of 5 tasks:
++{% else -%}
++Based on below document provide a list of 5 tasks:
++Document:
++{{document}}
++Here are some examples to help you understand the type of questions that are asked for this document:
++{% endif -%}[/INST]
++"""
++
+ _WORD_DENYLIST = [
+     "image",
+     "images",
+@@ -81,14 +111,21 @@
+ ]
+ 
+ 
+-def check_prompt_file(prompt_file_path):
++def check_prompt_file(prompt_file_path, model_family):
+     """Check for prompt file."""
+     try:
+         with open(prompt_file_path, encoding="utf=8") as file:
+             prompt_template = file.read()
+-    except FileNotFoundError:
+-        print(f"Cannot find {prompt_file_path}. Using default prompt.")
+-        prompt_template = DEFAULT_PROMPT_TEMPLATE
++    except FileNotFoundError as exc:
++        print(
++            f"Cannot find {prompt_file_path}. Using default prompt depending on model-family."
++        )
++        if model_family == "merlinite":
++            prompt_template = DEFAULT_PROMPT_TEMPLATE_MERLINITE
++        elif model_family == "mixtral":
++            prompt_template = DEFAULT_PROMPT_TEMPLATE_MIXTRAL
++        else:
++            raise ValueError(f"Unsupported family '{model_family}': {exc}") from exc
+     prompt_template = prompt_template.strip() + "\n"
+     return prompt_template
+ 
+@@ -302,6 +339,7 @@ def generate_data(
+     logger,
+     api_base,
+     tls_insecure,
++    model_family: str,
+     yaml_rules: Optional[str] = None,
+     output_dir: Optional[str] = None,
+     taxonomy: Optional[str] = None,
+@@ -411,7 +449,7 @@ def unescape(s):
+         scorer._tokenizer.tokenize(inst) for inst in all_instructions
+     ]
+ 
+-    prompt_template = check_prompt_file(prompt_file_path)
++    prompt_template = check_prompt_file(prompt_file_path, model_family)
+     if console_output:
+         print(
+             "Synthesizing new instructions. If you aren't satisfied with the generated instructions, interrupt training (Ctrl-C) and try adjusting your YAML files. Adding more examples may help."
+diff --git a/src/instructlab/lab.py b/src/instructlab/lab.py
+index e1343ca702..3f8df5801d 100644
+--- a/src/instructlab/lab.py
++++ b/src/instructlab/lab.py
+@@ -296,8 +296,14 @@ def diff(ctx, taxonomy_path, taxonomy_base, yaml_rules, quiet):
+     type=click.INT,
+     help="The context size is the maximum number of tokens considered by the model, for both the prompt and response. Defaults to 4096.",
+ )
++@click.option(
++    "--model-family",
++    type=str,
++    default="merlinite",
++    help="Model family is used to specify which chat template to serve with",
++)
+ @click.pass_context
+-def serve(ctx, model_path, gpu_layers, num_threads, max_ctx_size):
++def serve(ctx, model_path, gpu_layers, num_threads, max_ctx_size, model_family):
+     """Start a local server"""
+     # pylint: disable=C0415
+     # Local
+@@ -315,6 +321,7 @@ def serve(ctx, model_path, gpu_layers, num_threads, max_ctx_size):
+             model_path,
+             gpu_layers,
+             max_ctx_size,
++            model_family,
+             num_threads,
+             host,
+             port,
+@@ -432,6 +439,11 @@ def serve(ctx, model_path, gpu_layers, num_threads, max_ctx_size):
+     default="",
+     help="TLS client certificate password.",
+ )
++@click.option(
++    "--model-family",
++    default="merlinite",
++    help="model family to use when picking a generation template",
++)
+ @click.pass_context
+ def generate(
+     ctx,
+@@ -452,6 +464,7 @@ def generate(
+     tls_client_cert,
+     tls_client_key,
+     tls_client_passwd,
++    model_family,
+ ):
+     """Generates synthetic data to enhance your example data"""
+     # pylint: disable=C0415
+@@ -478,6 +491,7 @@ def generate(
+                 tls_client_cert,
+                 tls_client_key,
+                 tls_client_passwd,
++                model_family,
+             )
+         except Exception as exc:
+             click.secho(f"Failed to start server: {exc}", fg="red")
+@@ -492,6 +506,7 @@ def generate(
+             logger=logger,
+             api_base=api_base,
+             api_key=api_key,
++            model_family=model_family,
+             model_name=model,
+             num_cpus=num_cpus,
+             num_instructions_to_generate=num_instructions,
+@@ -530,7 +545,7 @@ def generate(
+ @click.option(
+     "-m",
+     "--model",
+-    help="Model to use",
++    help="Model name to print in chat process",
+ )
+ @click.option(
+     "-c",
+@@ -593,6 +608,12 @@ def generate(
+     default="",
+     help="TLS client certificate password.",
+ )
++@click.option(
++    "--model-family",
++    default="merlinite",
++    show_default=True,
++    help="model family to use when picking a chat template",
++)
+ @click.pass_context
+ def chat(
+     ctx,
+@@ -608,6 +629,7 @@ def chat(
+     tls_client_cert,
+     tls_client_key,
+     tls_client_passwd,
++    model_family,
+ ):
+     """Run a chat using the modified model"""
+     # pylint: disable=C0415
+@@ -627,6 +649,7 @@ def chat(
+                 tls_client_cert,
+                 tls_client_key,
+                 tls_client_passwd,
++                model_family,
+             )
+         except Exception as exc:
+             click.secho(f"Failed to start server: {exc}", fg="red")
+@@ -692,7 +715,6 @@ def download(ctx, repository, release, filename, model_dir):
+     try:
+         if ctx.obj is not None:
+             hf_logging.set_verbosity(ctx.obj.config.general.log_level.upper())
+-
+         hf_hub_download(
+             repo_id=repository,
+             revision=release,
+@@ -832,6 +854,12 @@ def convert(self, value, param, ctx) -> "torch.device":
+         "(reduces GPU VRAM usage and may slow down training)"
+     ),
+ )
++@click.option(
++    "--model-name",
++    default="instructlab/merlinite-7b-lab",
++    show_default=True,
++    help="model name to use in training",
++)
+ @click.pass_context
+ def train(
+     ctx,
+@@ -847,6 +875,7 @@ def train(
+     num_epochs,
+     device: "torch.device",
+     four_bit_quant: bool,
++    model_name: str,
+ ):
+     """
+     Takes synthetic data generated locally with `ilab generate` and the previous model and learns a new model using the MLX API.
+@@ -906,6 +935,7 @@ def train(
+         linux_train(
+             train_file=train_files[0],
+             test_file=test_files[0],
++            model_name=model_name,
+             num_epochs=num_epochs,
+             device=device,
+             four_bit_quant=four_bit_quant,
+diff --git a/src/instructlab/server.py b/src/instructlab/server.py
+index 6aec332091..eb56d11cb1 100644
+--- a/src/instructlab/server.py
++++ b/src/instructlab/server.py
+@@ -22,6 +22,17 @@
+ from .client import ClientException, list_models
+ from .config import get_api_base
+ 
++templates = [
++    {
++        "model": "merlinite",
++        "template": "{% for message in messages %}\n{% if message['role'] == 'user' %}\n{{ '<|user|>\n' + message['content'] }}\n{% elif message['role'] == 'system' %}\n{{ '<|system|>\n' + message['content'] }}\n{% elif message['role'] == 'assistant' %}\n{{ '<|assistant|>\n' + message['content'] + eos_token }}\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n{% endif %}\n{% endfor %}",
++    },
++    {
++        "model": "mixtral",
++        "template": "{{ bos_token }}\n{% for message in messages %}\n{% if message['role'] == 'user' %}\n{{ '[INST] ' + message['content'] + ' [/INST]' }}\n{% elif message['role'] == 'assistant' %}\n{{ message['content'] + eos_token}}\n{% endif %}\n{% endfor %}",
++    },
++]
++
+ 
+ class ServerException(Exception):
+     """An exception raised when serving the API."""
+@@ -43,6 +54,7 @@ def ensure_server(
+     tls_client_cert,
+     tls_client_key,
+     tls_client_passwd,
++    model_family,
+ ):
+     """Checks if server is running, if not starts one as a subprocess. Returns the server process
+     and the URL where it's available."""
+@@ -102,6 +114,7 @@ def ensure_server(
+                 "model_path": serve_config.model_path,
+                 "gpu_layers": serve_config.gpu_layers,
+                 "max_ctx_size": serve_config.max_ctx_size,
++                "model_family": model_family,
+                 "port": port,
+                 "host": host,
+                 "queue": queue,
+@@ -131,6 +144,7 @@ def server(
+     model_path,
+     gpu_layers,
+     max_ctx_size,
++    model_family,
+     threads=None,
+     host="localhost",
+     port=8000,
+@@ -155,12 +169,23 @@ def server(
+             return
+         raise ServerException(f"failed creating the server application: {exc}") from exc
+ 
++    template = ""
++    eos_token = "<|endoftext|>"
++    bos_token = ""
++    for template_dict in templates:
++        if template_dict["model"] == model_family:
++            template = template_dict["template"]
++            if template_dict["model"] == "mixtral":
++                eos_token = "</s>"
++                bos_token = "<s>"
+     try:
+-        llama_app._llama_proxy._current_model.chat_handler = llama_chat_format.Jinja2ChatFormatter(
+-            template="{% for message in messages %}\n{% if message['role'] == 'user' %}\n{{ '<|user|>\n' + message['content'] }}\n{% elif message['role'] == 'system' %}\n{{ '<|system|>\n' + message['content'] }}\n{% elif message['role'] == 'assistant' %}\n{{ '<|assistant|>\n' + message['content'] + eos_token }}\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n{% endif %}\n{% endfor %}",
+-            eos_token="<|endoftext|>",
+-            bos_token="",
+-        ).to_chat_handler()
++        llama_app._llama_proxy._current_model.chat_handler = (
++            llama_chat_format.Jinja2ChatFormatter(
++                template=template,
++                eos_token=eos_token,
++                bos_token=bos_token,
++            ).to_chat_handler()
++        )
+     # pylint: disable=broad-exception-caught
+     except Exception as exc:
+         if queue:
+diff --git a/src/instructlab/train/linux_train.py b/src/instructlab/train/linux_train.py
+index 50fbcdfe8a..cb6bc14675 100644
+--- a/src/instructlab/train/linux_train.py
++++ b/src/instructlab/train/linux_train.py
+@@ -104,6 +104,7 @@ def _gib(size: int) -> str:
+ def linux_train(
+     train_file: str,
+     test_file: str,
++    model_name: str,
+     num_epochs: Optional[int] = None,
+     device: torch.device = torch.device("cpu"),
+     four_bit_quant: bool = False,
+@@ -126,7 +127,6 @@ def linux_train(
+     test_dataset = load_dataset("json", data_files=test_file, split="train")
+     train_dataset.to_pandas().head()
+ 
+-    model_name = "instructlab/merlinite-7b-lab"
+     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+     tokenizer.pad_token = tokenizer.eos_token
+ 

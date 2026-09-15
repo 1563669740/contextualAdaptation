@@ -1,0 +1,6 @@
+[
+  "test/unit/module/cfn_yaml/test_yaml.py::TestYamlParse::test_success_parse",
+  "test/unit/module/cfn_yaml/test_yaml.py::TestYamlParse::test_success_parse_stdin",
+  "test/unit/module/test_rules_collections.py::TestRulesCollection::test_fail_run",
+  "test/unit/rules/functions/test_sub.py::test_validate[One"
+]

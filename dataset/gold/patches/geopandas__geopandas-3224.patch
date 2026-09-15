@@ -1,0 +1,77 @@
+diff --git a/doc/source/docs/reference/io.rst b/doc/source/docs/reference/io.rst
+index f5d77aed23..8c5a8ac9c2 100644
+--- a/doc/source/docs/reference/io.rst
++++ b/doc/source/docs/reference/io.rst
+@@ -8,6 +8,7 @@ GIS vector files
+ .. autosummary::
+    :toctree: api/
+ 
++   list_layers
+    read_file
+    GeoDataFrame.to_file
+ 
+diff --git a/doc/source/docs/user_guide/io.rst b/doc/source/docs/user_guide/io.rst
+index 73f613c7ca..2e659a399d 100644
+--- a/doc/source/docs/user_guide/io.rst
++++ b/doc/source/docs/user_guide/io.rst
+@@ -32,6 +32,9 @@ the ``layer`` keyword::
+ 
+     countries_gdf = geopandas.read_file("package.gpkg", layer='countries')
+ 
++If you have a file with multiple layers, you can list them using
++:func:`geopandas.list_layers`. Note that this function requires Pyogrio.
++
+ GeoPandas can also load resources directly from
+ a web URL, for example for GeoJSON files from `geojson.xyz <http://geojson.xyz/>`_::
+ 
+diff --git a/geopandas/__init__.py b/geopandas/__init__.py
+index bbe1b445cd..42994e56b0 100644
+--- a/geopandas/__init__.py
++++ b/geopandas/__init__.py
+@@ -5,6 +5,7 @@
+ from geopandas.array import points_from_xy
+ 
+ from geopandas.io.file import _read_file as read_file
++from geopandas.io.file import _list_layers as list_layers
+ from geopandas.io.arrow import _read_parquet as read_parquet
+ from geopandas.io.arrow import _read_feather as read_feather
+ from geopandas.io.sql import _read_postgis as read_postgis
+diff --git a/geopandas/io/file.py b/geopandas/io/file.py
+index f4d8262b95..aff368574e 100644
+--- a/geopandas/io/file.py
++++ b/geopandas/io/file.py
+@@ -796,3 +796,34 @@ def _geometry_types(df):
+         geom_types = geom_types[0]
+ 
+     return geom_types
++
++
++def _list_layers(filename) -> pd.DataFrame:
++    """List layers available in a file.
++
++    Provides an overview of layers available in a file or URL together with their
++    geometry types. When supported by the data source, this includes both spatial and
++    non-spatial layers. Non-spatial layers are indicated by the ``"geometry_type"``
++    column being ``None``. GeoPandas will not read such layers but they can be read into
++    a pd.DataFrame using :func:`pyogrio.read_dataframe`.
++
++    Parameters
++    ----------
++    filename : str, path object or file-like object
++        Either the absolute or relative path to the file or URL to
++        be opened, or any object with a read() method (such as an open file
++        or StringIO)
++
++    Returns
++    -------
++    pandas.DataFrame
++        A DataFrame with columns "name" and "geometry_type" and one row per layer.
++    """
++    _import_pyogrio()
++    _check_pyogrio("list_layers")
++
++    import pyogrio
++
++    return pd.DataFrame(
++        pyogrio.list_layers(filename), columns=["name", "geometry_type"]
++    )

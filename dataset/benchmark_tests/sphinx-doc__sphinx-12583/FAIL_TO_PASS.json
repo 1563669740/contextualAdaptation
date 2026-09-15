@@ -1,0 +1,6 @@
+[
+  "tests/test_search.py::test_check_js_search_indexes[directory0]",
+  "tests/test_search.py::test_check_js_search_indexes[directory1]",
+  "tests/test_search.py::test_check_js_search_indexes[directory2]",
+  "tests/test_search.py::test_check_js_search_indexes[directory3]"
+]

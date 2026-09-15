@@ -1,0 +1,36 @@
+diff --git a/docs/sphinx/source/whatsnew/v0.10.4.rst b/docs/sphinx/source/whatsnew/v0.10.4.rst
+index 83b04cc01e..df73d68e98 100644
+--- a/docs/sphinx/source/whatsnew/v0.10.4.rst
++++ b/docs/sphinx/source/whatsnew/v0.10.4.rst
+@@ -11,7 +11,8 @@ Enhancements
+ 
+ Bug fixes
+ ~~~~~~~~~
+-
++* :py:class:`~pvlib.modelchain.ModelChain` now raises a more useful error when
++  ``temperature_model_parameters`` are specified on the passed ``system`` instead of on its ``arrays``. (:issue:`1759`).
+ 
+ Testing
+ ~~~~~~~
+@@ -27,4 +28,4 @@ Requirements
+ 
+ Contributors
+ ~~~~~~~~~~~~
+-
++* :ghuser:`matsuobasho`
+diff --git a/pvlib/modelchain.py b/pvlib/modelchain.py
+index 296356971b..d65f262c23 100644
+--- a/pvlib/modelchain.py
++++ b/pvlib/modelchain.py
+@@ -1117,10 +1117,7 @@ def infer_temperature_model(self):
+         temperature_model_parameters = tuple(
+             array.temperature_model_parameters for array in self.system.arrays)
+         params = _common_keys(temperature_model_parameters)
+-        # remove or statement in v0.9
+-        if {'a', 'b', 'deltaT'} <= params or (
+-                not params and self.system.racking_model is None
+-                and self.system.module_type is None):
++        if {'a', 'b', 'deltaT'} <= params:
+             return self.sapm_temp
+         elif {'u_c', 'u_v'} <= params:
+             return self.pvsyst_temp

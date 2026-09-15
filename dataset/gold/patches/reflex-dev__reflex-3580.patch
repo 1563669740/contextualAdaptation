@@ -1,0 +1,27 @@
+diff --git a/reflex/state.py b/reflex/state.py
+index 73ebc08921b..86bb91d173d 100644
+--- a/reflex/state.py
++++ b/reflex/state.py
+@@ -200,6 +200,7 @@ async def _no_chain_background_task_gen(*args, **kwargs):
+ 
+ 
+ RESERVED_BACKEND_VAR_NAMES = {
++    "_abc_impl",
+     "_backend_vars",
+     "_was_touched",
+ }
+@@ -558,6 +559,14 @@ def __init_subclass__(cls, mixin: bool = False, **kwargs):
+                     cls.computed_vars[newcv._var_name] = newcv
+                     cls.vars[newcv._var_name] = newcv
+                     continue
++                if (
++                    types.is_backend_variable(name, cls)
++                    and name not in RESERVED_BACKEND_VAR_NAMES
++                    and name not in cls.inherited_backend_vars
++                    and not isinstance(value, FunctionType)
++                ):
++                    cls.backend_vars[name] = copy.deepcopy(value)
++                    continue
+                 if events.get(name) is not None:
+                     continue
+                 if not cls._item_is_event_handler(name, value):

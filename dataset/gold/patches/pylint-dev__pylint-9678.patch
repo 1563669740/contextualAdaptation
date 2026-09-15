@@ -1,0 +1,29 @@
+diff --git a/doc/whatsnew/fragments/9671.false_positive b/doc/whatsnew/fragments/9671.false_positive
+new file mode 100644
+index 0000000000..23dafff10f
+--- /dev/null
++++ b/doc/whatsnew/fragments/9671.false_positive
+@@ -0,0 +1,3 @@
++Fix a false positive for ``redefined-outer-name`` when there is a name defined in an exception-handling block which shares the same name as a local variable that has been defined in a function body.
++
++Closes #9671
+diff --git a/pylint/checkers/variables.py b/pylint/checkers/variables.py
+index 6c33a05556..8447320b89 100644
+--- a/pylint/checkers/variables.py
++++ b/pylint/checkers/variables.py
+@@ -1519,6 +1519,15 @@ def visit_functiondef(self, node: nodes.FunctionDef) -> None:
+                 ):
+                     continue
+ 
++                # Suppress emitting the message if the outer name is in the
++                # scope of an exception assignment.
++                # For example: the `e` in `except ValueError as e`
++                global_node = globs[name][0]
++                if isinstance(global_node, nodes.AssignName) and isinstance(
++                    global_node.parent, nodes.ExceptHandler
++                ):
++                    continue
++
+                 line = definition.fromlineno
+                 if not self._is_name_ignored(stmt, name):
+                     self.add_message(

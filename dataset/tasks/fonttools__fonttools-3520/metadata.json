@@ -1,0 +1,41 @@
+{
+  "task_id": "fonttools__fonttools-3520",
+  "repo": "fonttools/fonttools",
+  "pull_number": "3520",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=2 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.79,
+  "base_commit": "d757bfac8a140832fcb7ebdf1bd502480d6a6911",
+  "repo_commit": "d757bfac8a140832fcb7ebdf1bd502480d6a6911",
+  "gold_commit": "0902d1e48290cfc194dc2bdec782f9af39f29b7e",
+  "gold_commit_count": 1,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 3,
+  "gold_loc_added": 87,
+  "gold_loc_deleted": 1,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 2,
+  "pass_to_pass_count": 4454,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

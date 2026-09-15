@@ -1,0 +1,300 @@
+diff --git a/changes/1665.feature.rst b/changes/1665.feature.rst
+deleted file mode 100644
+index 1cf0153cd..000000000
+--- a/changes/1665.feature.rst
++++ /dev/null
+@@ -1,1 +0,0 @@
+-The environment variables ``ANDROID_USER_HOME`` and ``ANDROID_AVD_HOME`` are now respected and passed through to Android SDK commands. This allows for storing AVDs for the Android emulator outside of the home directory.
+diff --git a/changes/1689.misc.rst b/changes/1689.misc.rst
+new file mode 100644
+index 000000000..7c5f7aee7
+--- /dev/null
++++ b/changes/1689.misc.rst
+@@ -0,0 +1,1 @@
++Support for ``ANDROID_USER_HOME`` and ``ANDROID_AVD_HOME`` was removed after issues with running AVDs created by non-Briefcase-managed Android SDKs were discovered.
+diff --git a/docs/reference/platforms/android/gradle.rst b/docs/reference/platforms/android/gradle.rst
+index d36c8988b..47b65770a 100644
+--- a/docs/reference/platforms/android/gradle.rst
++++ b/docs/reference/platforms/android/gradle.rst
+@@ -12,7 +12,6 @@ Gradle project
+ | |f|    | |y|   |     | |f|    |       | |v| | |f|    | |v| | |v|   |
+ +--------+-------+-----+--------+-------+-----+--------+-----+-------+
+ 
+-
+ When generating an Android project, Briefcase produces a Gradle project.
+ 
+ Environment
+@@ -41,14 +40,6 @@ present in the environment, Briefcase will honor the deprecated
+ must have version 9.0 of Command-line Tools installed; this version can be
+ installed in the SDK Manager in Android Studio.
+ 
+-Android Emulator
+-----------------
+-
+-By default, the Android emulator creates Android Virtual Devices (AVD) in the
+-``.android`` directory in your user's home directory. As the AVDs can consume
+-large amounts of disk space, they can be stored in an arbitrary directory via
+-the ``ANDROID_USER_HOME`` and ``ANDROID_AVD_HOME`` environment variables.
+-
+ Packaging format
+ ================
+ 
+diff --git a/src/briefcase/integrations/android_sdk.py b/src/briefcase/integrations/android_sdk.py
+index e2f0906d9..11a9a7d91 100644
+--- a/src/briefcase/integrations/android_sdk.py
++++ b/src/briefcase/integrations/android_sdk.py
+@@ -55,6 +55,7 @@ class AndroidSDK(ManagedTool):
+ 
+     def __init__(self, tools: ToolCache, root_path: Path):
+         super().__init__(tools=tools)
++        self.dot_android_path = self.tools.home_path / ".android"
+         self.root_path = root_path
+ 
+         # A wrapper for testing purposes
+@@ -92,13 +93,6 @@ def cmdline_tools_url(self) -> str:
+             f"commandlinetools-{platform_name}-{self.SDK_MANAGER_DOWNLOAD_VER}_latest.zip"
+         )
+ 
+-    @property
+-    def dot_android_path(self) -> Path:
+-        if user_home := self.tools.os.environ.get("ANDROID_USER_HOME"):
+-            return Path(user_home)
+-        else:
+-            return self.tools.home_path / ".android"
+-
+     @property
+     def cmdline_tools_path(self) -> Path:
+         """Version-specific Command-line tools install root directory."""
+@@ -130,26 +124,18 @@ def emulator_path(self) -> Path:
+         return self.root_path / "emulator" / emulator
+ 
+     @property
+-    def avd_home_path(self) -> Path:
+-        if avd_home := self.tools.os.environ.get("ANDROID_AVD_HOME"):
+-            return Path(avd_home)
+-        else:
+-            return self.dot_android_path / "avd"
+-
+-    def avd_path(self, avd: str) -> Path:
+-        return self.avd_home_path / f"{avd}.avd"
++    def avd_path(self) -> Path:
++        return self.dot_android_path / "avd"
+ 
+-    def avd_config_filepath(self, avd: str) -> Path:
+-        return self.avd_path(avd) / "config.ini"
++    def avd_config_filename(self, avd: str) -> Path:
++        return self.avd_path / f"{avd}.avd/config.ini"
+ 
+     @property
+     def env(self) -> dict[str, str]:
+         return {
+             "ANDROID_HOME": os.fsdecode(self.root_path),
+             "ANDROID_SDK_ROOT": os.fsdecode(self.root_path),
+-            "ANDROID_USER_HOME": os.fsdecode(self.dot_android_path),
+-            "ANDROID_AVD_HOME": os.fsdecode(self.avd_home_path),
+-            "JAVA_HOME": os.fsdecode(self.tools.java.java_home),
++            "JAVA_HOME": str(self.tools.java.java_home),
+         }
+ 
+     @property
+@@ -494,14 +480,19 @@ def install_cmdline_tools(self) -> bool:
+             prefix=self.full_name,
+         )
+         self.tools.logger.info(f"Using Android SDK at {self.root_path}")
++        latest_sdkmanager_path = (
++            self.root_path
++            / "cmdline-tools"
++            / "latest"
++            / "bin"
++            / self.sdkmanager_filename
++        )
+         try:
+             self.tools.subprocess.run(
+                 [
+-                    self.root_path
+-                    / f"cmdline-tools/latest/bin/{self.sdkmanager_filename}",
++                    latest_sdkmanager_path,
+                     f"cmdline-tools;{self.SDK_MANAGER_VER}",
+                 ],
+-                env=self.env,
+                 check=True,
+                 stream_output=False,
+             )
+@@ -541,7 +532,7 @@ def delete_legacy_sdk_tools(self):
+     Any emulators created with the older Android SDK Tools will not be
+     compatible with the new tools. You will need to create new
+     emulators. Old emulators can be removed by deleting the files
+-    in {self.avd_home_path} matching the emulator name.
++    in {self.avd_path} matching the emulator name.
+ 
+ *************************************************************************
+ """
+@@ -566,7 +557,7 @@ def list_packages(self):
+         try:
+             # check_output always writes its output to debug
+             self.tools.subprocess.check_output(
+-                [self.sdkmanager_path, "--list_installed"],
++                [os.fsdecode(self.sdkmanager_path), "--list_installed"],
+                 env=self.env,
+             )
+         except subprocess.CalledProcessError as e:
+@@ -602,7 +593,7 @@ def verify_license(self):
+             # Using subprocess.run() with no I/O redirection so the user sees
+             # the full output and can send input.
+             self.tools.subprocess.run(
+-                [self.sdkmanager_path, "--licenses"],
++                [os.fsdecode(self.sdkmanager_path), "--licenses"],
+                 env=self.env,
+                 check=True,
+                 stream_output=False,
+@@ -650,7 +641,11 @@ def verify_emulator(self):
+         self.tools.logger.info("Downloading the Android emulator...")
+         try:
+             self.tools.subprocess.run(
+-                [self.sdkmanager_path, "platform-tools", "emulator"],
++                [
++                    os.fsdecode(self.sdkmanager_path),
++                    "platform-tools",
++                    "emulator",
++                ],
+                 env=self.env,
+                 check=True,
+                 stream_output=False,
+@@ -776,7 +771,10 @@ def verify_system_image(self, system_image: str):
+         )
+         try:
+             self.tools.subprocess.run(
+-                [self.sdkmanager_path, system_image],
++                [
++                    os.fsdecode(self.sdkmanager_path),
++                    system_image,
++                ],
+                 env=self.env,
+                 check=True,
+                 stream_output=False,
+@@ -833,17 +831,11 @@ def verify_emulator_skin(self, skin: str):
+ 
+     def emulators(self) -> list[str]:
+         """Find the list of emulators that are available."""
+-        # Only check for existing AVDs if the AVD home path exists; otherwise
+-        # the call to avdmanager to list them will create the directory.
+-        if not self.avd_home_path.is_dir():
+-            return []
+-
+         try:
+             # Capture `stderr` so that if the process exits with failure, the
+             # stderr data is in `e.output`.
+             output = self.tools.subprocess.check_output(
+-                [self.avdmanager_path, "list", "avd", "--compact"],
+-                env=self.env,
++                [os.fsdecode(self.emulator_path), "-list-avds"]
+             ).strip()
+             # AVD names are returned one per line.
+             if len(output) == 0:
+@@ -856,8 +848,7 @@ def devices(self) -> dict[str, dict[str, str | bool]]:
+         """Find the devices that are attached and available to ADB."""
+         try:
+             output = self.tools.subprocess.check_output(
+-                [self.adb_path, "devices", "-l"],
+-                env=self.env,
++                [os.fsdecode(self.adb_path), "devices", "-l"]
+             ).strip()
+             # Process the output of `adb devices -l`.
+             # The first line is header information.
+@@ -1196,20 +1187,17 @@ def _create_emulator(
+         if system_image is None:
+             system_image = self.DEFAULT_SYSTEM_IMAGE
+ 
+-        # Ensure the required skin is available
++        # Ensure the required skin is available.
+         self.verify_emulator_skin(skin)
+ 
+-        # Ensure the required system image is available
++        # Ensure the required system image is available.
+         self.verify_system_image(system_image)
+ 
+-        # Ensure AVD home exists so avdmanager doesn't use default directory
+-        self.avd_home_path.mkdir(parents=True, exist_ok=True)
+-
+         with self.tools.input.wait_bar(f"Creating Android emulator {avd}..."):
+             try:
+                 self.tools.subprocess.check_output(
+                     [
+-                        self.avdmanager_path,
++                        os.fsdecode(self.avdmanager_path),
+                         "--verbose",
+                         "create",
+                         "avd",
+@@ -1250,7 +1238,7 @@ def avd_config(self, avd: str) -> dict[str, str]:
+         # Parse the existing config into key-value pairs
+         avd_config = {}
+         try:
+-            with self.avd_config_filepath(avd).open("r", encoding="utf-8") as f:
++            with self.avd_config_filename(avd).open("r", encoding="utf-8") as f:
+                 for line in f:
+                     try:
+                         key, value = line.rstrip().split("=", 1)
+@@ -1277,7 +1265,7 @@ def update_emulator_config(self, avd: str, updates: dict[str, str]):
+         avd_config.update(updates)
+ 
+         # Write the update configuration.
+-        with self.avd_config_filepath(avd).open("w", encoding="utf-8") as f:
++        with self.avd_config_filename(avd).open("w", encoding="utf-8") as f:
+             for key, value in avd_config.items():
+                 f.write(f"{key}={value}\n")
+ 
+@@ -1301,7 +1289,13 @@ def start_emulator(
+             extra_args = []
+ 
+         emulator_popen = self.tools.subprocess.Popen(
+-            [self.emulator_path, f"@{avd}", "-dns-server", "8.8.8.8"] + extra_args,
++            [
++                os.fsdecode(self.emulator_path),
++                f"@{avd}",
++                "-dns-server",
++                "8.8.8.8",
++            ]
++            + extra_args,
+             env=self.env,
+             stdout=subprocess.PIPE,
+             stderr=subprocess.STDOUT,
+@@ -1486,7 +1480,7 @@ def run(self, *arguments: SubprocessArgT, quiet: bool = False) -> str:
+         try:
+             output = self.tools.subprocess.check_output(
+                 [
+-                    self.tools.android_sdk.adb_path,
++                    os.fsdecode(self.tools.android_sdk.adb_path),
+                     "-s",
+                     self.device,
+                 ]
+@@ -1494,11 +1488,10 @@ def run(self, *arguments: SubprocessArgT, quiet: bool = False) -> str:
+                     (os.fsdecode(arg) if isinstance(arg, Path) else arg)
+                     for arg in arguments
+                 ],
+-                env=self.tools.android_sdk.env,
+                 quiet=quiet,
+             )
+             # add returns status code 0 in the case of failure. The only tangible evidence
+-            # of failure is the message "Failure [INSTALL_FAILED_OLDER_SDK]" in the
++            # of failure is the message "Failure [INSTALL_FAILED_OLDER_SDK]" in the,
+             # console output; so if that message exists in the output, raise an exception.
+             if "Failure [INSTALL_FAILED_OLDER_SDK]" in output:
+                 raise BriefcaseCommandError(
+@@ -1601,7 +1594,7 @@ def logcat(self, pid: str) -> subprocess.Popen:
+         # See #1425 for details.
+         return self.tools.subprocess.Popen(
+             [
+-                self.tools.android_sdk.adb_path,
++                os.fsdecode(self.tools.android_sdk.adb_path),
+                 "-s",
+                 self.device,
+                 "logcat",
+@@ -1630,7 +1623,7 @@ def logcat_tail(self, since: datetime):
+             # See #1425 for details.
+             self.tools.subprocess.run(
+                 [
+-                    self.tools.android_sdk.adb_path,
++                    os.fsdecode(self.tools.android_sdk.adb_path),
+                     "-s",
+                     self.device,
+                     "logcat",

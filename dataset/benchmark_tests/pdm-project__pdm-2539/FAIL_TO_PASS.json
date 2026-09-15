@@ -1,0 +1,6 @@
+[
+  "tests/cli/test_list.py::test_list_bare_fields_licences",
+  "tests/cli/test_list.py::test_list_csv_fields_licences",
+  "tests/cli/test_list.py::test_list_json_fields_licences",
+  "tests/cli/test_list.py::test_list_markdown_fields_licences"
+]

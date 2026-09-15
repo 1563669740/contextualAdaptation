@@ -1,0 +1,41 @@
+{
+  "task_id": "python-control__python-control-1145",
+  "repo": "python-control/python-control",
+  "pull_number": "1145",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=1 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.57,
+  "base_commit": "dc7d71bd1a2d143f10fa8fe91d31292bdf8f5113",
+  "repo_commit": "dc7d71bd1a2d143f10fa8fe91d31292bdf8f5113",
+  "gold_commit": "21f4912c8b12216534b8d5b07c243c66675a8b83",
+  "gold_commit_count": 2,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 4,
+  "gold_loc_added": 25,
+  "gold_loc_deleted": 26,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 3,
+  "pass_to_pass_count": 3661,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

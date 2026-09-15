@@ -1,0 +1,49 @@
+diff --git a/news/3133.bugfix.md b/news/3133.bugfix.md
+new file mode 100644
+index 0000000000..857f464989
+--- /dev/null
++++ b/news/3133.bugfix.md
+@@ -0,0 +1,1 @@
++Remove empty groups when removing packages with `pdm remove`.
+diff --git a/src/pdm/cli/commands/remove.py b/src/pdm/cli/commands/remove.py
+index 49804b73f4..13ae5b5e3a 100644
+--- a/src/pdm/cli/commands/remove.py
++++ b/src/pdm/cli/commands/remove.py
+@@ -118,6 +118,10 @@ def do_remove(
+         if lock_groups and group not in lock_groups:
+             project.core.ui.warn(f"Group [success]{group}[/] isn't in lockfile, skipping lock.")
+             return
++        # It may remove the whole group, exclude it from lock groups first
++        project_groups = project.iter_groups()
++        if lock_groups is not None:
++            lock_groups = [g for g in lock_groups if g in project_groups]
+         do_lock(project, "reuse", dry_run=dry_run, tracked_names=tracked_names, hooks=hooks, groups=lock_groups)
+         if sync:
+             do_sync(
+diff --git a/src/pdm/project/core.py b/src/pdm/project/core.py
+index 823ab63879..0a3ba215a8 100644
+--- a/src/pdm/project/core.py
++++ b/src/pdm/project/core.py
+@@ -556,7 +556,10 @@ def use_pyproject_dependencies(
+         def update_dev_dependencies(deps: list[str]) -> None:
+             from tomlkit.container import OutOfOrderTableProxy
+ 
+-            settings.setdefault("dev-dependencies", {})[group] = deps
++            if deps:
++                settings.setdefault("dev-dependencies", {})[group] = deps
++            else:
++                settings.setdefault("dev-dependencies", {}).pop(group, None)
+             if isinstance(self.pyproject._data["tool"], OutOfOrderTableProxy):
+                 # In case of a separate table, we have to remove and re-add it to make the write correct.
+                 # This may change the order of tables in the TOML file, but it's the best we can do.
+@@ -570,7 +573,9 @@ def update_dev_dependencies(deps: list[str]) -> None:
+         deps_setter = [
+             (
+                 metadata.get("optional-dependencies", {}),
+-                lambda x: metadata.setdefault("optional-dependencies", {}).__setitem__(group, x),
++                lambda x: metadata.setdefault("optional-dependencies", {}).__setitem__(group, x)
++                if x
++                else metadata.setdefault("optional-dependencies", {}).pop(group, None),
+             ),
+             (settings.get("dev-dependencies", {}), update_dev_dependencies),
+         ]

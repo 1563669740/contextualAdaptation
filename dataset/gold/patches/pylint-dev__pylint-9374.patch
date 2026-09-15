@@ -1,0 +1,32 @@
+diff --git a/doc/whatsnew/fragments/6804.false_positive b/doc/whatsnew/fragments/6804.false_positive
+new file mode 100644
+index 0000000000..9069ec35bd
+--- /dev/null
++++ b/doc/whatsnew/fragments/6804.false_positive
+@@ -0,0 +1,5 @@
++``used-before-assignment`` is no longer emitted when using a name in a loop and
++depending on an earlier name assignment in an ``except`` block paired with
++``else: continue``.
++
++Closes #6804
+diff --git a/pylint/checkers/variables.py b/pylint/checkers/variables.py
+index 925088f60d..b13e25491a 100644
+--- a/pylint/checkers/variables.py
++++ b/pylint/checkers/variables.py
+@@ -883,6 +883,16 @@ def _uncertain_nodes_in_except_blocks(
+                 and utils.is_terminating_func(else_statement.value)
+                 for else_statement in closest_try_except.orelse
+             )
++            else_block_continues = any(
++                isinstance(else_statement, nodes.Continue)
++                for else_statement in closest_try_except.orelse
++            )
++            if (
++                else_block_continues
++                and isinstance(node_statement.parent, (nodes.For, nodes.While))
++                and closest_try_except.parent.parent_of(node_statement)
++            ):
++                continue
+ 
+             if try_block_returns or else_block_returns or else_block_exits:
+                 # Exception: if this node is in the final block of the other_node_statement,

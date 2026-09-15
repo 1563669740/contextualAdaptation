@@ -1,0 +1,143 @@
+diff --git a/telegram/ext/_applicationbuilder.py b/telegram/ext/_applicationbuilder.py
+index 71c4bd31286..106c73462b8 100644
+--- a/telegram/ext/_applicationbuilder.py
++++ b/telegram/ext/_applicationbuilder.py
+@@ -78,6 +78,7 @@
+     ("connect_timeout", "connect_timeout"),
+     ("read_timeout", "read_timeout"),
+     ("write_timeout", "write_timeout"),
++    ("media_write_timeout", "media_write_timeout"),
+     ("http_version", "http_version"),
+     ("get_updates_connection_pool_size", "get_updates_connection_pool_size"),
+     ("get_updates_proxy", "get_updates_proxy"),
+@@ -152,6 +153,7 @@ class ApplicationBuilder(Generic[BT, CCT, UD, CD, BD, JQ]):
+         "_http_version",
+         "_job_queue",
+         "_local_mode",
++        "_media_write_timeout",
+         "_persistence",
+         "_pool_timeout",
+         "_post_init",
+@@ -181,6 +183,7 @@ def __init__(self: "InitApplicationBuilder"):
+         self._connect_timeout: ODVInput[float] = DEFAULT_NONE
+         self._read_timeout: ODVInput[float] = DEFAULT_NONE
+         self._write_timeout: ODVInput[float] = DEFAULT_NONE
++        self._media_write_timeout: ODVInput[float] = DEFAULT_NONE
+         self._pool_timeout: ODVInput[float] = DEFAULT_NONE
+         self._request: DVInput[BaseRequest] = DEFAULT_NONE
+         self._get_updates_connection_pool_size: DVInput[int] = DEFAULT_NONE
+@@ -243,6 +246,10 @@ def _build_request(self, get_updates: bool) -> BaseRequest:
+             "write_timeout": getattr(self, f"{prefix}write_timeout"),
+             "pool_timeout": getattr(self, f"{prefix}pool_timeout"),
+         }
++
++        if not get_updates:
++            timeouts["media_write_timeout"] = self._media_write_timeout
++
+         # Get timeouts that were actually set-
+         effective_timeouts = {
+             key: value for key, value in timeouts.items() if not isinstance(value, DefaultValue)
+@@ -424,9 +431,13 @@ def _request_check(self, get_updates: bool) -> None:
+         prefix = "get_updates_" if get_updates else ""
+         name = prefix + "request"
+ 
++        timeouts = ["connect_timeout", "read_timeout", "write_timeout", "pool_timeout"]
++        if not get_updates:
++            timeouts.append("media_write_timeout")
++
+         # Code below tests if it's okay to set a Request object. Only okay if no other request args
+         # or instances containing a Request were set previously
+-        for attr in ("connect_timeout", "read_timeout", "write_timeout", "pool_timeout"):
++        for attr in timeouts:
+             if not isinstance(getattr(self, f"_{prefix}{attr}"), DefaultValue):
+                 raise RuntimeError(_TWO_ARGS_REQ.format(name, attr))
+ 
+@@ -617,6 +628,26 @@ def write_timeout(self: BuilderType, write_timeout: Optional[float]) -> BuilderT
+         self._write_timeout = write_timeout
+         return self
+ 
++    def media_write_timeout(
++        self: BuilderType, media_write_timeout: Optional[float]
++    ) -> BuilderType:
++        """Sets the media write operation timeout for the
++        :paramref:`~telegram.request.HTTPXRequest.media_write_timeout` parameter of
++        :attr:`telegram.Bot.request`. Defaults to ``20``.
++
++        .. versionadded:: NEXT.VERSION
++
++        Args:
++            media_write_timeout (:obj:`float`): See
++                :paramref:`telegram.request.HTTPXRequest.media_write_timeout` for more information.
++
++        Returns:
++            :class:`ApplicationBuilder`: The same builder with the updated argument.
++        """
++        self._request_param_check(name="media_write_timeout", get_updates=False)
++        self._media_write_timeout = media_write_timeout
++        return self
++
+     def pool_timeout(self: BuilderType, pool_timeout: Optional[float]) -> BuilderType:
+         """Sets the connection pool's connection freeing timeout for the
+         :paramref:`~telegram.request.HTTPXRequest.pool_timeout` parameter of
+diff --git a/telegram/request/_httpxrequest.py b/telegram/request/_httpxrequest.py
+index 7ca54c5c534..8c18d063012 100644
+--- a/telegram/request/_httpxrequest.py
++++ b/telegram/request/_httpxrequest.py
+@@ -64,6 +64,10 @@ class HTTPXRequest(BaseRequest):
+             a network socket; i.e. POSTing a request or uploading a file).
+             This value is used unless a different value is passed to :meth:`do_request`.
+             Defaults to ``5``.
++
++            Hint:
++                This timeout is used for all requests except for those that upload media/files.
++                For the latter, :paramref:`media_write_timeout` is used.
+         connect_timeout (:obj:`float` | :obj:`None`, optional): If passed, specifies the
+             maximum amount of time (in seconds) to wait for a connection attempt to a server
+             to succeed. This value is used unless a different value is passed to
+@@ -112,10 +116,16 @@ class HTTPXRequest(BaseRequest):
+             .. _the docs of httpx: https://www.python-httpx.org/environment_variables/#proxies
+ 
+             .. versionadded:: 20.7
++        media_write_timeout (:obj:`float` | :obj:`None`, optional): Like :paramref:`write_timeout`,
++            but used only for requests that upload media/files. This value is used unless a
++            different value is passed to :paramref:`do_request.write_timeout` of
++            :meth:`do_request`. Defaults to ``20`` seconds.
++
++            .. versionadded:: NEXT.VERSION
+ 
+     """
+ 
+-    __slots__ = ("_client", "_client_kwargs", "_http_version")
++    __slots__ = ("_client", "_client_kwargs", "_http_version", "_media_write_timeout")
+ 
+     def __init__(
+         self,
+@@ -128,6 +138,7 @@ def __init__(
+         http_version: HTTPVersion = "1.1",
+         socket_options: Optional[Collection[SocketOpt]] = None,
+         proxy: Optional[Union[str, httpx.Proxy, httpx.URL]] = None,
++        media_write_timeout: Optional[float] = 20.0,
+     ):
+         if proxy_url is not None and proxy is not None:
+             raise ValueError("The parameters `proxy_url` and `proxy` are mutually exclusive.")
+@@ -142,6 +153,7 @@ def __init__(
+             )
+ 
+         self._http_version = http_version
++        self._media_write_timeout = media_write_timeout
+         timeout = httpx.Timeout(
+             connect=connect_timeout,
+             read=read_timeout,
+@@ -251,11 +263,7 @@ async def do_request(
+             pool_timeout = self._client.timeout.pool
+ 
+         if isinstance(write_timeout, DefaultValue):
+-            # Making the networking backend decide on the proper timeout values instead of doing
+-            # it via the default values of the Bot methods was introduced in version 20.7.
+-            # We hard-code the value here for now until we add additional parameters to this
+-            # class to control the media_write_timeout separately.
+-            write_timeout = self._client.timeout.write if not files else 20
++            write_timeout = self._client.timeout.write if not files else self._media_write_timeout
+ 
+         timeout = httpx.Timeout(
+             connect=connect_timeout,

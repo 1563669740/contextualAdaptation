@@ -1,0 +1,176 @@
+diff --git a/scripts/update_snapshot_results.sh b/scripts/update_snapshot_results.sh
+index 6e02e683b6..efb1b5d660 100755
+--- a/scripts/update_snapshot_results.sh
++++ b/scripts/update_snapshot_results.sh
+@@ -5,6 +5,7 @@ cfn-lint test/fixtures/templates/integration/dynamic-references.yaml -e -c I --f
+ cfn-lint test/fixtures/templates/integration/resources-cloudformation-init.yaml -e -c I --format json > test/fixtures/results/integration/resources-cloudformation-init.json
+ cfn-lint test/fixtures/templates/integration/ref-no-value.yaml -e -c I --format json > test/fixtures/results/integration/ref-no-value.json
+ cfn-lint test/fixtures/templates/integration/availability-zones.yaml -e -c I --format json > test/fixtures/results/integration/availability-zones.json
++cfn-lint test/fixtures/templates/integration/getatt-types.yaml -e -c I --format json > test/fixtures/results/integration/getatt-types.json
+ cfn-lint test/fixtures/templates/integration/aws-ec2-networkinterface.yaml -e -c I --format json > test/fixtures/results/integration/aws-ec2-networkinterface.json
+ cfn-lint test/fixtures/templates/integration/aws-ec2-instance.yaml -e -c I --format json > test/fixtures/results/integration/aws-ec2-instance.json
+ cfn-lint test/fixtures/templates/integration/aws-ec2-launchtemplate.yaml -e -c I --format json > test/fixtures/results/integration/aws-ec2-launchtemplate.json
+diff --git a/src/cfnlint/data/schemas/other/step_functions/statemachine.json b/src/cfnlint/data/schemas/other/step_functions/statemachine.json
+index 4af8362232..e05659700a 100644
+--- a/src/cfnlint/data/schemas/other/step_functions/statemachine.json
++++ b/src/cfnlint/data/schemas/other/step_functions/statemachine.json
+@@ -290,7 +290,7 @@
+       "properties": {
+        "ErrorEquals": {
+         "items": {
+-         "types": "string"
++         "type": "string"
+         },
+         "type": "array"
+        },
+@@ -303,7 +303,7 @@
+        "ErrorEquals",
+        "Next"
+       ],
+-      "types": "object"
++      "type": "object"
+      },
+      "type": "array"
+     },
+@@ -418,7 +418,7 @@
+        },
+        "ErrorEquals": {
+         "items": {
+-         "types": "string"
++         "type": "string"
+         },
+         "type": "array"
+        },
+@@ -434,7 +434,7 @@
+       "required": [
+        "ErrorEquals"
+       ],
+-      "types": "object"
++      "type": "object"
+      },
+      "type": "array"
+     },
+@@ -481,7 +481,7 @@
+       "properties": {
+        "ErrorEquals": {
+         "items": {
+-         "types": "string"
++         "type": "string"
+         },
+         "type": "array"
+        },
+@@ -494,7 +494,7 @@
+        "ErrorEquals",
+        "Next"
+       ],
+-      "types": "object"
++      "type": "object"
+      },
+      "type": "array"
+     },
+@@ -540,7 +540,7 @@
+        },
+        "ErrorEquals": {
+         "items": {
+-         "types": "string"
++         "type": "string"
+         },
+         "type": "array"
+        },
+@@ -556,7 +556,7 @@
+       "required": [
+        "ErrorEquals"
+       ],
+-      "types": "object"
++      "type": "object"
+      },
+      "type": "array"
+     },
+@@ -799,7 +799,7 @@
+       "properties": {
+        "ErrorEquals": {
+         "items": {
+-         "types": "string"
++         "type": "string"
+         },
+         "type": "array"
+        },
+@@ -812,7 +812,7 @@
+        "ErrorEquals",
+        "Next"
+       ],
+-      "types": "object"
++      "type": "object"
+      },
+      "type": "array"
+     },
+@@ -880,7 +880,7 @@
+        },
+        "ErrorEquals": {
+         "items": {
+-         "types": "string"
++         "type": "string"
+         },
+         "type": "array"
+        },
+@@ -896,7 +896,7 @@
+       "required": [
+        "ErrorEquals"
+       ],
+-      "types": "object"
++      "type": "object"
+      },
+      "type": "array"
+     },
+diff --git a/src/cfnlint/jsonschema/_resolvers_cfn.py b/src/cfnlint/jsonschema/_resolvers_cfn.py
+index 9f376ac112..8b2be3e2ed 100644
+--- a/src/cfnlint/jsonschema/_resolvers_cfn.py
++++ b/src/cfnlint/jsonschema/_resolvers_cfn.py
+@@ -248,8 +248,8 @@ def join(validator: Validator, instance: Any) -> ResolutionResult:
+                 continue
+             try:
+                 for value in _join_expansion(values_v, values):
+-                    yield delimiter.join(value), values_v, None
+-            except ValueError:
++                    yield delimiter.join([str(v) for v in value]), values_v, None
++            except (ValueError, TypeError):
+                 return
+ 
+ 
+diff --git a/src/cfnlint/rules/functions/GetAtt.py b/src/cfnlint/rules/functions/GetAtt.py
+index f33f3692f2..1780107d3a 100644
+--- a/src/cfnlint/rules/functions/GetAtt.py
++++ b/src/cfnlint/rules/functions/GetAtt.py
+@@ -129,9 +129,13 @@ def _resolve_getatt(
+                         schema_types = ensure_list(getatt_schema.get("type"))
+                         types = ensure_list(s.get("type"))
+ 
+-                        if is_types_compatible(
+-                            types, schema_types, validator.context.strict_types
+-                        ):
++                        # GetAtt type checking is strict.
++                        # It must match in all cases
++                        if any(t in ["boolean", "integer", "boolean"] for t in types):
++                            # this should be switched to validate the value of the
++                            # property if it was available
++                            continue
++                        if is_types_compatible(types, schema_types, True):
+                             continue
+ 
+                         reprs = ", ".join(repr(type) for type in types)
+diff --git a/src/cfnlint/rules/outputs/Value.py b/src/cfnlint/rules/outputs/Value.py
+index 9d0bb6c41d..66f504f761 100644
+--- a/src/cfnlint/rules/outputs/Value.py
++++ b/src/cfnlint/rules/outputs/Value.py
+@@ -50,10 +50,7 @@ def validate(self, validator: Validator, _: Any, instance: Any, schema: Any):
+         for err in validator.descend(
+             value,
+             schema={
+-                "type": ["array", "string"],
+-                "items": {
+-                    "type": "string",
+-                },
++                "type": ["string"],
+             },
+             path=key,
+             property_path=key,

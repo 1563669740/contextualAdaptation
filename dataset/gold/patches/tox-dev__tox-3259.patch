@@ -1,0 +1,43 @@
+diff --git a/docs/changelog/3256.bugfix.rst b/docs/changelog/3256.bugfix.rst
+new file mode 100644
+index 000000000..819082c70
+--- /dev/null
++++ b/docs/changelog/3256.bugfix.rst
+@@ -0,0 +1,1 @@
++Allow appending to ``deps`` with ``--override testenv.deps+=foo`` - by :user:`stefanor`.
+diff --git a/src/tox/config/loader/api.py b/src/tox/config/loader/api.py
+index f02361dea..98a235ed6 100644
+--- a/src/tox/config/loader/api.py
++++ b/src/tox/config/loader/api.py
+@@ -5,6 +5,7 @@
+ from typing import TYPE_CHECKING, Any, List, Mapping, TypeVar
+ 
+ from tox.plugin import impl
++from tox.tox_env.python.pip.req_file import PythonDeps
+ 
+ from .convert import Convert, Factory
+ from .str_convert import StrConvert
+@@ -148,6 +149,8 @@ def load(  # noqa: PLR0913
+                 converted.update(converted_override)
+             elif isinstance(converted, SetEnv) and isinstance(converted_override, SetEnv):
+                 converted.update(converted_override, override=True)
++            elif isinstance(converted, PythonDeps) and isinstance(converted_override, PythonDeps):
++                converted += converted_override
+             else:
+                 msg = "Only able to append to lists and dicts"
+                 raise ValueError(msg)
+diff --git a/src/tox/tox_env/python/pip/req_file.py b/src/tox/tox_env/python/pip/req_file.py
+index 24e3fac2d..c88e5cd17 100644
+--- a/src/tox/tox_env/python/pip/req_file.py
++++ b/src/tox/tox_env/python/pip/req_file.py
+@@ -118,6 +118,10 @@ def unroll(self) -> tuple[list[str], list[str]]:
+             self._unroll = result_opts, result_req
+         return self._unroll
+ 
++    def __iadd__(self, other: PythonDeps) -> PythonDeps:  # noqa: PYI034
++        self._raw += "\n" + other._raw
++        return self
++
+     @classmethod
+     def factory(cls, root: Path, raw: object) -> PythonDeps:
+         if not isinstance(raw, str):

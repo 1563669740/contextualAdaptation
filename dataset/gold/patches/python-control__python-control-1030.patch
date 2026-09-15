@@ -1,0 +1,14 @@
+diff --git a/control/timeplot.py b/control/timeplot.py
+index 2eb7aec9b..f257d2b3a 100644
+--- a/control/timeplot.py
++++ b/control/timeplot.py
+@@ -738,7 +738,8 @@ def combine_time_responses(response_list, trace_labels=None, title=None):
+             if generate_trace_labels:
+                 trace_labels.append(response.title)
+             trace_types.append(
+-                None if response.trace_types is None else response.types[0])
++                None if response.trace_types is None
++                else response.trace_types[0])
+ 
+         else:
+             # Save the data

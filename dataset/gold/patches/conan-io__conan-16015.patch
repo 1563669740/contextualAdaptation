@@ -1,0 +1,148 @@
+diff --git a/conan/tools/cmake/cmake.py b/conan/tools/cmake/cmake.py
+index 3ac9760fb3c..02a80b39cd7 100644
+--- a/conan/tools/cmake/cmake.py
++++ b/conan/tools/cmake/cmake.py
+@@ -95,11 +95,8 @@ def configure(self, variables=None, build_script_folder=None, cli_args=None,
+         if self._generator:
+             arg_list.append('-G "{}"'.format(self._generator))
+         if self._toolchain_file:
+-            if os.path.isabs(self._toolchain_file):
+-                toolpath = self._toolchain_file
+-            else:
+-                toolpath = os.path.join(generator_folder, self._toolchain_file)
+-            arg_list.append('-DCMAKE_TOOLCHAIN_FILE="{}"'.format(toolpath.replace("\\", "/")))
++            toolpath = self._toolchain_file.replace("\\", "/")
++            arg_list.append('-DCMAKE_TOOLCHAIN_FILE="{}"'.format(toolpath))
+         if self._conanfile.package_folder:
+             pkg_folder = self._conanfile.package_folder.replace("\\", "/")
+             arg_list.append('-DCMAKE_INSTALL_PREFIX="{}"'.format(pkg_folder))
+diff --git a/conan/tools/cmake/presets.py b/conan/tools/cmake/presets.py
+index c6fd71bd851..d50bfdea228 100644
+--- a/conan/tools/cmake/presets.py
++++ b/conan/tools/cmake/presets.py
+@@ -1,8 +1,9 @@
+ import json
+ import os
+ import platform
++import textwrap
+ 
+-from conan.api.output import ConanOutput
++from conan.api.output import ConanOutput, Color
+ from conan.tools.cmake.layout import get_build_folder_custom_vars
+ from conan.tools.cmake.toolchain.blocks import GenericSystemBlock
+ from conan.tools.cmake.utils import is_multi_configuration
+@@ -28,6 +29,11 @@ class _CMakePresets:
+     @staticmethod
+     def generate(conanfile, toolchain_file, generator, cache_variables, preset_prefix, buildenv, runenv,
+                  cmake_executable):
++        toolchain_file = os.path.abspath(os.path.join(conanfile.generators_folder, toolchain_file))
++        try:  # Make it relative to the build dir if possible
++            toolchain_file = os.path.relpath(toolchain_file, conanfile.build_folder)
++        except ValueError:
++            pass
+         cache_variables = cache_variables or {}
+         if platform.system() == "Windows" and generator == "MinGW Makefiles":
+             if "CMAKE_SH" not in cache_variables:
+@@ -74,7 +80,7 @@ def generate(conanfile, toolchain_file, generator, cache_variables, preset_prefi
+ 
+         preset_content = json.dumps(data, indent=4)
+         save(preset_path, preset_content)
+-        ConanOutput(str(conanfile)).info("CMakeToolchain generated: CMakePresets.json")
++        ConanOutput(str(conanfile)).info(f"CMakeToolchain generated: {preset_path}")
+         return preset_path, data
+ 
+     @staticmethod
+@@ -172,13 +178,11 @@ def _format_val(val):
+         except:
+             is_consumer = False
+         if is_consumer:
+-            conanfile.output.info(
+-                f"Preset '{name}' added to CMakePresets.json. Invoke it manually using "
+-                f"'cmake --preset {name}' if using CMake>=3.23")
+-            conanfile.output.info(f"If your CMake version is not compatible with "
+-                                  f"CMakePresets (<3.23) call cmake like: 'cmake <path> "
+-                                  f"-G {_format_val(generator)} {add_toolchain_cache}"
+-                                  f"{cache_variables_info}'")
++            msg = textwrap.dedent(f"""\
++                CMakeToolchain: Preset '{name}' added to CMakePresets.json.
++                    (cmake>=3.23) cmake --preset {name}
++                    (cmake<3.23) cmake <path> -G {_format_val(generator)} {add_toolchain_cache} {cache_variables_info}""")
++            conanfile.output.info(msg, fg=Color.CYAN)
+         return ret
+ 
+     @staticmethod
+@@ -283,14 +287,15 @@ def generate(conanfile, preset_path, user_presets_path, preset_prefix, preset_da
+ 
+         if inherited_user:
+             _IncludingPresets._clean_user_inherits(data, preset_data)
+-        data = _IncludingPresets._append_user_preset_path(data, preset_path)
++
++        try:  # Make it relative to the CMakeUserPresets.json if possible
++            preset_path = os.path.relpath(preset_path, output_dir)
++        except ValueError:
++            pass
++        data = _IncludingPresets._append_user_preset_path(data, preset_path, output_dir)
+ 
+         data = json.dumps(data, indent=4)
+-        try:
+-            presets_path = os.path.relpath(user_presets_path, conanfile.generators_folder)
+-        except ValueError:  # in Windows this fails if in another drive
+-            presets_path = user_presets_path
+-        ConanOutput(str(conanfile)).info(f"CMakeToolchain generated: {presets_path}")
++        ConanOutput(str(conanfile)).info(f"CMakeToolchain generated: {user_presets_path}")
+         save(user_presets_path, data)
+ 
+     @staticmethod
+@@ -326,7 +331,7 @@ def _clean_user_inherits(data, preset_data):
+             other[:] = [p for p in other if p["name"] not in presets_names]
+ 
+     @staticmethod
+-    def _append_user_preset_path(data, preset_path):
++    def _append_user_preset_path(data, preset_path, output_dir):
+         """ - Appends a 'include' to preset_path if the schema supports it.
+             - Otherwise it merges to "data" all the configurePresets, buildPresets etc from the
+               read preset_path.
+@@ -334,7 +339,8 @@ def _append_user_preset_path(data, preset_path):
+         if "include" not in data:
+             data["include"] = []
+         # Clear the folders that have been deleted
+-        data["include"] = [i for i in data.get("include", []) if os.path.exists(i)]
++        data["include"] = [i for i in data.get("include", [])
++                           if os.path.exists(os.path.join(output_dir, i))]
+         if preset_path not in data["include"]:
+             data["include"].append(preset_path)
+         return data
+diff --git a/conan/tools/cmake/toolchain/toolchain.py b/conan/tools/cmake/toolchain/toolchain.py
+index 8391f93790c..22e8c38013e 100644
+--- a/conan/tools/cmake/toolchain/toolchain.py
++++ b/conan/tools/cmake/toolchain/toolchain.py
+@@ -227,16 +227,16 @@ def generate(self):
+         check_duplicated_generator(self, self._conanfile)
+         toolchain_file = self._conanfile.conf.get("tools.cmake.cmaketoolchain:toolchain_file")
+         if toolchain_file is None:  # The main toolchain file generated only if user dont define
+-            save(os.path.join(self._conanfile.generators_folder, self.filename), self.content)
+-            ConanOutput(str(self._conanfile)).info(f"CMakeToolchain generated: {self.filename}")
++            toolchain_file = self.filename
++            save(os.path.join(self._conanfile.generators_folder, toolchain_file), self.content)
++            ConanOutput(str(self._conanfile)).info(f"CMakeToolchain generated: {toolchain_file}")
+         # If we're using Intel oneAPI, we need to generate the environment file and run it
+         if self._conanfile.settings.get_safe("compiler") == "intel-cc":
+             IntelCC(self._conanfile).generate()
+         # Generators like Ninja or NMake requires an active vcvars
+         elif self.generator is not None and "Visual" not in self.generator:
+             VCVars(self._conanfile).generate()
+-        toolchain = os.path.abspath(os.path.join(self._conanfile.generators_folder,
+-                                                 toolchain_file or self.filename))
++
+         cache_variables = {}
+         for name, value in self.cache_variables.items():
+             if isinstance(value, bool):
+@@ -266,7 +266,7 @@ def generate(self):
+ 
+             cmake_executable = self._conanfile.conf.get("tools.cmake:cmake_program", None) or self._find_cmake_exe()
+ 
+-        write_cmake_presets(self._conanfile, toolchain, self.generator, cache_variables,
++        write_cmake_presets(self._conanfile, toolchain_file, self.generator, cache_variables,
+                             self.user_presets_path, self.presets_prefix, buildenv, runenv,
+                             cmake_executable)
+ 

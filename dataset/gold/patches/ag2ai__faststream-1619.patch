@@ -1,0 +1,206 @@
+diff --git a/.codespell-whitelist.txt b/.codespell-whitelist.txt
+index 0ec54623a2..46237f7f3d 100644
+--- a/.codespell-whitelist.txt
++++ b/.codespell-whitelist.txt
+@@ -1,3 +1,3 @@
+ dependant
+ unsecure
+-socio-economic
+\ No newline at end of file
++socio-economic
+diff --git a/.github/workflows/docs_update-references.yaml b/.github/workflows/docs_update-references.yaml
+index 665f1bec99..f119ec2253 100644
+--- a/.github/workflows/docs_update-references.yaml
++++ b/.github/workflows/docs_update-references.yaml
+@@ -30,7 +30,12 @@ jobs:
+           cache-dependency-path: pyproject.toml
+       - name: Install Dependencies
+         if: steps.cache.outputs.cache-hit != 'true'
+-        run: pip install -e ".[dev]"
++        shell: bash
++        # should install with `-e`
++        run: |
++          set -ux
++          python -m pip install uv
++          uv pip install --system -e ".[dev]"
+       - name: Run build docs
+         run: bash scripts/build-docs.sh
+       - name: Commit
+diff --git a/.secrets.baseline b/.secrets.baseline
+index 3fd4156bb0..81e8e12bdc 100644
+--- a/.secrets.baseline
++++ b/.secrets.baseline
+@@ -128,7 +128,7 @@
+         "filename": "docs/docs/en/release.md",
+         "hashed_secret": "35675e68f4b5af7b995d9205ad0fc43842f16450",
+         "is_verified": false,
+-        "line_number": 1325,
++        "line_number": 1423,
+         "is_secret": false
+       }
+     ],
+@@ -163,5 +163,5 @@
+       }
+     ]
+   },
+-  "generated_at": "2024-06-10T09:56:52Z"
++  "generated_at": "2024-07-23T21:38:30Z"
+ }
+diff --git a/docs/docs/en/kafka/Subscriber/index.md b/docs/docs/en/kafka/Subscriber/index.md
+index f40c9a20ca..831acc814b 100644
+--- a/docs/docs/en/kafka/Subscriber/index.md
++++ b/docs/docs/en/kafka/Subscriber/index.md
+@@ -71,4 +71,4 @@ async def base_handler(
+     level: str = Path(),
+ ):
+     ...
+-```
+\ No newline at end of file
++```
+diff --git a/faststream/nats/subscriber/usecase.py b/faststream/nats/subscriber/usecase.py
+index bed0332586..4370f70e1a 100644
+--- a/faststream/nats/subscriber/usecase.py
++++ b/faststream/nats/subscriber/usecase.py
+@@ -426,6 +426,9 @@ async def _create_subscription(  # type: ignore[override]
+         connection: "Client",
+     ) -> None:
+         """Create NATS subscription and start consume task."""
++        if self.subscription:
++            return
++
+         self.subscription = await connection.subscribe(
+             subject=self.clear_subject,
+             queue=self.queue,
+@@ -495,6 +498,9 @@ async def _create_subscription(  # type: ignore[override]
+         connection: "Client",
+     ) -> None:
+         """Create NATS subscription and start consume task."""
++        if self.subscription:
++            return
++
+         self.start_consume_task()
+ 
+         self.subscription = await connection.subscribe(
+@@ -576,6 +582,9 @@ async def _create_subscription(  # type: ignore[override]
+         connection: "JetStreamContext",
+     ) -> None:
+         """Create NATS subscription and start consume task."""
++        if self.subscription:
++            return
++
+         self.subscription = await connection.subscribe(
+             subject=self.clear_subject,
+             queue=self.queue,
+@@ -636,6 +645,9 @@ async def _create_subscription(  # type: ignore[override]
+         connection: "JetStreamContext",
+     ) -> None:
+         """Create NATS subscription and start consume task."""
++        if self.subscription:
++            return
++
+         self.start_consume_task()
+ 
+         self.subscription = await connection.subscribe(
+@@ -698,6 +710,9 @@ async def _create_subscription(  # type: ignore[override]
+         connection: "JetStreamContext",
+     ) -> None:
+         """Create NATS subscription and start consume task."""
++        if self.subscription:
++            return
++
+         self.subscription = await connection.pull_subscribe(
+             subject=self.clear_subject,
+             config=self.config,
+@@ -775,6 +790,9 @@ async def _create_subscription(  # type: ignore[override]
+         connection: "JetStreamContext",
+     ) -> None:
+         """Create NATS subscription and start consume task."""
++        if self.subscription:
++            return
++
+         self.start_consume_task()
+ 
+         self.subscription = await connection.pull_subscribe(
+@@ -841,6 +859,9 @@ async def _create_subscription(  # type: ignore[override]
+         connection: "JetStreamContext",
+     ) -> None:
+         """Create NATS subscription and start consume task."""
++        if self.subscription:
++            return
++
+         self.subscription = await connection.pull_subscribe(
+             subject=self.clear_subject,
+             config=self.config,
+@@ -905,6 +926,9 @@ async def _create_subscription(  # type: ignore[override]
+         *,
+         connection: "KVBucketDeclarer",
+     ) -> None:
++        if self.subscription:
++            return
++
+         bucket = await connection.create_key_value(
+             bucket=self.kv_watch.name,
+             declare=self.kv_watch.declare,
+@@ -1012,6 +1036,9 @@ async def _create_subscription(  # type: ignore[override]
+         *,
+         connection: "OSBucketDeclarer",
+     ) -> None:
++        if self.subscription:
++            return
++
+         self.bucket = await connection.create_object_store(
+             bucket=self.subject,
+             declare=self.obj_watch.declare,
+diff --git a/faststream/redis/subscriber/usecase.py b/faststream/redis/subscriber/usecase.py
+index 9b5185afea..67325098be 100644
+--- a/faststream/redis/subscriber/usecase.py
++++ b/faststream/redis/subscriber/usecase.py
+@@ -151,10 +151,15 @@ async def start(  # type: ignore[override]
+         self,
+         *args: Any,
+     ) -> None:
++        if self.task:
++            return
++
+         await super().start()
+ 
+         start_signal = anyio.Event()
+-        self.task = asyncio.create_task(self._consume(*args, start_signal=start_signal))
++        self.task = asyncio.create_task(
++            self._consume(*args, start_signal=start_signal)
++        )
+ 
+         with anyio.fail_after(3.0):
+             await start_signal.wait()
+@@ -253,6 +258,9 @@ def get_log_context(
+ 
+     @override
+     async def start(self) -> None:
++        if self.subscription:
++            return
++
+         assert self._client, "You should setup subscriber at first."  # nosec B101
+ 
+         self.subscription = psub = self._client.pubsub()
+@@ -352,6 +360,9 @@ async def _consume(  # type: ignore[override]
+ 
+     @override
+     async def start(self) -> None:
++        if self.task:
++            return
++
+         assert self._client, "You should setup subscriber at first."  # nosec B101
+         await super().start(self._client)
+ 
+@@ -512,7 +523,11 @@ def get_log_context(
+ 
+     @override
+     async def start(self) -> None:
++        if self.task:
++            return
++
+         assert self._client, "You should setup subscriber at first."  # nosec B101
++
+         client = self._client
+ 
+         self.extra_watcher_options.update(

@@ -1,0 +1,167 @@
+diff --git a/scripts/update_schemas_manually.py b/scripts/update_schemas_manually.py
+index f0da02b178..74beb6fdf3 100755
+--- a/scripts/update_schemas_manually.py
++++ b/scripts/update_schemas_manually.py
+@@ -898,7 +898,10 @@
+                     path="/",
+                     values={
+                         "requiredXor": ["CidrBlock", "Ipv4IpamPoolId"],
+-                        "dependentRequired": {"Ipv4IpamPoolId": ["Ipv4NetmaskLength"]},
++                        "dependentRequired": {
++                            "Ipv4IpamPoolId": ["Ipv4NetmaskLength"],
++                            "Ipv4NetmaskLength": ["Ipv4IpamPoolId"],
++                        },
+                     },
+                 ),
+             ],
+@@ -1631,10 +1634,15 @@
+             patches=[
+                 Patch(
+                     values={
++                        "requiredXor": ["CidrBlock", "Ipv4IpamPoolId"],
+                         "dependentExcluded": {
+                             "AvailabilityZone": ["AvailabilityZoneId"],
+                             "AvailabilityZoneId": ["AvailabilityZone"],
+                         },
++                        "dependentRequired": {
++                            "Ipv4IpamPoolId": ["Ipv4NetmaskLength"],
++                            "Ipv4NetmaskLength": ["Ipv4IpamPoolId"],
++                        },
+                     },
+                     path="/",
+                 ),
+diff --git a/scripts/update_snapshot_results.sh b/scripts/update_snapshot_results.sh
+index efb1b5d660..98c0f00a69 100755
+--- a/scripts/update_snapshot_results.sh
++++ b/scripts/update_snapshot_results.sh
+@@ -9,6 +9,7 @@ cfn-lint test/fixtures/templates/integration/getatt-types.yaml -e -c I --format
+ cfn-lint test/fixtures/templates/integration/aws-ec2-networkinterface.yaml -e -c I --format json > test/fixtures/results/integration/aws-ec2-networkinterface.json
+ cfn-lint test/fixtures/templates/integration/aws-ec2-instance.yaml -e -c I --format json > test/fixtures/results/integration/aws-ec2-instance.json
+ cfn-lint test/fixtures/templates/integration/aws-ec2-launchtemplate.yaml -e -c I --format json > test/fixtures/results/integration/aws-ec2-launchtemplate.json
++cfn-lint test/fixtures/templates/integration/aws-ec2-subnet.yaml -e -c I --format json > test/fixtures/results/integration/aws-ec2-subnet.json
+ cfn-lint test/fixtures/templates/integration/aws-dynamodb-table.yaml -e -c I --format json > test/fixtures/results/integration/aws-dynamodb-table.json
+ 
+ # public/
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_subnet/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_subnet/manual.json
+index 853dd65adc..64637692be 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_subnet/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_subnet/manual.json
+@@ -1,4 +1,12 @@
+ [
++ {
++  "op": "add",
++  "path": "/requiredXor",
++  "value": [
++   "CidrBlock",
++   "Ipv4IpamPoolId"
++  ]
++ },
+  {
+   "op": "add",
+   "path": "/dependentExcluded",
+@@ -10,5 +18,17 @@
+     "AvailabilityZone"
+    ]
+   }
++ },
++ {
++  "op": "add",
++  "path": "/dependentRequired",
++  "value": {
++   "Ipv4IpamPoolId": [
++    "Ipv4NetmaskLength"
++   ],
++   "Ipv4NetmaskLength": [
++    "Ipv4IpamPoolId"
++   ]
++  }
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_vpc/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_vpc/manual.json
+index 1fa98973e3..5b68eb2382 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_vpc/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_vpc/manual.json
+@@ -13,6 +13,9 @@
+   "value": {
+    "Ipv4IpamPoolId": [
+     "Ipv4NetmaskLength"
++   ],
++   "Ipv4NetmaskLength": [
++    "Ipv4IpamPoolId"
+    ]
+   }
+  }
+diff --git a/src/cfnlint/data/schemas/providers/ap_southeast_5/aws-ec2-subnet.json b/src/cfnlint/data/schemas/providers/ap_southeast_5/aws-ec2-subnet.json
+index 0397b7f9a0..ef3918fb82 100644
+--- a/src/cfnlint/data/schemas/providers/ap_southeast_5/aws-ec2-subnet.json
++++ b/src/cfnlint/data/schemas/providers/ap_southeast_5/aws-ec2-subnet.json
+@@ -41,6 +41,14 @@
+    "AvailabilityZone"
+   ]
+  },
++ "dependentRequired": {
++  "Ipv4IpamPoolId": [
++   "Ipv4NetmaskLength"
++  ],
++  "Ipv4NetmaskLength": [
++   "Ipv4IpamPoolId"
++  ]
++ },
+  "primaryIdentifier": [
+   "/properties/SubnetId"
+  ],
+@@ -134,6 +142,10 @@
+  "required": [
+   "VpcId"
+  ],
++ "requiredXor": [
++  "CidrBlock",
++  "Ipv4IpamPoolId"
++ ],
+  "tagging": {
+   "cloudFormationSystemTags": true,
+   "tagOnCreate": true,
+diff --git a/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-subnet.json b/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-subnet.json
+index 6d19fe5448..ef2dc5e490 100644
+--- a/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-subnet.json
++++ b/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-subnet.json
+@@ -41,6 +41,14 @@
+    "AvailabilityZone"
+   ]
+  },
++ "dependentRequired": {
++  "Ipv4IpamPoolId": [
++   "Ipv4NetmaskLength"
++  ],
++  "Ipv4NetmaskLength": [
++   "Ipv4IpamPoolId"
++  ]
++ },
+  "primaryIdentifier": [
+   "/properties/SubnetId"
+  ],
+@@ -135,6 +143,10 @@
+  "required": [
+   "VpcId"
+  ],
++ "requiredXor": [
++  "CidrBlock",
++  "Ipv4IpamPoolId"
++ ],
+  "tagging": {
+   "cloudFormationSystemTags": true,
+   "tagOnCreate": true,
+diff --git a/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-vpc.json b/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-vpc.json
+index 7efc1be7e8..7d76369077 100644
+--- a/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-vpc.json
++++ b/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-vpc.json
+@@ -29,6 +29,9 @@
+  "dependentRequired": {
+   "Ipv4IpamPoolId": [
+    "Ipv4NetmaskLength"
++  ],
++  "Ipv4NetmaskLength": [
++   "Ipv4IpamPoolId"
+   ]
+  },
+  "primaryIdentifier": [

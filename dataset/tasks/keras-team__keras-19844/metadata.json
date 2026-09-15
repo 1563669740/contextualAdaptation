@@ -1,0 +1,41 @@
+{
+  "task_id": "keras-team__keras-19844",
+  "repo": "keras-team/keras",
+  "pull_number": "19844",
+  "split": "held_out",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=3 feature=1 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.88,
+  "base_commit": "1c60668f6bdd05dab619806e7b2dc25d3ed4ccbf",
+  "repo_commit": "1c60668f6bdd05dab619806e7b2dc25d3ed4ccbf",
+  "gold_commit": "aea74f14939c1fc4a66e5cea87e2388d28273f28",
+  "gold_commit_count": 2,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 2,
+  "gold_loc_added": 2,
+  "gold_loc_deleted": 0,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 2,
+  "pass_to_pass_count": 7032,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

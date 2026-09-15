@@ -1,0 +1,41 @@
+{
+  "task_id": "streamlink__streamlink-6452",
+  "repo": "streamlink/streamlink",
+  "pull_number": "6452",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=2 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.79,
+  "base_commit": "e520a5e531faa5961a260fd38db476008a86d718",
+  "repo_commit": "e520a5e531faa5961a260fd38db476008a86d718",
+  "gold_commit": "ba95d0e9ce7c55446262f49568121f3e9b008515",
+  "gold_commit_count": 1,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 1,
+  "gold_loc_added": 94,
+  "gold_loc_deleted": 80,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 6,
+  "pass_to_pass_count": 5989,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

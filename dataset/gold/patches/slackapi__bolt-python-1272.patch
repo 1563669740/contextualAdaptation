@@ -1,0 +1,31 @@
+diff --git a/requirements.txt b/requirements.txt
+index f0b0cf98..c8d66106 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,1 +1,1 @@
+-slack_sdk>=3.33.5,<4
++slack_sdk>=3.35.0,<4
+diff --git a/slack_bolt/app/app.py b/slack_bolt/app/app.py
+index 3d5532b7..69da0a0d 100644
+--- a/slack_bolt/app/app.py
++++ b/slack_bolt/app/app.py
+@@ -1381,6 +1381,7 @@ def _init_context(self, req: BoltRequest):
+             proxy=self._client.proxy,
+             headers=self._client.headers,
+             team_id=req.context.team_id,
++            logger=self._client.logger,
+             retry_handlers=self._client.retry_handlers.copy() if self._client.retry_handlers is not None else None,
+         )
+         req.context["client"] = client_per_request
+diff --git a/slack_bolt/app/async_app.py b/slack_bolt/app/async_app.py
+index 50a36e5d..3fcc3d95 100644
+--- a/slack_bolt/app/async_app.py
++++ b/slack_bolt/app/async_app.py
+@@ -1413,6 +1413,7 @@ def _init_context(self, req: AsyncBoltRequest):
+             trust_env_in_session=self._async_client.trust_env_in_session,
+             headers=self._async_client.headers,
+             team_id=req.context.team_id,
++            logger=self._async_client.logger,
+             retry_handlers=(
+                 self._async_client.retry_handlers.copy() if self._async_client.retry_handlers is not None else None
+             ),

@@ -1,0 +1,4 @@
+[
+  "tests/test_config/test_config.py::test_correct_copyright_year[1293840000-1970-1990-1970-{current_year}]",
+  "tests/test_config/test_config.py::test_correct_copyright_year[1293839999-1970-1990-1970-{current_year}]"
+]

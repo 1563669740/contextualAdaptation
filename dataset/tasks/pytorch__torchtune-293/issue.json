@@ -1,0 +1,13 @@
+{
+  "task_id": "pytorch__torchtune-293",
+  "repo": "pytorch/torchtune",
+  "issue_number": "290",
+  "issue_url": "https://github.com/pytorch/torchtune/issues/290",
+  "issue_created_at": "1970-01-01 00:28:26.837831+00:00",
+  "issue_title": "Refactor llama2 default eps to be consistently 1e-5 everywhere",
+  "issue_body": "Currently default definition has it at 1e-6 making the outputs from HF not match native implementation.",
+  "problem_statement": "Refactor llama2 default eps to be consistently 1e-5 everywhere\nCurrently default definition has it at 1e-6 making the outputs from HF not match native implementation. \n",
+  "hints_text": "\n\n",
+  "all_hints_text": "\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

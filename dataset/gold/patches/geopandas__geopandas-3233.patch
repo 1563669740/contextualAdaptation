@@ -1,0 +1,139 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 124ed9a9f8..947dc05918 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -48,6 +48,8 @@ New features and improvements:
+   the specified columns (#3101).
+ - Added support to ``read_file`` for the ``mask`` keyword for the pyogrio engine (#3062).
+ - Added support to ``read_file`` for the ``columns`` keyword for the fiona engine (#3133).
++- Add `sort` keyword to `clip` method for GeoSeries and GeoDataFrame to allow optional
++  preservation of the original order of observations. (#3233)
+ - Added `show_bbox`, `drop_id` and `to_wgs84` arguments to allow further customization of
+   `GeoSeries.to_json` (#3226)
+ 
+diff --git a/geopandas/geodataframe.py b/geopandas/geodataframe.py
+index d7885fae28..f25187bf88 100644
+--- a/geopandas/geodataframe.py
++++ b/geopandas/geodataframe.py
+@@ -2311,7 +2311,7 @@ def sjoin_nearest(
+             exclusive=exclusive,
+         )
+ 
+-    def clip(self, mask, keep_geom_type=False):
++    def clip(self, mask, keep_geom_type=False, sort=False):
+         """Clip points, lines, or polygon geometries to the mask extent.
+ 
+         Both layers must be in the same Coordinate Reference System (CRS).
+@@ -2334,6 +2334,10 @@ def clip(self, mask, keep_geom_type=False):
+             If True, return only geometries of original type in case of intersection
+             resulting in multiple geometry types or GeometryCollections.
+             If False, return all resulting geometries (potentially mixed types).
++        sort : boolean, default False
++            If True, the order of rows in the clipped GeoDataFrame will be preserved at
++            small performance cost. If False the order of rows in the clipped
++            GeoDataFrame will be random.
+ 
+         Returns
+         -------
+@@ -2364,7 +2368,7 @@ def clip(self, mask, keep_geom_type=False):
+         >>> nws_groceries.shape
+         (7, 8)
+         """
+-        return geopandas.clip(self, mask=mask, keep_geom_type=keep_geom_type)
++        return geopandas.clip(self, mask=mask, keep_geom_type=keep_geom_type, sort=sort)
+ 
+     def overlay(self, right, how="intersection", keep_geom_type=None, make_valid=True):
+         """Perform spatial overlay between GeoDataFrames.
+diff --git a/geopandas/geoseries.py b/geopandas/geoseries.py
+index 51a655a78a..60de699029 100644
+--- a/geopandas/geoseries.py
++++ b/geopandas/geoseries.py
+@@ -1306,7 +1306,7 @@ def to_wkt(self, **kwargs) -> Series:
+         """
+         return Series(to_wkt(self.array, **kwargs), index=self.index)
+ 
+-    def clip(self, mask, keep_geom_type: bool = False) -> GeoSeries:
++    def clip(self, mask, keep_geom_type: bool = False, sort=False) -> GeoSeries:
+         """Clip points, lines, or polygon geometries to the mask extent.
+ 
+         Both layers must be in the same Coordinate Reference System (CRS).
+@@ -1329,6 +1329,10 @@ def clip(self, mask, keep_geom_type: bool = False) -> GeoSeries:
+             If True, return only geometries of original type in case of intersection
+             resulting in multiple geometry types or GeometryCollections.
+             If False, return all resulting geometries (potentially mixed-types).
++        sort : boolean, default False
++            If True, the order of rows in the clipped GeoSeries will be preserved
++            at small performance cost.
++            If False the order of rows in the clipped GeoSeries will be random.
+ 
+         Returns
+         -------
+@@ -1359,4 +1363,4 @@ def clip(self, mask, keep_geom_type: bool = False) -> GeoSeries:
+         >>> nws_groceries.shape
+         (7,)
+         """
+-        return geopandas.clip(self, mask=mask, keep_geom_type=keep_geom_type)
++        return geopandas.clip(self, mask=mask, keep_geom_type=keep_geom_type, sort=sort)
+diff --git a/geopandas/tools/clip.py b/geopandas/tools/clip.py
+index 728ff0d7c5..267f5d517a 100644
+--- a/geopandas/tools/clip.py
++++ b/geopandas/tools/clip.py
+@@ -22,7 +22,7 @@ def _mask_is_list_like_rectangle(mask):
+     )
+ 
+ 
+-def _clip_gdf_with_mask(gdf, mask):
++def _clip_gdf_with_mask(gdf, mask, sort=False):
+     """Clip geometry to the polygon/rectangle extent.
+ 
+     Clip an input GeoDataFrame to the polygon extent of the polygon
+@@ -36,6 +36,10 @@ def _clip_gdf_with_mask(gdf, mask):
+     mask : (Multi)Polygon, list-like
+         Reference polygon/rectangle for clipping.
+ 
++    sort : boolean, default False
++        If True, the results will be sorted in ascending order using the
++        geometries' indexes as the primary key.
++
+     Returns
+     -------
+     GeoDataFrame
+@@ -48,7 +52,9 @@ def _clip_gdf_with_mask(gdf, mask):
+     else:
+         intersection_polygon = mask
+ 
+-    gdf_sub = gdf.iloc[gdf.sindex.query(intersection_polygon, predicate="intersects")]
++    gdf_sub = gdf.iloc[
++        gdf.sindex.query(intersection_polygon, predicate="intersects", sort=sort)
++    ]
+ 
+     # For performance reasons points don't need to be intersected with poly
+     non_point_mask = gdf_sub.geom_type != "Point"
+@@ -82,7 +88,7 @@ def _clip_gdf_with_mask(gdf, mask):
+     return clipped
+ 
+ 
+-def clip(gdf, mask, keep_geom_type=False):
++def clip(gdf, mask, keep_geom_type=False, sort=False):
+     """Clip points, lines, or polygon geometries to the mask extent.
+ 
+     Both layers must be in the same Coordinate Reference System (CRS).
+@@ -113,6 +119,9 @@ def clip(gdf, mask, keep_geom_type=False):
+         If True, return only geometries of original type in case of intersection
+         resulting in multiple geometry types or GeometryCollections.
+         If False, return all resulting geometries (potentially mixed-types).
++    sort : boolean, default False
++        If True, the results will be sorted in ascending order using the
++        geometries' indexes as the primary key.
+ 
+     Returns
+     -------
+@@ -190,7 +199,7 @@ def clip(gdf, mask, keep_geom_type=False):
+     else:
+         combined_mask = mask
+ 
+-    clipped = _clip_gdf_with_mask(gdf, combined_mask)
++    clipped = _clip_gdf_with_mask(gdf, combined_mask, sort=sort)
+ 
+     if keep_geom_type:
+         geomcoll_concat = (clipped.geom_type == "GeometryCollection").any()

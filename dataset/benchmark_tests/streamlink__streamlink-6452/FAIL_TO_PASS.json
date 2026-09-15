@@ -1,0 +1,8 @@
+[
+  "tests/plugins/test_euronews.py::TestPluginCanHandleUrlEuronews::test_url_matches_positive_named[NAME=live",
+  "tests/plugins/test_euronews.py::TestPluginCanHandleUrlEuronews::test_url_matches_positive_named[NAME=vod",
+  "tests/plugins/test_euronews.py::TestPluginCanHandleUrlEuronews::test_url_matches_groups_named[NAME=live",
+  "tests/plugins/test_euronews.py::TestPluginCanHandleUrlEuronews::test_url_matches_groups_named[NAME=vod",
+  "tests/plugins/test_euronews.py::TestPluginCanHandleUrlEuronews::test_url_matches_negative[https://euronews.com/]",
+  "tests/plugins/test_euronews.py::TestPluginCanHandleUrlEuronews::test_url_matches_negative[https://www.euronews.com/]"
+]

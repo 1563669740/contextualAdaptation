@@ -1,0 +1,6 @@
+[
+  "test/integration/remote/retry_test.py::RetryDownloadTests::test_error_403_authentication",
+  "test/integration/remote/retry_test.py::RetryDownloadTests::test_error_403_forbidden",
+  "test/unittests/client/rest/uploader_test.py::UploaderUnitTest::test_403_raises_forbidden_exception_if_token",
+  "test/unittests/client/rest/uploader_test.py::UploaderUnitTest::test_403_raises_unauthoirzed_exception_if_no_token"
+]

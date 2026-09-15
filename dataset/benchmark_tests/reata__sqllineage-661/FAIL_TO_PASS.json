@@ -1,0 +1,3 @@
+[
+  "tests/sql/column/test_metadata_wildcard.py::test_output_consistency"
+]

@@ -1,0 +1,1027 @@
+diff --git a/scripts/update_schemas_manually.py b/scripts/update_schemas_manually.py
+index fc5cc457ff..0ba000b0d3 100755
+--- a/scripts/update_schemas_manually.py
++++ b/scripts/update_schemas_manually.py
+@@ -1645,7 +1645,12 @@
+             patches=[
+                 Patch(
+                     values={
+-                        "requiredXor": ["CidrBlock", "Ipv4IpamPoolId"],
++                        "requiredXor": [
++                            "CidrBlock",
++                            "Ipv4IpamPoolId",
++                            "Ipv6IpamPoolId",
++                            "Ipv6CidrBlock",
++                        ],
+                         "dependentExcluded": {
+                             "AvailabilityZone": ["AvailabilityZoneId"],
+                             "AvailabilityZoneId": ["AvailabilityZone"],
+@@ -1653,6 +1658,8 @@
+                         "dependentRequired": {
+                             "Ipv4IpamPoolId": ["Ipv4NetmaskLength"],
+                             "Ipv4NetmaskLength": ["Ipv4IpamPoolId"],
++                            "Ipv6IpamPoolId": ["Ipv6NetmaskLength"],
++                            "Ipv6NetmaskLength": ["Ipv6IpamPoolId"],
+                         },
+                     },
+                     path="/",
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_autoscaling_autoscalinggroup/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_autoscaling_autoscalinggroup/manual.json
+index bbb0c3288b..32f80a6752 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_autoscaling_autoscalinggroup/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_autoscaling_autoscalinggroup/manual.json
+@@ -1,12 +1,12 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/HealthCheckType/enum",
++  "path": "/requiredXor",
+   "value": [
+-   "EBS",
+-   "EC2",
+-   "ELB",
+-   "VPC_LATTICE"
++   "InstanceId",
++   "LaunchConfigurationName",
++   "LaunchTemplate",
++   "MixedInstancesPolicy"
+   ]
+  },
+  {
+@@ -19,12 +19,12 @@
+  },
+  {
+   "op": "add",
+-  "path": "/requiredXor",
++  "path": "/properties/HealthCheckType/enum",
+   "value": [
+-   "InstanceId",
+-   "LaunchConfigurationName",
+-   "LaunchTemplate",
+-   "MixedInstancesPolicy"
++   "EBS",
++   "EC2",
++   "ELB",
++   "VPC_LATTICE"
+   ]
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_cloudfront_distribution/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_cloudfront_distribution/manual.json
+index a872bb5731..09efb43b6a 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_cloudfront_distribution/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_cloudfront_distribution/manual.json
+@@ -1,25 +1,4 @@
+ [
+- {
+-  "op": "add",
+-  "path": "/definitions/ViewerCertificate/requiredXor",
+-  "value": [
+-   "AcmCertificateArn",
+-   "CloudFrontDefaultCertificate",
+-   "IamCertificateId"
+-  ]
+- },
+- {
+-  "op": "add",
+-  "path": "/definitions/Origin/dependentExcluded",
+-  "value": {
+-   "CustomOriginConfig": [
+-    "S3OriginConfig"
+-   ],
+-   "S3OriginConfig": [
+-    "CustomOriginConfig"
+-   ]
+-  }
+- },
+  {
+   "op": "add",
+   "path": "/definitions/CustomErrorResponse/dependentRequired",
+@@ -29,18 +8,6 @@
+    ]
+   }
+  },
+- {
+-  "op": "add",
+-  "path": "/definitions/ViewerCertificate/dependentRequired",
+-  "value": {
+-   "AcmCertificateArn": [
+-    "SslSupportMethod"
+-   ],
+-   "IamCertificateId": [
+-    "SslSupportMethod"
+-   ]
+-  }
+- },
+  {
+   "op": "add",
+   "path": "/definitions/CustomErrorResponse/properties/ErrorCode/enum",
+@@ -330,5 +297,38 @@
+    "ZM",
+    "ZW"
+   ]
++ },
++ {
++  "op": "add",
++  "path": "/definitions/Origin/dependentExcluded",
++  "value": {
++   "CustomOriginConfig": [
++    "S3OriginConfig"
++   ],
++   "S3OriginConfig": [
++    "CustomOriginConfig"
++   ]
++  }
++ },
++ {
++  "op": "add",
++  "path": "/definitions/ViewerCertificate/requiredXor",
++  "value": [
++   "AcmCertificateArn",
++   "CloudFrontDefaultCertificate",
++   "IamCertificateId"
++  ]
++ },
++ {
++  "op": "add",
++  "path": "/definitions/ViewerCertificate/dependentRequired",
++  "value": {
++   "AcmCertificateArn": [
++    "SslSupportMethod"
++   ],
++   "IamCertificateId": [
++    "SslSupportMethod"
++   ]
++  }
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_cloudwatch_alarm/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_cloudwatch_alarm/manual.json
+index 177be2b7c7..6396ade349 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_cloudwatch_alarm/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_cloudwatch_alarm/manual.json
+@@ -36,13 +36,8 @@
+  },
+  {
+   "op": "add",
+-  "path": "/properties/AlarmActions/items/maximum",
+-  "value": 1024
+- },
+- {
+-  "op": "add",
+-  "path": "/properties/AlarmActions/items/minimum",
+-  "value": 1
++  "path": "/definitions/MetricDataQuery/properties/Id/pattern",
++  "value": "^([a-z])([A-Za-z0-9\\_]*)$"
+  },
+  {
+   "op": "add",
+@@ -56,8 +51,13 @@
+  },
+  {
+   "op": "add",
+-  "path": "/definitions/MetricDataQuery/properties/Id/pattern",
+-  "value": "^([a-z])([A-Za-z0-9\\_]*)$"
++  "path": "/properties/AlarmActions/items/maximum",
++  "value": 1024
++ },
++ {
++  "op": "add",
++  "path": "/properties/AlarmActions/items/minimum",
++  "value": 1
+  },
+  {
+   "op": "add",
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_docdb_dbcluster/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_docdb_dbcluster/manual.json
+index 62b86b3a8c..5ef74d9ab3 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_docdb_dbcluster/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_docdb_dbcluster/manual.json
+@@ -1,14 +1,4 @@
+ [
+- {
+-  "op": "add",
+-  "path": "/properties/EngineVersion/enum",
+-  "value": [
+-   "3.6.0",
+-   "4.0",
+-   "4.0.0",
+-   "5.0.0"
+-  ]
+- },
+  {
+   "op": "add",
+   "path": "/properties/BackupRetentionPeriod/maximum",
+@@ -18,5 +8,15 @@
+   "op": "add",
+   "path": "/properties/BackupRetentionPeriod/minimum",
+   "value": 1
++ },
++ {
++  "op": "add",
++  "path": "/properties/EngineVersion/enum",
++  "value": [
++   "3.6.0",
++   "4.0",
++   "4.0.0",
++   "5.0.0"
++  ]
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_dynamodb_table/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_dynamodb_table/manual.json
+index 8c27d6fbf6..2fac24beaa 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_dynamodb_table/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_dynamodb_table/manual.json
+@@ -30,13 +30,6 @@
+    }
+   ]
+  },
+- {
+-  "op": "add",
+-  "path": "/definitions/SSESpecification/properties/SSEType/enum",
+-  "value": [
+-   "KMS"
+-  ]
+- },
+  {
+   "op": "add",
+   "path": "/definitions/SSESpecification/dependentRequired",
+@@ -45,5 +38,12 @@
+     "SSEType"
+    ]
+   }
++ },
++ {
++  "op": "add",
++  "path": "/definitions/SSESpecification/properties/SSEType/enum",
++  "value": [
++   "KMS"
++  ]
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_instance/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_instance/manual.json
+index 27a08e804f..4837e20753 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_instance/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_instance/manual.json
+@@ -1,4 +1,16 @@
+ [
++ {
++  "op": "add",
++  "path": "/dependentExcluded",
++  "value": {
++   "NetworkInterfaces": [
++    "SubnetId"
++   ],
++   "SubnetId": [
++    "NetworkInterfaces"
++   ]
++  }
++ },
+  {
+   "op": "add",
+   "path": "/definitions/BlockDeviceMapping/requiredXor",
+@@ -13,18 +25,6 @@
+   "path": "/definitions/BlockDeviceMapping/properties/VirtualName/pattern",
+   "value": "^ephemeral([0-9]|[1][0-9]|[2][0-3])$"
+  },
+- {
+-  "op": "add",
+-  "path": "/dependentExcluded",
+-  "value": {
+-   "NetworkInterfaces": [
+-    "SubnetId"
+-   ],
+-   "SubnetId": [
+-    "NetworkInterfaces"
+-   ]
+-  }
+- },
+  {
+   "op": "add",
+   "path": "/definitions/NetworkInterface/dependentExcluded",
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_securitygroup/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_securitygroup/manual.json
+index 28a7af3d6a..444c28171c 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_securitygroup/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_securitygroup/manual.json
+@@ -8,21 +8,6 @@
+    ]
+   }
+  },
+- {
+-  "op": "add",
+-  "path": "/properties/GroupDescription/maxLength",
+-  "value": 255
+- },
+- {
+-  "op": "add",
+-  "path": "/properties/GroupDescription/minLength",
+-  "value": 0
+- },
+- {
+-  "op": "add",
+-  "path": "/properties/GroupDescription/pattern",
+-  "value": "^([a-z,A-Z,0-9,. _\\-:/()#,@[\\]+=&;\\{\\}!$*])*$"
+- },
+  {
+   "op": "add",
+   "path": "/definitions/Egress/requiredXor",
+@@ -33,6 +18,16 @@
+    "DestinationPrefixListId"
+   ]
+  },
++ {
++  "op": "add",
++  "path": "/definitions/Egress/properties/FromPort/minimum",
++  "value": -1
++ },
++ {
++  "op": "add",
++  "path": "/definitions/Egress/properties/ToPort/minimum",
++  "value": -1
++ },
+  {
+   "op": "add",
+   "path": "/definitions/Ingress/requiredXor",
+@@ -56,12 +51,17 @@
+  },
+  {
+   "op": "add",
+-  "path": "/definitions/Egress/properties/FromPort/minimum",
+-  "value": -1
++  "path": "/properties/GroupDescription/maxLength",
++  "value": 255
+  },
+  {
+   "op": "add",
+-  "path": "/definitions/Egress/properties/ToPort/minimum",
+-  "value": -1
++  "path": "/properties/GroupDescription/minLength",
++  "value": 0
++ },
++ {
++  "op": "add",
++  "path": "/properties/GroupDescription/pattern",
++  "value": "^([a-z,A-Z,0-9,. _\\-:/()#,@[\\]+=&;\\{\\}!$*])*$"
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_subnet/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_subnet/manual.json
+index 64637692be..34e47cc204 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_subnet/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_ec2_subnet/manual.json
+@@ -4,7 +4,9 @@
+   "path": "/requiredXor",
+   "value": [
+    "CidrBlock",
+-   "Ipv4IpamPoolId"
++   "Ipv4IpamPoolId",
++   "Ipv6IpamPoolId",
++   "Ipv6CidrBlock"
+   ]
+  },
+  {
+@@ -28,6 +30,12 @@
+    ],
+    "Ipv4NetmaskLength": [
+     "Ipv4IpamPoolId"
++   ],
++   "Ipv6IpamPoolId": [
++    "Ipv6NetmaskLength"
++   ],
++   "Ipv6NetmaskLength": [
++    "Ipv6IpamPoolId"
+    ]
+   }
+  }
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticache_replicationgroup/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticache_replicationgroup/manual.json
+index 761503f117..4d6ee7310e 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticache_replicationgroup/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticache_replicationgroup/manual.json
+@@ -1,22 +1,22 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/ReplicasPerNodeGroup/maximum",
+-  "value": 5
++  "path": "/properties/NumCacheClusters/maximum",
++  "value": 6
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ReplicasPerNodeGroup/minimum",
+-  "value": 0
++  "path": "/properties/NumCacheClusters/minimum",
++  "value": 1
+  },
+  {
+   "op": "add",
+-  "path": "/properties/NumCacheClusters/maximum",
+-  "value": 6
++  "path": "/properties/ReplicasPerNodeGroup/maximum",
++  "value": 5
+  },
+  {
+   "op": "add",
+-  "path": "/properties/NumCacheClusters/minimum",
+-  "value": 1
++  "path": "/properties/ReplicasPerNodeGroup/minimum",
++  "value": 0
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_listener/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_listener/manual.json
+index 95d773513a..1dfa5cce18 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_listener/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_listener/manual.json
+@@ -1,4 +1,9 @@
+ [
++ {
++  "op": "add",
++  "path": "/definitions/RedirectConfig/properties/Protocol/pattern",
++  "value": "^(HTTPS?|#\\{protocol\\})$"
++ },
+  {
+   "op": "add",
+   "path": "/properties/Protocol/enum",
+@@ -11,10 +16,5 @@
+    "TLS",
+    "UDP"
+   ]
+- },
+- {
+-  "op": "add",
+-  "path": "/definitions/RedirectConfig/properties/Protocol/pattern",
+-  "value": "^(HTTPS?|#\\{protocol\\})$"
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_loadbalancer/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_loadbalancer/manual.json
+index 3a4a43e128..887641b2f7 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_loadbalancer/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_loadbalancer/manual.json
+@@ -1,19 +1,19 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/Type/enum",
++  "path": "/requiredXor",
+   "value": [
+-   "application",
+-   "network",
+-   "gateway"
++   "Subnets",
++   "SubnetMappings"
+   ]
+  },
+  {
+   "op": "add",
+-  "path": "/requiredXor",
++  "path": "/properties/Type/enum",
+   "value": [
+-   "Subnets",
+-   "SubnetMappings"
++   "application",
++   "network",
++   "gateway"
+   ]
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_targetgroup/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_targetgroup/manual.json
+index 24a571b276..7c66ee1ac7 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_targetgroup/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_elasticloadbalancingv2_targetgroup/manual.json
+@@ -1,22 +1,22 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/UnhealthyThresholdCount/maximum",
+-  "value": 10
++  "path": "/properties/HealthCheckIntervalSeconds/maximum",
++  "value": 300
+  },
+  {
+   "op": "add",
+-  "path": "/properties/UnhealthyThresholdCount/minimum",
+-  "value": 2
++  "path": "/properties/HealthCheckIntervalSeconds/minimum",
++  "value": 5
+  },
+  {
+   "op": "add",
+-  "path": "/properties/HealthCheckIntervalSeconds/maximum",
+-  "value": 300
++  "path": "/properties/UnhealthyThresholdCount/maximum",
++  "value": 10
+  },
+  {
+   "op": "add",
+-  "path": "/properties/HealthCheckIntervalSeconds/minimum",
+-  "value": 5
++  "path": "/properties/UnhealthyThresholdCount/minimum",
++  "value": 2
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_group/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_group/manual.json
+index b06805296f..73177e35ca 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_group/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_group/manual.json
+@@ -1,22 +1,22 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/Path/pattern",
+-  "value": "^/(.+/)*$"
++  "path": "/properties/ManagedPolicyArns/maxItems",
++  "value": 20
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ManagedPolicyArns/items/pattern",
+-  "value": "arn:(aws[a-zA-Z-]*)?:iam::(\\d{12}|aws):policy/[a-zA-Z_0-9+=,.@\\-_/]+"
++  "path": "/properties/ManagedPolicyArns/minItems",
++  "value": 0
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ManagedPolicyArns/maxItems",
+-  "value": 20
++  "path": "/properties/ManagedPolicyArns/items/pattern",
++  "value": "arn:(aws[a-zA-Z-]*)?:iam::(\\d{12}|aws):policy/[a-zA-Z_0-9+=,.@\\-_/]+"
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ManagedPolicyArns/minItems",
+-  "value": 0
++  "path": "/properties/Path/pattern",
++  "value": "^/(.+/)*$"
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_managedpolicy/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_managedpolicy/manual.json
+index 2767c33345..68dbfa45eb 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_managedpolicy/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_managedpolicy/manual.json
+@@ -1,12 +1,12 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/PolicyDocument/maxLength",
+-  "value": 6144
++  "path": "/properties/Path/pattern",
++  "value": "^/(.+/)*$"
+  },
+  {
+   "op": "add",
+-  "path": "/properties/Path/pattern",
+-  "value": "^/(.+/)*$"
++  "path": "/properties/PolicyDocument/maxLength",
++  "value": 6144
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_role/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_role/manual.json
+index 0025871202..262820a731 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_role/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_role/manual.json
+@@ -1,19 +1,9 @@
+ [
+- {
+-  "op": "add",
+-  "path": "/properties/Path/pattern",
+-  "value": "^/(.+/)*$"
+- },
+  {
+   "op": "add",
+   "path": "/properties/AssumeRolePolicyDocument/maxLength",
+   "value": 2048
+  },
+- {
+-  "op": "add",
+-  "path": "/properties/ManagedPolicyArns/items/pattern",
+-  "value": "arn:(aws[a-zA-Z-]*)?:iam::(\\d{12}|aws):policy/[a-zA-Z_0-9+=,.@\\-_/]+"
+- },
+  {
+   "op": "add",
+   "path": "/properties/ManagedPolicyArns/maxItems",
+@@ -26,13 +16,8 @@
+  },
+  {
+   "op": "add",
+-  "path": "/properties/RoleName/maxLength",
+-  "value": 64
+- },
+- {
+-  "op": "add",
+-  "path": "/properties/RoleName/minLength",
+-  "value": 1
++  "path": "/properties/ManagedPolicyArns/items/pattern",
++  "value": "arn:(aws[a-zA-Z-]*)?:iam::(\\d{12}|aws):policy/[a-zA-Z_0-9+=,.@\\-_/]+"
+  },
+  {
+   "op": "add",
+@@ -43,5 +28,20 @@
+   "op": "add",
+   "path": "/properties/MaxSessionDuration/minimum",
+   "value": 3600
++ },
++ {
++  "op": "add",
++  "path": "/properties/Path/pattern",
++  "value": "^/(.+/)*$"
++ },
++ {
++  "op": "add",
++  "path": "/properties/RoleName/maxLength",
++  "value": 64
++ },
++ {
++  "op": "add",
++  "path": "/properties/RoleName/minLength",
++  "value": 1
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_user/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_user/manual.json
+index cedf74f140..a816caa4f1 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_user/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_iam_user/manual.json
+@@ -11,22 +11,22 @@
+  },
+  {
+   "op": "add",
+-  "path": "/properties/Path/pattern",
+-  "value": "^/(.+/)*$"
++  "path": "/properties/ManagedPolicyArns/maxItems",
++  "value": 20
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ManagedPolicyArns/items/pattern",
+-  "value": "arn:(aws[a-zA-Z-]*)?:iam::(\\d{12}|aws):policy/[a-zA-Z_0-9+=,.@\\-_/]+"
++  "path": "/properties/ManagedPolicyArns/minItems",
++  "value": 0
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ManagedPolicyArns/maxItems",
+-  "value": 20
++  "path": "/properties/ManagedPolicyArns/items/pattern",
++  "value": "arn:(aws[a-zA-Z-]*)?:iam::(\\d{12}|aws):policy/[a-zA-Z_0-9+=,.@\\-_/]+"
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ManagedPolicyArns/minItems",
+-  "value": 0
++  "path": "/properties/Path/pattern",
++  "value": "^/(.+/)*$"
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_kinesis_stream/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_kinesis_stream/manual.json
+index c2e7096cac..47e06f3a53 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_kinesis_stream/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_kinesis_stream/manual.json
+@@ -1,22 +1,22 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/ShardCount/maximum",
+-  "value": 100000
++  "path": "/properties/RetentionPeriodHours/maximum",
++  "value": 8760
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ShardCount/minimum",
++  "path": "/properties/RetentionPeriodHours/minimum",
+   "value": 1
+  },
+  {
+   "op": "add",
+-  "path": "/properties/RetentionPeriodHours/maximum",
+-  "value": 8760
++  "path": "/properties/ShardCount/maximum",
++  "value": 100000
+  },
+  {
+   "op": "add",
+-  "path": "/properties/RetentionPeriodHours/minimum",
++  "path": "/properties/ShardCount/minimum",
+   "value": 1
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_opsworks_instance/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_opsworks_instance/manual.json
+index f1fb87e434..9bf047660f 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_opsworks_instance/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_opsworks_instance/manual.json
+@@ -1,9 +1,4 @@
+ [
+- {
+-  "op": "add",
+-  "path": "/definitions/BlockDeviceMapping/properties/VirtualName/pattern",
+-  "value": "^ephemeral([0-9]|[1][0-9]|[2][0-3])$"
+- },
+  {
+   "op": "add",
+   "path": "/definitions/BlockDeviceMapping/requiredXor",
+@@ -12,5 +7,10 @@
+    "Ebs",
+    "NoDevice"
+   ]
++ },
++ {
++  "op": "add",
++  "path": "/definitions/BlockDeviceMapping/properties/VirtualName/pattern",
++  "value": "^ephemeral([0-9]|[1][0-9]|[2][0-3])$"
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_rds_dbinstance/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_rds_dbinstance/manual.json
+index ab6dc24e4b..42bbd4a3ef 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_rds_dbinstance/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_rds_dbinstance/manual.json
+@@ -1,8 +1,35 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/PromotionTier/maximum",
+-  "value": 15
++  "path": "/dependentExcluded",
++  "value": {
++   "SourceDBInstanceIdentifier": [
++    "CharacterSetName",
++    "MasterUserPassword",
++    "MasterUsername",
++    "StorageEncrypted"
++   ]
++  }
++ },
++ {
++  "op": "add",
++  "path": "/dependencies",
++  "value": {
++   "KmsKeyId": {
++    "properties": {
++     "StorageEncrypted": {
++      "enum": [
++       "true",
++       "True",
++       true
++      ]
++     }
++    },
++    "required": [
++     "StorageEncrypted"
++    ]
++   }
++  }
+  },
+  {
+   "op": "add",
+@@ -42,34 +69,7 @@
+  },
+  {
+   "op": "add",
+-  "path": "/dependentExcluded",
+-  "value": {
+-   "SourceDBInstanceIdentifier": [
+-    "CharacterSetName",
+-    "MasterUserPassword",
+-    "MasterUsername",
+-    "StorageEncrypted"
+-   ]
+-  }
+- },
+- {
+-  "op": "add",
+-  "path": "/dependencies",
+-  "value": {
+-   "KmsKeyId": {
+-    "properties": {
+-     "StorageEncrypted": {
+-      "enum": [
+-       "true",
+-       "True",
+-       true
+-      ]
+-     }
+-    },
+-    "required": [
+-     "StorageEncrypted"
+-    ]
+-   }
+-  }
++  "path": "/properties/PromotionTier/maximum",
++  "value": 15
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_s3_bucket/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_s3_bucket/manual.json
+index fcb4c96695..9a88cd75f4 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_s3_bucket/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_s3_bucket/manual.json
+@@ -1,18 +1,14 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/BucketName/maxLength",
+-  "value": 63
+- },
+- {
+-  "op": "add",
+-  "path": "/properties/BucketName/minLength",
+-  "value": 3
+- },
+- {
+-  "op": "add",
+-  "path": "/properties/BucketName/pattern",
+-  "value": "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
++  "path": "/definitions/RedirectAllRequestsTo/dependentExcluded",
++  "value": {
++   "RedirectAllRequestsTo": [
++    "ErrorDocument",
++    "IndexDocument",
++    "RoutingRules"
++   ]
++  }
+  },
+  {
+   "op": "add",
+@@ -30,17 +26,6 @@
+    }
+   ]
+  },
+- {
+-  "op": "add",
+-  "path": "/definitions/RedirectAllRequestsTo/dependentExcluded",
+-  "value": {
+-   "RedirectAllRequestsTo": [
+-    "ErrorDocument",
+-    "IndexDocument",
+-    "RoutingRules"
+-   ]
+-  }
+- },
+  {
+   "op": "add",
+   "path": "/definitions/Rule/dependentExcluded",
+@@ -52,5 +37,20 @@
+     "AbortIncompleteMultipartUpload"
+    ]
+   }
++ },
++ {
++  "op": "add",
++  "path": "/properties/BucketName/maxLength",
++  "value": 63
++ },
++ {
++  "op": "add",
++  "path": "/properties/BucketName/minLength",
++  "value": 3
++ },
++ {
++  "op": "add",
++  "path": "/properties/BucketName/pattern",
++  "value": "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_sqs_queue/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_sqs_queue/manual.json
+index 2ef17279d9..8139249fc9 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_sqs_queue/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_sqs_queue/manual.json
+@@ -1,62 +1,62 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/MessageRetentionPeriod/maximum",
+-  "value": 1209600
++  "path": "/properties/DelaySeconds/maximum",
++  "value": 900
+  },
+  {
+   "op": "add",
+-  "path": "/properties/MessageRetentionPeriod/minimum",
+-  "value": 60
++  "path": "/properties/DelaySeconds/minimum",
++  "value": 0
+  },
+  {
+   "op": "add",
+-  "path": "/properties/DelaySeconds/maximum",
+-  "value": 900
++  "path": "/properties/KmsDataKeyReusePeriodSeconds/maximum",
++  "value": 86400
+  },
+  {
+   "op": "add",
+-  "path": "/properties/DelaySeconds/minimum",
+-  "value": 0
++  "path": "/properties/KmsDataKeyReusePeriodSeconds/minimum",
++  "value": 60
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ReceiveMessageWaitTimeSeconds/maximum",
+-  "value": 20
++  "path": "/properties/MaximumMessageSize/maximum",
++  "value": 262144
+  },
+  {
+   "op": "add",
+-  "path": "/properties/ReceiveMessageWaitTimeSeconds/minimum",
+-  "value": 0
++  "path": "/properties/MaximumMessageSize/minimum",
++  "value": 1024
+  },
+  {
+   "op": "add",
+-  "path": "/properties/KmsDataKeyReusePeriodSeconds/maximum",
+-  "value": 86400
++  "path": "/properties/MessageRetentionPeriod/maximum",
++  "value": 1209600
+  },
+  {
+   "op": "add",
+-  "path": "/properties/KmsDataKeyReusePeriodSeconds/minimum",
++  "path": "/properties/MessageRetentionPeriod/minimum",
+   "value": 60
+  },
+  {
+   "op": "add",
+-  "path": "/properties/VisibilityTimeout/maximum",
+-  "value": 43200
++  "path": "/properties/ReceiveMessageWaitTimeSeconds/maximum",
++  "value": 20
+  },
+  {
+   "op": "add",
+-  "path": "/properties/VisibilityTimeout/minimum",
++  "path": "/properties/ReceiveMessageWaitTimeSeconds/minimum",
+   "value": 0
+  },
+  {
+   "op": "add",
+-  "path": "/properties/MaximumMessageSize/maximum",
+-  "value": 262144
++  "path": "/properties/VisibilityTimeout/maximum",
++  "value": 43200
+  },
+  {
+   "op": "add",
+-  "path": "/properties/MaximumMessageSize/minimum",
+-  "value": 1024
++  "path": "/properties/VisibilityTimeout/minimum",
++  "value": 0
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/patches/extensions/all/aws_ssm_maintenancewindow/manual.json b/src/cfnlint/data/schemas/patches/extensions/all/aws_ssm_maintenancewindow/manual.json
+index 9cfdf7dcf9..7418902869 100644
+--- a/src/cfnlint/data/schemas/patches/extensions/all/aws_ssm_maintenancewindow/manual.json
++++ b/src/cfnlint/data/schemas/patches/extensions/all/aws_ssm_maintenancewindow/manual.json
+@@ -1,22 +1,22 @@
+ [
+  {
+   "op": "add",
+-  "path": "/properties/Duration/maximum",
+-  "value": 24
++  "path": "/properties/Cutoff/maximum",
++  "value": 23
+  },
+  {
+   "op": "add",
+-  "path": "/properties/Duration/minimum",
+-  "value": 1
++  "path": "/properties/Cutoff/minimum",
++  "value": 0
+  },
+  {
+   "op": "add",
+-  "path": "/properties/Cutoff/maximum",
+-  "value": 23
++  "path": "/properties/Duration/maximum",
++  "value": 24
+  },
+  {
+   "op": "add",
+-  "path": "/properties/Cutoff/minimum",
+-  "value": 0
++  "path": "/properties/Duration/minimum",
++  "value": 1
+  }
+ ]
+diff --git a/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-subnet.json b/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-subnet.json
+index c3c876be2a..94a2f7c594 100644
+--- a/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-subnet.json
++++ b/src/cfnlint/data/schemas/providers/us_east_1/aws-ec2-subnet.json
+@@ -47,6 +47,12 @@
+   ],
+   "Ipv4NetmaskLength": [
+    "Ipv4IpamPoolId"
++  ],
++  "Ipv6IpamPoolId": [
++   "Ipv6NetmaskLength"
++  ],
++  "Ipv6NetmaskLength": [
++   "Ipv6IpamPoolId"
+   ]
+  },
+  "primaryIdentifier": [
+@@ -146,7 +152,9 @@
+  ],
+  "requiredXor": [
+   "CidrBlock",
+-  "Ipv4IpamPoolId"
++  "Ipv4IpamPoolId",
++  "Ipv6IpamPoolId",
++  "Ipv6CidrBlock"
+  ],
+  "tagging": {
+   "cloudFormationSystemTags": true,

@@ -1,0 +1,10 @@
+[
+  "tests/io/test_core.py::TestCoreFunctions::test_dataset_missing_dependencies",
+  "tests/io/test_core.py::TestCoreFunctions::test_parse_dataset_definition_invalid_uppercase_s_in_dataset",
+  "tests/io/test_data_catalog.py::TestDataCatalogFromConfig::test_config_invalid_module",
+  "tests/io/test_data_catalog.py::TestDataCatalogFromConfig::test_config_missing_class",
+  "tests/io/test_data_catalog.py::TestDataCatalogFromConfig::test_config_invalid_class_path_format",
+  "tests/io/test_kedro_data_catalog.py::TestKedroDataCatalog::TestKedroDataCatalogFromConfig::test_config_invalid_module",
+  "tests/io/test_kedro_data_catalog.py::TestKedroDataCatalog::TestKedroDataCatalogFromConfig::test_config_missing_class",
+  "tests/io/test_kedro_data_catalog.py::TestKedroDataCatalog::TestKedroDataCatalogFromConfig::test_config_invalid_class_path_format"
+]

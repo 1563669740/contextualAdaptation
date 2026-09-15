@@ -1,0 +1,178 @@
+diff --git a/keras/src/layers/layer.py b/keras/src/layers/layer.py
+index e668ca342080..99856bbea04c 100644
+--- a/keras/src/layers/layer.py
++++ b/keras/src/layers/layer.py
+@@ -870,12 +870,14 @@ def maybe_convert(x):
+             # Set masks on outputs,
+             # provided only the first positional input arg and its mask.
+             # TODO: consider extending this to all args and kwargs.
+-            previous_mask = getattr(call_spec.first_arg, "_keras_mask", None)
++            previous_mask = tree.map_structure(
++                lambda x: getattr(x, "_keras_mask", None), call_spec.first_arg
++            )
+             if self.supports_masking:
+                 self._set_mask_metadata(
+                     call_spec.first_arg, outputs, previous_mask
+                 )
+-            elif previous_mask is not None:
++            elif any(m is not None for m in tree.flatten(previous_mask)):
+                 warnings.warn(
+                     f"Layer '{self.name}' (of type {self.__class__.__name__}) "
+                     "was passed an input with a mask attached to it. "
+diff --git a/keras/src/layers/merging/base_merge.py b/keras/src/layers/merging/base_merge.py
+index 69591e8cd074..3a56d76e4ce8 100644
+--- a/keras/src/layers/merging/base_merge.py
++++ b/keras/src/layers/merging/base_merge.py
+@@ -20,6 +20,43 @@ def __init__(self, **kwargs):
+     def _merge_function(self, inputs):
+         raise NotImplementedError
+ 
++    def _apply_merge_op_and_or_mask(self, op_fn, inputs):
++        """Merge a set of inputs by applying `op_fn` and ORing the masks.
++
++        We use this for `Minimum` and `Maximum` as it handles the fact that
++        there is no identity element. If applicable, the mask obtained by ORing
++        all masks is set on the output.
++
++        Args:
++            op_fn: binary operation to apply to tensor pair.
++            inputs: array of tensors to apply operation on.
++        """
++        output = None
++        output_mask = None
++
++        for x in inputs:
++            mask = getattr(x, "_keras_mask", None)
++            if mask is not None:
++                mask = ops.broadcast_to(ops.expand_dims(mask, -1), ops.shape(x))
++            if output is None:
++                output = x
++                output_mask = mask
++                continue
++            if mask is not None:
++                x = ops.where(mask, x, output)
++            if output_mask is not None:
++                output = ops.where(output_mask, output, x)
++            if mask is not None and output_mask is not None:
++                output_mask = ops.logical_or(output_mask, mask)
++            else:
++                output_mask = None
++            output = op_fn(output, x)
++
++        if output_mask is not None:
++            output_mask = ops.any(output_mask, axis=-1, keepdims=False)
++            output._keras_mask = output_mask
++        return output
++
+     def _compute_elemwise_op_output_shape(self, shape1, shape2):
+         """Computes the shape of the resultant of an elementwise operation.
+ 
+@@ -231,10 +268,14 @@ def compute_mask(self, inputs, mask=None):
+                 f"Received: inputs={inputs} of length {len(inputs)}, and "
+                 f"mask={mask} of length {len(mask)}"
+             )
+-        if all(m is None for m in mask):
++        # Default implementation does an OR between the masks, which works
++        # for `Add`, `Subtract`, `Average`, `Maximum`, `Minimum`, `Multiply`.
++        if any(m is None for m in mask):
+             return None
+-        masks = [ops.expand_dims(m, axis=0) for m in mask if m is not None]
+-        return ops.all(ops.concatenate(masks, axis=0), axis=0, keepdims=False)
++        output_mask = mask[0]
++        for m in mask[1:]:
++            output_mask = ops.logical_or(output_mask, m)
++        return output_mask
+ 
+     def get_config(self):
+         return super().get_config()
+diff --git a/keras/src/layers/merging/concatenate.py b/keras/src/layers/merging/concatenate.py
+index 9c1d26ae8d5f..7e240786ac3e 100644
+--- a/keras/src/layers/merging/concatenate.py
++++ b/keras/src/layers/merging/concatenate.py
+@@ -145,11 +145,15 @@ def compute_mask(self, inputs, mask=None):
+                 masks.append(ops.ones_like(input_i, dtype="bool"))
+             elif mask_i.ndim < input_i.ndim:
+                 # Mask is smaller than the input, expand it
+-                masks.append(ops.expand_dims(mask_i, axis=-1))
++                masks.append(
++                    ops.broadcast_to(
++                        ops.expand_dims(mask_i, axis=-1), ops.shape(input_i)
++                    )
++                )
+             else:
+                 masks.append(mask_i)
+         concatenated = ops.concatenate(masks, axis=self.axis)
+-        return ops.all(concatenated, axis=-1, keepdims=False)
++        return ops.any(concatenated, axis=-1, keepdims=False)
+ 
+     def get_config(self):
+         config = {"axis": self.axis}
+diff --git a/keras/src/layers/merging/maximum.py b/keras/src/layers/merging/maximum.py
+index 47734a8470d5..3072ecb625a9 100644
+--- a/keras/src/layers/merging/maximum.py
++++ b/keras/src/layers/merging/maximum.py
+@@ -31,10 +31,7 @@ class Maximum(Merge):
+     """
+ 
+     def _merge_function(self, inputs):
+-        output = inputs[0]
+-        for i in range(1, len(inputs)):
+-            output = ops.maximum(output, inputs[i])
+-        return output
++        return self._apply_merge_op_and_or_mask(ops.maximum, inputs)
+ 
+ 
+ @keras_export("keras.layers.maximum")
+diff --git a/keras/src/layers/merging/minimum.py b/keras/src/layers/merging/minimum.py
+index 19137f08a5b3..dad5997ef656 100644
+--- a/keras/src/layers/merging/minimum.py
++++ b/keras/src/layers/merging/minimum.py
+@@ -31,10 +31,7 @@ class Minimum(Merge):
+     """
+ 
+     def _merge_function(self, inputs):
+-        output = inputs[0]
+-        for i in range(1, len(inputs)):
+-            output = ops.minimum(output, inputs[i])
+-        return output
++        return self._apply_merge_op_and_or_mask(ops.minimum, inputs)
+ 
+ 
+ @keras_export("keras.layers.minimum")
+diff --git a/keras/src/layers/merging/multiply.py b/keras/src/layers/merging/multiply.py
+index d908429d1c5b..72ed99bf038a 100644
+--- a/keras/src/layers/merging/multiply.py
++++ b/keras/src/layers/merging/multiply.py
+@@ -31,9 +31,29 @@ class Multiply(Merge):
+     """
+ 
+     def _merge_function(self, inputs):
+-        output = inputs[0]
+-        for i in range(1, len(inputs)):
+-            output = ops.multiply(output, inputs[i])
++        masks = [getattr(x, "_keras_mask", None) for x in inputs]
++        has_output_mask = all(mask is not None for mask in masks)
++        output = None
++        output_mask = None
++
++        for x, mask in zip(inputs, masks):
++            if mask is not None:
++                mask = ops.broadcast_to(ops.expand_dims(mask, -1), ops.shape(x))
++                # Replace 0s with 1s outside of mask.
++                x = ops.where(mask, x, ops.cast(1, x.dtype))
++                if has_output_mask:
++                    output_mask = (
++                        mask
++                        if output_mask is None
++                        else ops.logical_or(output_mask, mask)
++                    )
++            output = x if output is None else ops.multiply(output, x)
++
++        if has_output_mask:
++            # Replace 1s with 0s outside of mask per standard masking rules.
++            output = ops.where(output_mask, output, ops.cast(0, output.dtype))
++            output_mask = ops.any(output_mask, axis=-1, keepdims=False)
++            output._keras_mask = output_mask
+         return output
+ 
+ 

@@ -1,0 +1,4 @@
+[
+  "packages/jupyter-ai/jupyter_ai/tests/test_handlers.py::test_default_stops_writing_on_success",
+  "packages/jupyter-ai/jupyter_ai/tests/test_handlers.py::test_default_stops_writing_on_error"
+]

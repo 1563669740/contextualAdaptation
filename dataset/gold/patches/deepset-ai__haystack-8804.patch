@@ -1,0 +1,55 @@
+diff --git a/haystack/components/converters/__init__.py b/haystack/components/converters/__init__.py
+index 2c7ed33505..d0057ea33d 100644
+--- a/haystack/components/converters/__init__.py
++++ b/haystack/components/converters/__init__.py
+@@ -4,7 +4,7 @@
+ 
+ from haystack.components.converters.azure import AzureOCRDocumentConverter
+ from haystack.components.converters.csv import CSVToDocument
+-from haystack.components.converters.docx import DOCXMetadata, DOCXToDocument
++from haystack.components.converters.docx import DOCXToDocument
+ from haystack.components.converters.html import HTMLToDocument
+ from haystack.components.converters.json import JSONConverter
+ from haystack.components.converters.markdown import MarkdownToDocument
+@@ -28,7 +28,6 @@
+     "OpenAPIServiceToFunctions",
+     "OutputAdapter",
+     "DOCXToDocument",
+-    "DOCXMetadata",
+     "PPTXToDocument",
+     "CSVToDocument",
+     "JSONConverter",
+diff --git a/haystack/components/converters/docx.py b/haystack/components/converters/docx.py
+index 8f9a58004d..3607ae4544 100644
+--- a/haystack/components/converters/docx.py
++++ b/haystack/components/converters/docx.py
+@@ -5,7 +5,7 @@
+ import csv
+ import io
+ import os
+-from dataclasses import dataclass
++from dataclasses import asdict, dataclass
+ from enum import Enum
+ from io import StringIO
+ from pathlib import Path
+@@ -189,7 +189,7 @@ def run(
+                 )
+                 continue
+ 
+-            docx_metadata = self._get_docx_metadata(document=docx_document)
++            docx_metadata = asdict(self._get_docx_metadata(document=docx_document))
+             merged_metadata = {**bytestream.meta, **metadata, "docx": docx_metadata}
+ 
+             if not self.store_full_path and "file_path" in bytestream.meta:
+diff --git a/releasenotes/notes/docxmetadata-as-dict-20cf2ef0abf7af8a.yaml b/releasenotes/notes/docxmetadata-as-dict-20cf2ef0abf7af8a.yaml
+new file mode 100644
+index 0000000000..60f4c17ce3
+--- /dev/null
++++ b/releasenotes/notes/docxmetadata-as-dict-20cf2ef0abf7af8a.yaml
+@@ -0,0 +1,6 @@
++---
++upgrade:
++  - |
++    The `DOCXToDocument` converter now returns a `Document` object with DOCX metadata stored in the `meta` field as a
++    dictionary under the key `docx`. Previously, the metadata was represented as a `DOCXMetadata` dataclass.
++    This change does not impact reading from or writing to a Document Store.

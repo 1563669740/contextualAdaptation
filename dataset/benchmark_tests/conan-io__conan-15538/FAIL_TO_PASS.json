@@ -1,0 +1,3 @@
+[
+  "conans/test/integration/command_v2/test_info_build_order.py::test_info_build_order_configuration_text_formatter"
+]

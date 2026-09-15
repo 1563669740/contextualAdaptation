@@ -1,0 +1,13 @@
+diff --git a/tests/main/jsonschema/test_main_jsonschema.py b/tests/main/jsonschema/test_main_jsonschema.py
+index 73cc67657..d90b57ca1 100644
+--- a/tests/main/jsonschema/test_main_jsonschema.py
++++ b/tests/main/jsonschema/test_main_jsonschema.py
+@@ -2458,7 +2458,7 @@ def test_version(capsys):
+         main(['--version'])
+     assert e.value.code == Exit.OK
+     captured = capsys.readouterr()
+-    assert captured.out == '0.0.0\n'
++    assert captured.out != '0.0.0\n'
+     assert captured.err == ''
+ 
+ 

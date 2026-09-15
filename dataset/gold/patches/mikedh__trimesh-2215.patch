@@ -1,0 +1,397 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index b46f5d2fe..f2f9a691e 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -28,7 +28,7 @@ jobs:
+     strategy:
+       matrix:
+         python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
+-        os: [ubuntu-latest, macos-latest, windows-latest]
++        os: [ubuntu-latest, macos-13, windows-latest]
+         exclude:
+             # windows runners have gotten flaky
+           - os: windows-latest
+diff --git a/examples/voxel.py b/examples/voxel.py
+index d5a4f131e..d22eb8c52 100644
+--- a/examples/voxel.py
++++ b/examples/voxel.py
+@@ -24,7 +24,7 @@ def show(chair_mesh, chair_voxels, colors=(1, 1, 1, 0.3)):
+     trimesh.util.attach_to_log()
+ 
+     base_name = "chair_model"
+-    chair_mesh = trimesh.load(os.path.join(dir_models, "%s.obj" % base_name))
++    chair_mesh = trimesh.load(os.path.join(dir_models, f"{base_name}.obj"))
+     if isinstance(chair_mesh, trimesh.scene.Scene):
+         chair_mesh = trimesh.util.concatenate(
+             [
+@@ -33,7 +33,7 @@ def show(chair_mesh, chair_voxels, colors=(1, 1, 1, 0.3)):
+             ]
+         )
+ 
+-    binvox_path = os.path.join(dir_models, "%s.binvox" % base_name)
++    binvox_path = os.path.join(dir_models, f"{base_name}.binvox")
+     chair_voxels = trimesh.load(binvox_path)
+ 
+     chair_voxels = v.VoxelGrid(chair_voxels.encoding.dense, chair_voxels.transform)
+@@ -62,10 +62,10 @@ def show(chair_mesh, chair_voxels, colors=(1, 1, 1, 0.3)):
+     transform = np.eye(4)
+     transform[:3] += np.random.normal(size=(3, 4)) * 0.2
+     transformed_chair_mesh = chair_mesh.copy().apply_transform(transform)
+-    log.debug("original transform volume: %s" % str(chair_voxels.element_volume))
++    log.debug(f"original transform volume: {chair_voxels.element_volume!s}")
+ 
+     chair_voxels.apply_transform(transform)
+-    log.debug("warped transform volume:   %s" % str(chair_voxels.element_volume))
++    log.debug(f"warped transform volume:   {chair_voxels.element_volume!s}")
+     log.debug("blue: transformed voxels")
+     log.debug("Transformation is lazy, and each voxel is no longer a cube.")
+     show(transformed_chair_mesh, chair_voxels, colors=(0, 0, 1, 0.3))
+diff --git a/pyproject.toml b/pyproject.toml
+index 27b7e0ff1..a219cf6fd 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -5,7 +5,7 @@ requires = ["setuptools >= 61.0", "wheel"]
+ [project]
+ name = "trimesh"
+ requires-python = ">=3.7"
+-version = "4.3.1"
++version = "4.3.2"
+ authors = [{name = "Michael Dawson-Haggerty", email = "mikedh@kerfed.com"}]
+ license = {file = "LICENSE.md"}
+ description = "Import, export, process, analyze and view triangular meshes."
+diff --git a/trimesh/base.py b/trimesh/base.py
+index 0320530bf..dd7cb4ed1 100644
+--- a/trimesh/base.py
++++ b/trimesh/base.py
+@@ -189,7 +189,7 @@ def __init__(
+         if isinstance(metadata, dict):
+             self.metadata.update(metadata)
+         elif metadata is not None:
+-            raise ValueError("metadata should be a dict or None, got %s" % str(metadata))
++            raise ValueError(f"metadata should be a dict or None, got {metadata!s}")
+ 
+         # store per-face and per-vertex attributes which will
+         # be updated when an update_faces call is made
+diff --git a/trimesh/exchange/binvox.py b/trimesh/exchange/binvox.py
+index 5480f37ad..bc6e10aa5 100644
+--- a/trimesh/exchange/binvox.py
++++ b/trimesh/exchange/binvox.py
+@@ -144,7 +144,7 @@ def binvox_bytes(rle_data, shape, translate=(0, 0, 0), scale=1):
+       Suitable for writing to binary file
+     """
+     if rle_data.dtype != np.uint8:
+-        raise ValueError("rle_data.dtype must be np.uint8, got %s" % rle_data.dtype)
++        raise ValueError(f"rle_data.dtype must be np.uint8, got {rle_data.dtype}")
+ 
+     header = binvox_header(shape, translate, scale).encode()
+     return header + rle_data.tobytes()
+@@ -228,7 +228,7 @@ def load_binvox(file_obj, resolver=None, axis_order="xzy", file_type=None):
+       Loaded voxel data
+     """
+     if file_type is not None and file_type != "binvox":
+-        raise ValueError("file_type must be None or binvox, got %s" % file_type)
++        raise ValueError(f"file_type must be None or binvox, got {file_type}")
+     data = parse_binvox(file_obj, writeable=True)
+     return voxel_from_binvox(
+         rle_data=data.rle_data,
+@@ -553,7 +553,7 @@ def voxelize_mesh(mesh, binvoxer=None, export_type="off", **binvoxer_kwargs):
+     `VoxelGrid` object resulting.
+     """
+     if not isinstance(mesh, Trimesh):
+-        raise ValueError("mesh must be Trimesh instance, got %s" % str(mesh))
++        raise ValueError(f"mesh must be Trimesh instance, got {mesh!s}")
+     if binvoxer is None:
+         binvoxer = Binvoxer(**binvoxer_kwargs)
+     elif len(binvoxer_kwargs) > 0:
+@@ -561,7 +561,7 @@ def voxelize_mesh(mesh, binvoxer=None, export_type="off", **binvoxer_kwargs):
+     if binvoxer.file_type != "binvox":
+         raise ValueError('Only "binvox" binvoxer `file_type` currently supported')
+     with TemporaryDirectory() as folder:
+-        model_path = os.path.join(folder, "model.%s" % export_type)
++        model_path = os.path.join(folder, f"model.{export_type}")
+         with open(model_path, "wb") as fp:
+             mesh.export(fp, file_type=export_type)
+         out_path = binvoxer(model_path)
+diff --git a/trimesh/exchange/gltf.py b/trimesh/exchange/gltf.py
+index 9e8471e55..e48b0696e 100644
+--- a/trimesh/exchange/gltf.py
++++ b/trimesh/exchange/gltf.py
+@@ -920,8 +920,8 @@ def _append_mesh(
+             # add the reference for UV coordinates
+             current["primitives"][0]["attributes"]["TEXCOORD_0"] = acc_uv
+ 
+-            # only reference the material if we had UV coordinates
+-            current["primitives"][0]["material"] = current_material
++        # reference the material
++        current["primitives"][0]["material"] = current_material
+ 
+     if include_normals or (
+         include_normals is None and "vertex_normals" in mesh._cache.cache
+diff --git a/trimesh/exchange/load.py b/trimesh/exchange/load.py
+index 34f71c0a9..2781485ac 100644
+--- a/trimesh/exchange/load.py
++++ b/trimesh/exchange/load.py
+@@ -137,7 +137,7 @@ def load(
+                 # this prevents the exception from being super opaque
+                 load_path()
+             else:
+-                raise ValueError("File type: %s not supported" % file_type)
++                raise ValueError(f"File type: {file_type} not supported")
+     finally:
+         # close any opened files even if we crashed out
+         if opened:
+diff --git a/trimesh/exchange/threedxml.py b/trimesh/exchange/threedxml.py
+index c0d43214e..09bd85810 100644
+--- a/trimesh/exchange/threedxml.py
++++ b/trimesh/exchange/threedxml.py
+@@ -85,7 +85,7 @@ def load_3DXML(file_obj, *args, **kwargs):
+             if texture is not None:
+                 tex_file, tex_id = texture.attrib["Value"].split(":")[-1].split("#")
+                 rep_image = as_etree[tex_file].find(
+-                    "{*}CATRepImage/{*}CATRepresentationImage[@id='%s']" % tex_id
++                    f"{{*}}CATRepImage/{{*}}CATRepresentationImage[@id='{tex_id}']"
+                 )
+                 if rep_image is not None:
+                     image_file = rep_image.get("associatedFile", "").split(":")[-1]
+@@ -167,7 +167,7 @@ def get_rgba(color):
+ 
+         if part_file not in as_etree and part_file in archive:
+             # the data is stored in some binary format
+-            util.log.warning("unable to load Rep %r" % part_file)
++            util.log.warning(f"unable to load Rep {part_file!r}")
+             # data = archive[part_file]
+             continue
+ 
+diff --git a/trimesh/interfaces/blender.py b/trimesh/interfaces/blender.py
+index 906fe5ffc..169686ab6 100644
+--- a/trimesh/interfaces/blender.py
++++ b/trimesh/interfaces/blender.py
+@@ -103,8 +103,8 @@ def unwrap(
+ 
+     # get the template from our resources folder
+     template = resources.get_string("templates/blender_unwrap.py.template")
+-    script = template.replace("$ANGLE_LIMIT", "%.6f" % angle_limit).replace(
+-        "$ISLAND_MARGIN", "%.6f" % island_margin
++    script = template.replace("$ANGLE_LIMIT", f"{angle_limit:.6f}").replace(
++        "$ISLAND_MARGIN", f"{island_margin:.6f}"
+     )
+ 
+     with MeshScript(meshes=[mesh], script=script, exchange="obj", debug=debug) as blend:
+diff --git a/trimesh/path/raster.py b/trimesh/path/raster.py
+index 0275d0fd1..1fc386f07 100644
+--- a/trimesh/path/raster.py
++++ b/trimesh/path/raster.py
+@@ -46,7 +46,12 @@ def rasterize(path, pitch=None, origin=None, resolution=None, fill=True, width=N
+     """
+ 
+     if pitch is None:
+-        pitch = path.extents.max() / 2048
++        if resolution is not None:
++            resolution = np.array(resolution, dtype=np.int64)
++            # establish pitch from passed resolution
++            pitch = (path.extents / (resolution + 2)).max()
++        else:
++            pitch = path.extents.max() / 2048
+ 
+     if origin is None:
+         origin = path.bounds[0] - (pitch * 2.0)
+diff --git a/trimesh/registration.py b/trimesh/registration.py
+index 83600ed4e..5eef31afd 100644
+--- a/trimesh/registration.py
++++ b/trimesh/registration.py
+@@ -148,7 +148,12 @@ def key_points(m, count):
+ 
+         # run first pass ICP
+         matrix, _junk, cost = icp(
+-            a=points, b=search, initial=a_to_b, max_iterations=int(icp_first), scale=scale
++            a=points,
++            b=search,
++            initial=a_to_b,
++            max_iterations=int(icp_first),
++            scale=scale,
++            **kwargs,
+         )
+ 
+         # save transform and costs from ICP
+@@ -162,6 +167,7 @@ def key_points(m, count):
+         initial=transforms[np.argmin(costs)],
+         max_iterations=int(icp_final),
+         scale=scale,
++        **kwargs,
+     )
+ 
+     # convert to per- point distance average
+diff --git a/trimesh/transformations.py b/trimesh/transformations.py
+index 8fedecfc8..2a5708fad 100644
+--- a/trimesh/transformations.py
++++ b/trimesh/transformations.py
+@@ -753,7 +753,7 @@ def shear_from_matrix(matrix):
+ 
+     i = np.where(abs(np.real(w) - 1.0) < 1e-4)[0]
+     if len(i) < 2:
+-        raise ValueError("no two linear independent eigenvectors found %s" % w)
++        raise ValueError(f"no two linear independent eigenvectors found {w}")
+     V = np.real(V[:, i]).squeeze().T
+     lenorm = -1.0
+     for i0, i1 in ((0, 1), (0, 2), (1, 2)):
+diff --git a/trimesh/triangles.py b/trimesh/triangles.py
+index 3acf8231f..a65d8e32d 100644
+--- a/trimesh/triangles.py
++++ b/trimesh/triangles.py
+@@ -336,7 +336,7 @@ def windings_aligned(triangles, normals_compare):
+     triangles = np.asanyarray(triangles, dtype=np.float64)
+     if not util.is_shape(triangles, (-1, 3, 3), allow_zeros=True):
+         raise ValueError(
+-            "triangles must have shape (n, 3, 3), got %s" % str(triangles.shape)
++            f"triangles must have shape (n, 3, 3), got {triangles.shape!s}"
+         )
+     normals_compare = np.asanyarray(normals_compare, dtype=np.float64)
+ 
+diff --git a/trimesh/util.py b/trimesh/util.py
+index 39d12ee82..e53821b1a 100644
+--- a/trimesh/util.py
++++ b/trimesh/util.py
+@@ -2258,9 +2258,9 @@ def __getitem__(self, key):
+ 
+     def __setitem__(self, key, value):
+         if not isinstance(key, str):
+-            raise ValueError("key must be a string, got %s" % str(key))
++            raise ValueError(f"key must be a string, got {key!s}")
+         if key in self:
+-            raise KeyError("Cannot set new value to existing key %s" % key)
++            raise KeyError(f"Cannot set new value to existing key {key}")
+         if not callable(value):
+             raise ValueError("Cannot set value which is not callable.")
+         self._dict[key] = value
+diff --git a/trimesh/voxel/base.py b/trimesh/voxel/base.py
+index 502163cf9..964d50166 100644
+--- a/trimesh/voxel/base.py
++++ b/trimesh/voxel/base.py
+@@ -39,7 +39,7 @@ def __init__(self, encoding, transform=None, metadata=None):
+         if isinstance(metadata, dict):
+             self.metadata.update(metadata)
+         elif metadata is not None:
+-            raise ValueError("metadata should be a dict or None, got %s" % str(metadata))
++            raise ValueError(f"metadata should be a dict or None, got {metadata!s}")
+ 
+     def __hash__(self):
+         """
+@@ -66,13 +66,13 @@ def encoding(self, encoding):
+         if isinstance(encoding, np.ndarray):
+             encoding = DenseEncoding(encoding)
+         elif not isinstance(encoding, Encoding):
+-            raise ValueError("encoding must be an Encoding, got %s" % str(encoding))
++            raise ValueError(f"encoding must be an Encoding, got {encoding!s}")
+         if len(encoding.shape) != 3:
+             raise ValueError(
+-                "encoding must be rank 3, got shape %s" % str(encoding.shape)
++                f"encoding must be rank 3, got shape {encoding.shape!s}"
+             )
+         if encoding.dtype != bool:
+-            raise ValueError("encoding must be binary, got %s" % encoding.dtype)
++            raise ValueError(f"encoding must be binary, got {encoding.dtype}")
+         self._data["encoding"] = encoding
+ 
+     @property
+diff --git a/trimesh/voxel/encoding.py b/trimesh/voxel/encoding.py
+index 02e669006..544eb3ae1 100644
+--- a/trimesh/voxel/encoding.py
++++ b/trimesh/voxel/encoding.py
+@@ -288,7 +288,7 @@ def __init__(self, indices, values, shape=None):
+         data["values"] = values
+         indices = data["indices"]
+         if len(indices.shape) != 2:
+-            raise ValueError("indices must be 2D, got shaped %s" % str(indices.shape))
++            raise ValueError(f"indices must be 2D, got shaped {indices.shape!s}")
+         if data["values"].shape != (indices.shape[0],):
+             raise ValueError(
+                 "values and indices shapes inconsistent: {} and {}".format(
+@@ -511,7 +511,7 @@ def size(self):
+ 
+     def _flip(self, axes):
+         if axes != (0,):
+-            raise ValueError("encoding is 1D - cannot flip on axis %s" % str(axes))
++            raise ValueError(f"encoding is 1D - cannot flip on axis {axes!s}")
+         return RunLengthEncoding(runlength.rle_reverse(self._data))
+ 
+     @caching.cache_decorator
+@@ -616,7 +616,7 @@ def size(self):
+ 
+     def _flip(self, axes):
+         if axes != (0,):
+-            raise ValueError("encoding is 1D - cannot flip on axis %s" % str(axes))
++            raise ValueError(f"encoding is 1D - cannot flip on axis {axes!s}")
+         return BinaryRunLengthEncoding(runlength.brle_reverse(self._data))
+ 
+     @property
+@@ -816,7 +816,7 @@ class TransposedEncoding(LazyIndexMap):
+     def __init__(self, base_encoding, perm):
+         if not isinstance(base_encoding, Encoding):
+             raise ValueError(
+-                "base_encoding must be an Encoding, got %s" % str(base_encoding)
++                f"base_encoding must be an Encoding, got {base_encoding!s}"
+             )
+         if len(base_encoding.shape) != len(perm):
+             raise ValueError(
+@@ -826,7 +826,7 @@ def __init__(self, base_encoding, perm):
+         super().__init__(base_encoding)
+         perm = np.array(perm, dtype=np.int64)
+         if not all(i in perm for i in range(base_encoding.ndims)):
+-            raise ValueError("perm %s is not a valid permutation" % str(perm))
++            raise ValueError(f"perm {perm!s} is not a valid permutation")
+         inv_perm = np.empty_like(perm)
+         inv_perm[perm] = np.arange(base_encoding.ndims)
+         self._perm = perm
+@@ -896,7 +896,7 @@ def __init__(self, encoding, axes):
+         axes = tuple(a + ndims if a < 0 else a for a in axes)
+         self._axes = tuple(sorted(axes))
+         if len(set(self._axes)) != len(self._axes):
+-            raise ValueError("Axes cannot contain duplicates, got %s" % str(self._axes))
++            raise ValueError(f"Axes cannot contain duplicates, got {self._axes!s}")
+         super().__init__(encoding)
+         if not all(0 <= a < self._data.ndims for a in axes):
+             raise ValueError(
+diff --git a/trimesh/voxel/morphology.py b/trimesh/voxel/morphology.py
+index 9868b459c..0f60ae279 100644
+--- a/trimesh/voxel/morphology.py
++++ b/trimesh/voxel/morphology.py
+@@ -23,7 +23,7 @@ def _dense(encoding, rank=None):
+         dense = encoding.dense
+     else:
+         raise ValueError(
+-            "encoding must be np.ndarray or Encoding, got %s" % str(encoding)
++            f"encoding must be np.ndarray or Encoding, got {encoding!s}"
+         )
+     if rank:
+         _assert_rank(dense, rank)
+@@ -37,7 +37,7 @@ def _sparse_indices(encoding, rank=None):
+         sparse_indices = encoding.sparse_indices
+     else:
+         raise ValueError(
+-            "encoding must be np.ndarray or Encoding, got %s" % str(encoding)
++            f"encoding must be np.ndarray or Encoding, got {encoding!s}"
+         )
+ 
+     _assert_sparse_rank(sparse_indices, 3)
+@@ -51,7 +51,7 @@ def _assert_rank(value, rank):
+ 
+ def _assert_sparse_rank(value, rank=None):
+     if len(value.shape) != 2:
+-        raise ValueError("sparse_indices must be rank 2, got shape %s" % str(value.shape))
++        raise ValueError(f"sparse_indices must be rank 2, got shape {value.shape!s}")
+     if rank is not None:
+         if value.shape[-1] != rank:
+             raise ValueError(
+diff --git a/trimesh/voxel/runlength.py b/trimesh/voxel/runlength.py
+index 351698cd1..7b53d90b5 100644
+--- a/trimesh/voxel/runlength.py
++++ b/trimesh/voxel/runlength.py
+@@ -231,7 +231,7 @@ def brle_to_dense(brle_data, vals=None):
+     else:
+         vals = np.asarray(vals)
+         if vals.shape != (2,):
+-            raise ValueError("vals.shape must be (2,), got %s" % (vals.shape))
++            raise ValueError(f"vals.shape must be (2,), got {vals.shape}")
+     ft = np.repeat(_ft[np.newaxis, :], (len(brle_data) + 1) // 2, axis=0).flatten()
+     return np.repeat(ft[: len(brle_data)], brle_data).flatten()
+ 

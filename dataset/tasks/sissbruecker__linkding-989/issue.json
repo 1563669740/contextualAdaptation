@@ -1,0 +1,13 @@
+{
+  "task_id": "sissbruecker__linkding-989",
+  "repo": "sissbruecker/linkding",
+  "issue_number": "883",
+  "issue_url": "https://github.com/sissbruecker/linkding/issues/883",
+  "issue_created_at": "1970-01-01 00:28:59.604057+00:00",
+  "issue_title": "Removing a bookmark does not remove its related image preview",
+  "issue_body": "Dear author,\r\n\r\nI noticed a behaviour that may be a bug for Linkding.\r\n\r\nWhen the feature **Preview Images** is enabled, and a bookmark is created and then removed, the related preview image (in the **previews** directory) is not removed.\r\n\r\nAs an observation, when the feature **Automatically create HTML snapshots** is enabled, I acknowledge that creating and removing a bookmark properly deletes the related snapshot files, indicating that the deletion task is executed, despite the preview image file remains.\r\n\r\nI could replicate this behaviour on a clean installation of Linkding with a single bookmark, easing to notice that the preview image file is not deleted once the bookmark is removed.\r\n\r\nI believe that removing a bookmark should delete the corresponding preview image, as it is no longer used afterwards.\r\n\r\nThanks and cheers!",
+  "problem_statement": "Removing a bookmark does not remove its related image preview\nDear author,\r\n\r\nI noticed a behaviour that may be a bug for Linkding.\r\n\r\nWhen the feature **Preview Images** is enabled, and a bookmark is created and then removed, the related preview image (in the **previews** directory) is not removed.\r\n\r\nAs an observation, when the feature **Automatically create HTML snapshots** is enabled, I acknowledge that creating and removing a bookmark properly deletes the related snapshot files, indicating that the deletion task is executed, despite the preview image file remains.\r\n\r\nI could replicate this behaviour on a clean installation of Linkding with a single bookmark, easing to notice that the preview image file is not deleted once the bookmark is removed.\r\n\r\nI believe that removing a bookmark should delete the corresponding preview image, as it is no longer used afterwards.\r\n\r\nThanks and cheers!\r\n\n",
+  "hints_text": "Thanks, that is indeed missing at the moment.\n\n",
+  "all_hints_text": "Thanks, that is indeed missing at the moment.\n\n",
+  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+}

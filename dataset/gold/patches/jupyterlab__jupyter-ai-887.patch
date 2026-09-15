@@ -1,0 +1,28 @@
+diff --git a/packages/jupyter-ai/jupyter_ai/chat_handlers/learn.py b/packages/jupyter-ai/jupyter_ai/chat_handlers/learn.py
+index 2d09aa9a5..8d6fb09aa 100644
+--- a/packages/jupyter-ai/jupyter_ai/chat_handlers/learn.py
++++ b/packages/jupyter-ai/jupyter_ai/chat_handlers/learn.py
+@@ -19,6 +19,7 @@
+     IndexMetadata,
+ )
+ from jupyter_core.paths import jupyter_data_dir
++from jupyter_core.utils import ensure_dir_exists
+ from langchain.schema import BaseRetriever, Document
+ from langchain.text_splitter import (
+     LatexTextSplitter,
+@@ -97,11 +98,12 @@ def __init__(self, *args, **kwargs):
+         self.metadata = IndexMetadata(dirs=[])
+         self.prev_em_id = None
+ 
+-        if not os.path.exists(INDEX_SAVE_DIR):
+-            os.makedirs(INDEX_SAVE_DIR)
+-
++        self._ensure_dirs()
+         self._load()
+ 
++    def _ensure_dirs(self):
++        ensure_dir_exists(INDEX_SAVE_DIR, mode=0o700)
++
+     def _load(self):
+         """Loads the vector store."""
+         if self.index is not None:

@@ -1,0 +1,149 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index ab8cbb04eb..7393cf5ac4 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -17,6 +17,7 @@ API changes:
+ 
+ New methods:
+ 
++- Added `line_merge` method from shapely to GeoSeries/GeoDataframe (#3214).
+ - Added `set_precision` and `get_precision` methods from shapely to GeoSeries/GeoDataframe (#3175).
+ - Added `count_coordinates` method from shapely to GeoSeries/GeoDataframe (#3026).
+ - Added `minimum_clearance` method from shapely to GeoSeries/GeoDataframe (#2989).
+@@ -41,7 +42,7 @@ New features and improvements:
+   `buffer(0)` (#3113).
+ - Passing `"geometry"` as `dtype` to `pd.read_csv` will now return a GeoSeries for
+   the specified columns (#3101).
+-- 
++-
+ API changes:
+ - Added support for ``mask`` keyword for pyogrio engine for pyogrio >= 0.7.0 (#3062).
+ 
+@@ -67,16 +68,16 @@ Deprecations and compatibility notes:
+   removed. New sample datasets are now available in the
+   [geodatasets](https://geodatasets.readthedocs.io/en/latest/) package (#3084).
+ - Many longstanding deprecated functions, methods and properties have been removed (#3174)
+-  - Removed deprecated functions  
+-    `geopandas.io.read_file`, `geopandas.io.to_file` and `geopandas.io.sql.read_postgis`. 
+-    `geopandas.read_file`, `geopandas.read_postgis` and the GeoDataFrame/GeoSeries `to_file(..)` 
++  - Removed deprecated functions
++    `geopandas.io.read_file`, `geopandas.io.to_file` and `geopandas.io.sql.read_postgis`.
++    `geopandas.read_file`, `geopandas.read_postgis` and the GeoDataFrame/GeoSeries `to_file(..)`
+     method should be used instead.
+   - Removed deprecated `GeometryArray.data` property, `np.asarray(..)` or the `to_numpy()`
+     method should be used instead.
+   - Removed deprecated `sindex.query_bulk` method, using `sindex.query` instead.
+   - Removed deprecated `sjoin` parameter `op`, `predicate` should be supplied instead.
+-  - Removed deprecated GeoSeries/ GeoDataFrame methods `__xor__`, `__or__`, `__and__` and 
+-    `__sub__`. Instead use methods `symmetric_difference`, `union`, `intersection` and 
++  - Removed deprecated GeoSeries/ GeoDataFrame methods `__xor__`, `__or__`, `__and__` and
++    `__sub__`. Instead use methods `symmetric_difference`, `union`, `intersection` and
+     `difference` respectively.
+ - Fixes for compatibility with psycopg (#3167).
+ 
+diff --git a/doc/source/docs/reference/geoseries.rst b/doc/source/docs/reference/geoseries.rst
+index 6a8fbbee52..ebeec66af6 100644
+--- a/doc/source/docs/reference/geoseries.rst
++++ b/doc/source/docs/reference/geoseries.rst
+@@ -137,6 +137,7 @@ Linestring operations
+    :toctree: api/
+ 
+    GeoSeries.interpolate
++   GeoSeries.line_merge
+    GeoSeries.project
+ 
+ Aggregating and exploding
+diff --git a/geopandas/array.py b/geopandas/array.py
+index 8a8d4caf22..7a430a9894 100644
+--- a/geopandas/array.py
++++ b/geopandas/array.py
+@@ -665,6 +665,11 @@ def transform(self, transformation, include_z=False):
+             shapely.transform(self._data, transformation, include_z), crs=self.crs
+         )
+ 
++    def line_merge(self, directed=False):
++        return GeometryArray(
++            shapely.line_merge(self._data, directed=directed), crs=self.crs
++        )
++
+     def set_precision(self, grid_size, mode="valid_output"):
+         return GeometryArray(
+             shapely.set_precision(self._data, grid_size=grid_size, mode=mode),
+diff --git a/geopandas/base.py b/geopandas/base.py
+index dfa59bc477..4691fe1e56 100644
+--- a/geopandas/base.py
++++ b/geopandas/base.py
+@@ -1606,6 +1606,73 @@ def force_3d(self, z=0):
+         """
+         return _delegate_geo_method("force_3d", self, z=z)
+ 
++    def line_merge(self, directed=False):
++        """Returns (Multi)LineStrings formed by combining the lines in a
++        MultiLineString.
++
++        Lines are joined together at their endpoints in case two lines are intersecting.
++        Lines are not joined when 3 or more lines are intersecting at the endpoints.
++        Line elements that cannot be joined are kept as is in the resulting
++        MultiLineString.
++
++        The direction of each merged LineString will be that of the majority of the
++        LineStrings from which it was derived. Except if ``directed=True`` is specified,
++        then the operation will not change the order of points within lines and so only
++        lines which can be joined with no change in direction are merged.
++
++        Non-linear geometeries result in an empty GeometryCollection.
++
++        Parameters
++        ----------
++        directed : bool, default False
++            Only combine lines if possible without changing point order.
++            Requires GEOS >= 3.11.0
++
++        Returns
++        -------
++        GeoSeries
++
++        Examples
++        --------
++        >>> from shapely.geometry import MultiLineString, Point
++        >>> s = geopandas.GeoSeries(
++        ...     [
++        ...         MultiLineString([[(0, 2), (0, 10)], [(0, 10), (5, 10)]]),
++        ...         MultiLineString([[(0, 2), (0, 10)], [(0, 11), (5, 10)]]),
++        ...         MultiLineString(),
++        ...         MultiLineString([[(0, 0), (1, 0)], [(0, 0), (3, 0)]]),
++        ...         Point(0, 0),
++        ...     ]
++        ... )
++        >>> s
++        0    MULTILINESTRING ((0 2, 0 10), (0 10, 5 10))
++        1    MULTILINESTRING ((0 2, 0 10), (0 11, 5 10))
++        2                          MULTILINESTRING EMPTY
++        3       MULTILINESTRING ((0 0, 1 0), (0 0, 3 0))
++        4                                    POINT (0 0)
++        dtype: geometry
++
++        >>> s.line_merge()
++        0                   LINESTRING (0 2, 0 10, 5 10)
++        1    MULTILINESTRING ((0 2, 0 10), (0 11, 5 10))
++        2                       GEOMETRYCOLLECTION EMPTY
++        3                     LINESTRING (1 0, 0 0, 3 0)
++        4                       GEOMETRYCOLLECTION EMPTY
++        dtype: geometry
++
++        With ``directed=True``, you can avoid changing the order of points within lines
++        and merge only lines where no change of direction is required:
++
++        >>> s.line_merge(directed=True)
++        0                   LINESTRING (0 2, 0 10, 5 10)
++        1    MULTILINESTRING ((0 2, 0 10), (0 11, 5 10))
++        2                       GEOMETRYCOLLECTION EMPTY
++        3       MULTILINESTRING ((0 0, 1 0), (0 0, 3 0))
++        4                       GEOMETRYCOLLECTION EMPTY
++        dtype: geometry
++        """
++        return _delegate_geo_method("line_merge", self, directed=directed)
++
+     #
+     # Reduction operations that return a Shapely geometry
+     #

@@ -1,0 +1,587 @@
+diff --git a/conan/internal/api/install/generators.py b/conan/internal/api/install/generators.py
+index fb7322ca651..c385820a770 100644
+--- a/conan/internal/api/install/generators.py
++++ b/conan/internal/api/install/generators.py
+@@ -30,7 +30,8 @@
+                "PremakeDeps": "conan.tools.premake",
+                "MakeDeps": "conan.tools.gnu",
+                "SConsDeps": "conan.tools.scons",
+-               "QbsDeps": "conan.tools.qbs"
++               "QbsDeps": "conan.tools.qbs",
++               "QbsProfile": "conan.tools.qbs"
+                }
+ 
+ 
+diff --git a/conan/tools/microsoft/visual.py b/conan/tools/microsoft/visual.py
+index ab4a7129379..7aad2edf995 100644
+--- a/conan/tools/microsoft/visual.py
++++ b/conan/tools/microsoft/visual.py
+@@ -127,36 +127,9 @@ def generate(self, scope="build"):
+         if vs_install_path == "":  # Empty string means "disable"
+             return
+ 
+-        msvc_update = conanfile.conf.get("tools.microsoft:msvc_update")
+-        if compiler == "clang":
+-            # The vcvars only needed for LLVM/Clang and VS ClangCL, who define runtime
+-            if not conanfile.settings.get_safe("compiler.runtime"):
+-                # NMake Makefiles will need vcvars activated, for VS target, defined with runtime
+-                return
+-            toolset_version = conanfile.settings.get_safe("compiler.runtime_version")
+-            vs_version = {"v140": "14",
+-                          "v141": "15",
+-                          "v142": "16",
+-                          "v143": "17",
+-                          "v144": "17"}.get(toolset_version)
+-            if vs_version is None:
+-                raise ConanException("Visual Studio Runtime version (v140-v144) not defined")
+-            vcvars_ver = {"v140": "14.0",
+-                          "v141": "14.1",
+-                          "v142": "14.2",
+-                          "v143": "14.3",
+-                          "v144": "14.4"}.get(toolset_version)
+-            if vcvars_ver and msvc_update is not None:
+-                vcvars_ver += f"{msvc_update}"
+-        else:
+-            vs_version = vs_ide_version(conanfile)
+-            if int(vs_version) <= 14:
+-                vcvars_ver = None
+-            else:
+-                compiler_version = str(conanfile.settings.compiler.version)
+-                compiler_update = msvc_update or conanfile.settings.get_safe("compiler.update", "")
+-                # The equivalent of compiler 19.26 is toolset 14.26
+-                vcvars_ver = "14.{}{}".format(compiler_version[-1], compiler_update)
++        vs_version, vcvars_ver = _vcvars_versions(conanfile)
++        if vs_version is None:
++            return
+ 
+         vcvarsarch = _vcvars_arch(conanfile)
+ 
+@@ -305,6 +278,41 @@ def _vcvars_path(version, vs_install_path):
+     return vcpath
+ 
+ 
++def _vcvars_versions(conanfile):
++    compiler = conanfile.settings.get_safe("compiler")
++    msvc_update = conanfile.conf.get("tools.microsoft:msvc_update")
++    if compiler == "clang":
++        # The vcvars only needed for LLVM/Clang and VS ClangCL, who define runtime
++        if not conanfile.settings.get_safe("compiler.runtime"):
++            # NMake Makefiles will need vcvars activated, for VS target, defined with runtime
++            return None, None
++        toolset_version = conanfile.settings.get_safe("compiler.runtime_version")
++        vs_version = {"v140": "14",
++                        "v141": "15",
++                        "v142": "16",
++                        "v143": "17",
++                        "v144": "17"}.get(toolset_version)
++        if vs_version is None:
++            raise ConanException("Visual Studio Runtime version (v140-v144) not defined")
++        vcvars_ver = {"v140": "14.0",
++                        "v141": "14.1",
++                        "v142": "14.2",
++                        "v143": "14.3",
++                        "v144": "14.4"}.get(toolset_version)
++        if vcvars_ver and msvc_update is not None:
++            vcvars_ver += f"{msvc_update}"
++    else:
++        vs_version = vs_ide_version(conanfile)
++        if int(vs_version) <= 14:
++            vcvars_ver = None
++        else:
++            compiler_version = str(conanfile.settings.compiler.version)
++            compiler_update = msvc_update or conanfile.settings.get_safe("compiler.update", "")
++            # The equivalent of compiler 19.26 is toolset 14.26
++            vcvars_ver = "14.{}{}".format(compiler_version[-1], compiler_update)
++    return vs_version, vcvars_ver
++
++
+ def _vcvars_arch(conanfile):
+     """
+     Computes the vcvars command line architecture based on conanfile settings (host) and
+diff --git a/conan/tools/qbs/__init__.py b/conan/tools/qbs/__init__.py
+index 8567cdbf796..3100e450aa2 100644
+--- a/conan/tools/qbs/__init__.py
++++ b/conan/tools/qbs/__init__.py
+@@ -1,2 +1,3 @@
+ from conan.tools.qbs.qbs import Qbs
+ from conan.tools.qbs.qbsdeps import QbsDeps
++from conan.tools.qbs.qbsprofile import QbsProfile
+diff --git a/conan/tools/qbs/common.py b/conan/tools/qbs/common.py
+new file mode 100644
+index 00000000000..dd45f434e8d
+--- /dev/null
++++ b/conan/tools/qbs/common.py
+@@ -0,0 +1,87 @@
++architecture_map = {
++    'x86': 'x86',
++    'x86_64': 'x86_64',
++    'ppc32be': 'ppc',
++    'ppc32': 'ppc',
++    'ppc64le': 'ppc64',
++    'ppc64': 'ppc64',
++    'armv4': 'arm',
++    'armv4i': 'arm',
++    'armv5el': 'arm',
++    'armv5hf': 'arm',
++    'armv6': 'arm',
++    'armv7': 'arm',
++    'armv7hf': 'arm',
++    'armv7s': 'arm',
++    'armv7k': 'arm',
++    'armv8': 'arm64',
++    'armv8_32': 'arm64',
++    'armv8.3': 'arm64',
++    'sparc': 'sparc',
++    'sparcv9': 'sparc64',
++    'mips': 'mips',
++    'mips64': 'mips64',
++    'avr': 'avr',
++    's390': 's390x',
++    's390x': 's390x',
++    'asm.js': None,
++    'wasm': None,
++    'sh4le': 'sh'
++}
++
++
++build_variant_map = {
++    'Debug': 'debug',
++    'Release': 'release',
++    'RelWithDebInfo': 'profiling',
++    'MinSizeRel': 'release'
++}
++
++
++optimization_map = {
++    'MinSizeRel': 'small'
++}
++
++
++cxx_language_version_map = {
++    '98': 'c++98',
++    'gnu98': 'c++98',
++    '11': 'c++11',
++    'gnu11': 'c++11',
++    '14': 'c++14',
++    'gnu14': 'c++14',
++    '17': 'c++17',
++    'gnu17': 'c++17',
++    '20': 'c++20',
++    'gnu20': 'c++20'
++}
++
++
++target_platform_map = {
++    'Windows': 'windows',
++    'WindowsStore': 'windows',
++    'WindowsCE': 'windows',
++    'Linux': 'linux',
++    'Macos': 'macos',
++    'Android': 'android',
++    'iOS': 'ios',
++    'watchOS': 'watchos',
++    'tvOS': 'tvos',
++    'visionOS': 'xros',
++    'FreeBSD': 'freebsd',
++    'SunOS': 'solaris',
++    'AIX': 'aix',
++    'Emscripten': None,
++    'Arduino': 'none',
++    'Neutrino': 'qnx',
++}
++
++
++runtime_library_map = {
++    'static': 'static',
++    'dynamic': 'dynamic',
++    'MD': 'dynamic',
++    'MT': 'static',
++    'MDd': 'dynamic',
++    'MTd': 'static',
++}
+\ No newline at end of file
+diff --git a/conan/tools/qbs/qbs.py b/conan/tools/qbs/qbs.py
+index 8590e90a015..1673d8b6d22 100644
+--- a/conan/tools/qbs/qbs.py
++++ b/conan/tools/qbs/qbs.py
+@@ -1,9 +1,9 @@
+ import os
++import shutil
+ 
+ from conan.tools.build import build_jobs, cmd_args_to_string
+ from conan.errors import ConanException
+ 
+-
+ def _configuration_dict_to_commandlist(name, config_dict):
+     command_list = ['config:%s' % name]
+     for key, value in config_dict.items():
+@@ -57,11 +57,23 @@ def add_configuration(self, name, values):
+         """
+         self._configuration[name] = values
+ 
++    def _qbs_settings_paths(self):
++        generators_folder = self._conanfile.generators_folder
++        qbs_settings_path = os.path.join(generators_folder, 'qbs_settings.txt')
++        if not os.path.exists(qbs_settings_path):
++            return None, None
++        return os.path.join(generators_folder, 'conan-qbs-settings-dir'), qbs_settings_path
++
+     def _get_common_arguments(self):
+-        return [
++        args = []
++        settings_dir, _ = self._qbs_settings_paths()
++        if settings_dir is not None:
++            args.extend(['--settings-dir', settings_dir])
++        args.extend([
+             '--build-directory', self._conanfile.build_folder,
+             '--file', self._project_file,
+-        ]
++        ])
++        return args
+ 
+     def resolve(self, parallel=True):
+         """
+@@ -70,6 +82,14 @@ def resolve(self, parallel=True):
+         "conan" module provider automatically adding dependencies to the project.
+         :param parallel: Whether to use multi-threaded resolving. Defaults to ``True``.
+         """
++        generators_folder = self._conanfile.generators_folder
++        settings_dir, settings_path = self._qbs_settings_paths()
++        if settings_dir is not None:
++            shutil.rmtree(settings_dir, ignore_errors=True)
++            import_args = ['--settings-dir', settings_dir, '--import', settings_path]
++            import_cmd = 'qbs config  %s' % cmd_args_to_string(import_args)
++            self._conanfile.run(import_cmd)
++
+         args = self._get_common_arguments()
+ 
+         if parallel:
+@@ -80,7 +100,6 @@ def resolve(self, parallel=True):
+         if self.profile:
+             args.append('profile:%s' % self.profile)
+ 
+-        generators_folder = self._conanfile.generators_folder
+         if os.path.exists(os.path.join(generators_folder, 'conan-qbs-deps')):
+             args.append('moduleProviders.conan.installDirectory:' + generators_folder)
+ 
+diff --git a/conan/tools/qbs/qbsprofile.py b/conan/tools/qbs/qbsprofile.py
+new file mode 100644
+index 00000000000..4cf619efdbd
+--- /dev/null
++++ b/conan/tools/qbs/qbsprofile.py
+@@ -0,0 +1,315 @@
++import os
++import shlex
++import shutil
++import platform
++import textwrap
++
++from jinja2 import Template
++from conan.internal import check_duplicated_generator
++from conan.errors import ConanException
++from conan.tools.env import VirtualBuildEnv
++from conan.tools.microsoft import msvs_toolset
++from conan.tools.microsoft.visual import vs_installation_path, _vcvars_path, _vcvars_versions
++from conan.tools.qbs import common
++from conans.util.files import save
++
++
++def _find_msvc(conanfile):
++    vs_install_path = conanfile.conf.get("tools.microsoft.msbuild:installation_path")
++    vs_version, vcvars_ver = _vcvars_versions(conanfile)
++    vs_path = vs_install_path or vs_installation_path(vs_version)
++    if vs_path is None or vs_version is None:
++        return None
++
++    vc_install_dir = os.path.join(vs_path, 'VC', 'Tools', 'MSVC')
++    if not os.path.exists(vc_install_dir):
++        return None
++    compiler_versions = [v for v in os.listdir(vc_install_dir) if v.startswith(vcvars_ver)]
++    compiler_versions.sort(reverse=True)
++
++    build_arch_map = {
++        'x86': 'Hostx86',
++        'x86_64': 'Hostx64',
++        'armv6': 'arm',
++        'armv7': 'arm',
++        'armv8': 'arm64',
++    }
++    host_arch_map = {
++        'x86': 'x86',
++        'x86_64': 'x64',
++        'armv6': 'arm',
++        'armv7': 'arm',
++        'armv8': 'arm64',
++    }
++    build_arch = build_arch_map.get(str(conanfile.settings_build.arch))
++
++    host_arch = host_arch_map.get(str(conanfile.settings.arch))
++
++    if not host_arch or not build_arch:
++        return None
++
++    def cl_path(version):
++        return os.path.join(vc_install_dir, version, 'bin', build_arch, host_arch, 'cl.exe')
++
++    compiler_paths = [cl_path(version) for version in compiler_versions]
++    compiler_paths = [p for p in compiler_paths if os.path.exists(p)]
++
++    if len(compiler_paths) == 0:
++        return None
++
++    return compiler_paths[0]
++
++
++def _find_clangcl(conanfile):
++    vs_install_path = conanfile.conf.get("tools.microsoft.msbuild:installation_path")
++    vs_version, _ = _vcvars_versions(conanfile)
++    vs_path = vs_install_path or vs_installation_path(vs_version)
++
++    compiler_path = os.path.join(vs_path, 'VC', 'Tools', 'Llvm', 'bin', 'clang-cl.exe')
++    vcvars_path = _vcvars_path(vs_version, vs_install_path)
++    if not os.path.exists(compiler_path):
++        return None
++    return compiler_path, vcvars_path
++
++
++class _LinkerFlagsParser:
++    def __init__(self, ld_flags):
++        self.driver_linker_flags = []
++        self.linker_flags = []
++
++        for item in ld_flags:
++            if item.startswith('-Wl'):
++                self.linker_flags.extend(item.split(',')[1:])
++            else:
++                self.driver_linker_flags.append(item)
++
++
++class QbsProfile:
++    """
++    Qbs profiles generator.
++
++    This class generates file with the toolchain information that can be imported by Qbs.
++    """
++
++    def __init__(self, conanfile, profile='conan', default_profile='conan'):
++        """
++        :param conanfile: The current recipe object. Always use ``self``.
++        :param profile: The name of the profile in settings. Defaults to ``"conan"``.
++        :param default_profile: The name of the default profile. Defaults to ``"conan"``.
++
++        """
++        self._conanfile = conanfile
++        self._profile = profile
++        self._default_profile = default_profile
++
++        self.extra_cflags = []
++        self.extra_cxxflags = []
++        self.extra_defines = []
++        self.extra_sharedlinkflags = []
++        self.extra_exelinkflags = []
++
++        self._build_env = VirtualBuildEnv(self._conanfile, auto_generate=True).vars()
++
++    @property
++    def filename(self):
++        """
++        The name of the generated file. Returns ``qbs_settings.txt``.
++        """
++        return 'qbs_settings.txt'
++
++    @property
++    def content(self):
++        """
++        Returns the content of the settings file as dict of Qbs properties.
++        """
++        result = self._toolchain_properties()
++        result.update(self._properties_from_settings())
++        result.update(self._properties_from_conf())
++        result.update(self._properties_from_options())
++        # result.update(self._properties_from_env(self._build_env))
++        return result
++
++    def render(self):
++        """
++        Returns the content of the settings file as string.
++        """
++        template = textwrap.dedent('''\
++            {%- for key, value in profile_values.items() %}
++            profiles.{{profile}}.{{ key }}:{{ value }}
++            {%- endfor %}
++            defaultProfile: {{default_profile}}
++        ''')
++        t = Template(template)
++        context = {
++            'profile_values': self.content,
++            'profile': self._profile,
++            'default_profile': self._default_profile,
++        }
++        result = t.render(**context)
++        return result
++
++    def generate(self):
++        """
++        This method will save the generated files to the conanfile.generators_folder.
++
++        Generates the "qbs_settings.txt" file. This file contains Qbs settings such as toolchain
++        properties and can be imported using ``qbs config --import``.
++        """
++        check_duplicated_generator(self, self._conanfile)
++        self._check_for_compiler()
++        save(self.filename, self.render())
++
++    def _check_for_compiler(self):
++        compiler = self._conanfile.settings.get_safe('compiler')
++        if not compiler:
++            raise ConanException('Qbs: need compiler to be set in settings')
++
++        if compiler not in ['msvc', 'gcc', 'clang', 'apple-clang']:
++            raise ConanException(f'Qbs: compiler {compiler} not supported')
++
++    def _get_qbs_toolchain(self):
++        compiler = self._conanfile.settings.get_safe('compiler')
++        the_os = self._conanfile.settings.get_safe('os')
++        if the_os == 'Windows':
++            if compiler == 'msvc':
++                if msvs_toolset(self._conanfile) == 'ClangCL':
++                    return 'clang-cl'
++                return 'msvc'
++            if compiler == 'gcc':
++                return 'mingw'
++            if compiler == 'clang':
++                return 'clang-cl'
++            raise ConanException('unknown windows compiler')
++        if compiler == 'apple-clang':
++            return 'xcode'
++        # todo: other compilers?
++        return compiler
++
++    def _default_compiler_names(self, toolchain):
++        if toolchain == 'msvc':
++            return 'cl', 'cl'
++        if toolchain == 'clang-cl':
++            return 'clang-cl', 'clang-cl'
++        if toolchain in ('gcc', 'mingw'):
++            return 'gcc', 'g++'
++        if toolchain in ('clang', 'xcode'):
++            return 'clang', 'clang++'
++
++        # what about other toolchains? IAR, Cosmic have a bunch of compilers based on arch
++        return toolchain, toolchain
++
++    def _find_exe(self, exe):
++        if platform.system() == 'Windows':
++            exe = exe + '.exe'
++        if os.path.isabs(exe):
++            return exe
++        paths = self._build_env.get("PATH", "")
++        for p in paths.split(os.pathsep):
++            path = os.path.join(p, exe)
++            if os.path.exists(path):
++                return path
++        return shutil.which(exe)
++
++    def _toolchain_properties(self):
++        toolchain = self._get_qbs_toolchain()
++        the_os = self._conanfile.settings.get_safe('os')
++        vcvars_path = None
++        compiler = None
++        if the_os == 'Windows' and toolchain == 'msvc':
++            compiler = _find_msvc(self._conanfile)
++        elif the_os == 'Windows' and toolchain == 'clang-cl':
++            compiler, vcvars_path = _find_clangcl(self._conanfile)
++        else:
++            # TODO: use CC also for msvc?
++            c_compiler_default, cxx_compiler_default = self._default_compiler_names(toolchain)
++            compilers_by_conf = self._conanfile.conf.get("tools.build:compiler_executables",
++                                                         default={}, check_type=dict)
++            c_compiler = (
++                compilers_by_conf.get("c") or self._build_env.get("CC") or c_compiler_default)
++            c_compiler = self._find_exe(c_compiler)
++
++            cxx_compiler = (
++                compilers_by_conf.get("cpp") or self._build_env.get("CXX") or cxx_compiler_default)
++            cxx_compiler = self._find_exe(cxx_compiler)
++            compiler = cxx_compiler or c_compiler
++        if compiler is None:
++            raise ConanException('cannot find compiler')
++
++        result = {
++            'qbs.toolchainType': toolchain,
++            'cpp.compilerName': os.path.basename(compiler),
++            'cpp.toolchainInstallPath': os.path.dirname(compiler).replace('\\', '/')
++        }
++        # GCC and friends also have separate props for compilers
++        gcc_toolchains = ['clang', 'gcc', 'llvm', 'mingw', 'qcc', 'xcode']
++        if toolchain in gcc_toolchains:
++            result['cpp.cCompilerName'] = os.path.basename(c_compiler)
++            result['cpp.cxxCompilerName'] = os.path.basename(cxx_compiler)
++        if vcvars_path:
++            result["cpp.vcvarsallPath"] = vcvars_path
++        return result
++
++    def _properties_from_settings(self):
++        result = {}
++
++        def map_qbs_property(key, qbs_property, value_map, fallback=None):
++            value = value_map.get(self._conanfile.settings.get_safe(key)) or fallback
++            if value is not None:
++                result[qbs_property] = value
++
++        map_qbs_property('arch', 'qbs.architecture', common.architecture_map)
++        map_qbs_property('os', 'qbs.targetPlatform', common.target_platform_map, "undefined")
++        map_qbs_property('build_type', 'qbs.buildVariant', common.build_variant_map)
++        map_qbs_property(
++            'compiler.cppstd', 'cpp.cxxLanguageVersion', common.cxx_language_version_map)
++        map_qbs_property('compiler.runtime', 'cpp.runtimeLibrary', common.runtime_library_map)
++
++        return result
++
++    def _properties_from_options(self):
++        result = {}
++
++        def maybe_bool_str(b):
++            return None if b is None else str(b).lower()
++
++        fpic = maybe_bool_str(self._conanfile.options.get_safe('fPIC'))
++        if fpic:
++            result["cpp.positionIndependentCode"] = fpic
++
++        return result
++
++    def _properties_from_conf(self):
++        result = {}
++
++        def map_list_property(key, qbs_property, extra):
++            value = self._conanfile.conf.get(key, default=[], check_type=list)
++            value.extend(extra)
++            if len(value) > 0:
++                result[qbs_property] = value
++
++        map_list_property("tools.build:cflags", "cpp.cFlags", self.extra_cflags)
++        map_list_property("tools.build:cxxflags", "cpp.cxxFlags", self.extra_cxxflags)
++        map_list_property("tools.build:defines", "cpp.defines", self.extra_defines)
++
++        def ldflags():
++            conf = self._conanfile.conf
++            result = conf.get("tools.build:sharedlinkflags", default=[], check_type=list)
++            result.extend(self.extra_sharedlinkflags)
++            result.extend(conf.get("tools.build:exelinkflags", default=[], check_type=list))
++            result.extend(self.extra_exelinkflags)
++            linker_scripts = conf.get("tools.build:linker_scripts", default=[], check_type=list)
++            result.extend(["-T'" + linker_script + "'" for linker_script in linker_scripts])
++            return result
++
++        ld_flags = ldflags()
++        if len(ld_flags) > 0:
++            parser = _LinkerFlagsParser(ld_flags)
++            result['cpp.linkerFlags'] = parser.linker_flags
++            result['cpp.driverLinkerFlags'] = parser.driver_linker_flags
++
++        sysroot = self._conanfile.conf.get("tools.build:sysroot")
++        if sysroot is not None:
++            sysroot = sysroot.replace("\\", "/")
++            result['qbs.sysroot'] = sysroot
++
++        return result

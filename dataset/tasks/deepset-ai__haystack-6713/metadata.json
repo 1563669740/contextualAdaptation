@@ -1,0 +1,41 @@
+{
+  "task_id": "deepset-ai__haystack-6713",
+  "repo": "deepset-ai/haystack",
+  "pull_number": "6713",
+  "split": "discovery",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=4 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.9,
+  "base_commit": "1841aec11e479ed75d912bb01db7cc90dd2c4e47",
+  "repo_commit": "1841aec11e479ed75d912bb01db7cc90dd2c4e47",
+  "gold_commit": "fbbe374588b982b319706c255481810f9f7971e6",
+  "gold_commit_count": 15,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 4,
+  "gold_loc_added": 148,
+  "gold_loc_deleted": 14,
+  "gold_modules_changed": 2,
+  "fail_to_pass_count": 8,
+  "pass_to_pass_count": 849,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

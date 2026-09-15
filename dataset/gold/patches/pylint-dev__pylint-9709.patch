@@ -1,0 +1,53 @@
+diff --git a/doc/whatsnew/fragments/9343.bugfix b/doc/whatsnew/fragments/9343.bugfix
+new file mode 100644
+index 0000000000..0a3a620809
+--- /dev/null
++++ b/doc/whatsnew/fragments/9343.bugfix
+@@ -0,0 +1,4 @@
++Fixed a crash in ``symilar`` when the ``-d`` or ``-i`` short option were not properly recognized.
++It's still impossible to do ``-d=1`` (you must do ``-d 1``).
++
++Closes #9343
+diff --git a/pylint/checkers/similar.py b/pylint/checkers/similar.py
+index cfe649b180..ada141da36 100644
+--- a/pylint/checkers/similar.py
++++ b/pylint/checkers/similar.py
+@@ -39,7 +39,7 @@
+ import warnings
+ from collections import defaultdict
+ from collections.abc import Callable, Generator, Iterable, Sequence
+-from getopt import getopt
++from getopt import GetoptError, getopt
+ from io import BufferedIOBase, BufferedReader, BytesIO
+ from itertools import chain
+ from typing import (
+@@ -906,7 +906,7 @@ def Run(argv: Sequence[str] | None = None) -> NoReturn:
+     if argv is None:
+         argv = sys.argv[1:]
+ 
+-    s_opts = "hdi"
++    s_opts = "hd:i:"
+     l_opts = [
+         "help",
+         "duplicates=",
+@@ -920,10 +920,18 @@ def Run(argv: Sequence[str] | None = None) -> NoReturn:
+     ignore_docstrings = False
+     ignore_imports = False
+     ignore_signatures = False
+-    opts, args = getopt(list(argv), s_opts, l_opts)
++    try:
++        opts, args = getopt(list(argv), s_opts, l_opts)
++    except GetoptError as e:
++        print(e)
++        usage(2)
+     for opt, val in opts:
+         if opt in {"-d", "--duplicates"}:
+-            min_lines = int(val)
++            try:
++                min_lines = int(val)
++            except ValueError as e:
++                print(e)
++                usage(2)
+         elif opt in {"-h", "--help"}:
+             usage()
+         elif opt in {"-i", "--ignore-comments"}:

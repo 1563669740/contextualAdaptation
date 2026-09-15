@@ -1,0 +1,41 @@
+{
+  "task_id": "encode__starlette-2620",
+  "repo": "encode/starlette",
+  "pull_number": "2620",
+  "split": "pilot",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "exception/traceback named in the issue title",
+  "task_type_confidence": 0.85,
+  "base_commit": "c78c9aac17a4d68e0647252310044502f1b7da71",
+  "repo_commit": "c78c9aac17a4d68e0647252310044502f1b7da71",
+  "gold_commit": "5acd4312f652fc6d4c80495dec4f6c0ded5a0b9c",
+  "gold_commit_count": 12,
+  "estimated_difficulty": "Hard",
+  "estimated_completion_time_min": 75,
+  "gold_files_changed": 1,
+  "gold_loc_added": 24,
+  "gold_loc_deleted": 11,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 14,
+  "pass_to_pass_count": 787,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

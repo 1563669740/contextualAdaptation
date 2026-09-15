@@ -1,0 +1,14 @@
+diff --git a/tests/plugins/test_pandalive.py b/tests/plugins/test_pandalive.py
+index 750bbd1d172..e56d8512221 100644
+--- a/tests/plugins/test_pandalive.py
++++ b/tests/plugins/test_pandalive.py
+@@ -5,6 +5,7 @@
+ class TestPluginCanHandleUrlPandalive(PluginCanHandleUrl):
+     __plugin__ = Pandalive
+ 
+-    should_match = [
+-        "https://www.pandalive.co.kr/live/play/CHANNEL",
++    should_match_groups = [
++        ("https://www.pandalive.co.kr/live/play/CHANNEL", {"channel": "CHANNEL"}),
++        ("https://w2.pandalive.co.kr/en/play/CHANNEL", {"channel": "CHANNEL"}),
+     ]

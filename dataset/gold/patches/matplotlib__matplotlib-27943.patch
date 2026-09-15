@@ -1,0 +1,49 @@
+diff --git a/doc/api/next_api_changes/behavior/27943-AL.rst b/doc/api/next_api_changes/behavior/27943-AL.rst
+new file mode 100644
+index 000000000000..1314b763987e
+--- /dev/null
++++ b/doc/api/next_api_changes/behavior/27943-AL.rst
+@@ -0,0 +1,10 @@
++plot() shorthand format interprets "Cn" (n>9) as a color-cycle color
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++Previously, ``plot(..., "-C11")`` would be interpreted as requesting a plot
++using linestyle "-", color "C1" (color #1 of the color cycle), and marker "1"
++("tri-down").  It is now interpreted as requesting linestyle "-" and color
++"C11" (color #11 of the color cycle).
++
++It is recommended to pass ambiguous markers (such as "1") explicitly using the
++*marker* keyword argument.  If the shorthand form is desired, such markers can
++also be unambiguously set by putting them *before* the color string.
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index be0aacd81bb0..36e146f31af1 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -5,6 +5,7 @@
+ import logging
+ from numbers import Real
+ from operator import attrgetter
++import re
+ import types
+ 
+ import numpy as np
+@@ -189,13 +190,14 @@ def _process_plot_format(fmt, *, ambiguous_fmt_datakey=False):
+                 raise ValueError(errfmt.format(fmt, "two color symbols"))
+             color = c
+             i += 1
+-        elif c == 'C' and i < len(fmt) - 1:
+-            color_cycle_number = int(fmt[i + 1])
+-            color = mcolors.to_rgba(f"C{color_cycle_number}")
+-            i += 2
++        elif c == "C":
++            cn_color = re.match(r"C\d+", fmt[i:])
++            if not cn_color:
++                raise ValueError(errfmt.format(fmt, "'C' must be followed by a number"))
++            color = mcolors.to_rgba(cn_color[0])
++            i += len(cn_color[0])
+         else:
+-            raise ValueError(
+-                errfmt.format(fmt, f"unrecognized character {c!r}"))
++            raise ValueError(errfmt.format(fmt, f"unrecognized character {c!r}"))
+ 
+     if linestyle is None and marker is None:
+         linestyle = mpl.rcParams['lines.linestyle']

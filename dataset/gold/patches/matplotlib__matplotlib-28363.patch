@@ -1,0 +1,68 @@
+diff --git a/doc/api/next_api_changes/behavior/28363-TS.rst b/doc/api/next_api_changes/behavior/28363-TS.rst
+new file mode 100644
+index 000000000000..2242f3929e04
+--- /dev/null
++++ b/doc/api/next_api_changes/behavior/28363-TS.rst
+@@ -0,0 +1,6 @@
++Subfigures
++~~~~~~~~~~
++
++`.Figure.subfigures` are now added in row-major order to be consistent with
++`.Figure.subplots`.  The return value of `~.Figure.subfigures` is not changed,
++but the order of ``fig.subfigs`` is.
+diff --git a/doc/users/next_whats_new/subfigures_change_order.rst b/doc/users/next_whats_new/subfigures_change_order.rst
+new file mode 100644
+index 000000000000..49a018a3fd96
+--- /dev/null
++++ b/doc/users/next_whats_new/subfigures_change_order.rst
+@@ -0,0 +1,23 @@
++Subfigures are now added in row-major order
++-------------------------------------------
++
++``Figure.subfigures`` are now added in row-major order for API consistency.
++
++
++.. plot::
++    :include-source: true
++    :alt: Example of creating 3 by 3 subfigures.
++
++    import matplotlib.pyplot as plt
++
++    fig = plt.figure()
++    subfigs = fig.subfigures(3, 3)
++    x = np.linspace(0, 10, 100)
++
++    for i, sf in enumerate(fig.subfigs):
++        ax = sf.subplots()
++        ax.plot(x, np.sin(x + i), label=f'Subfigure {i+1}')
++        sf.suptitle(f'Subfigure {i+1}')
++        ax.set_xticks([])
++        ax.set_yticks([])
++    plt.show()
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index 0a0ff01a2571..0aa90e716b1c 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -1550,6 +1550,9 @@ def subfigures(self, nrows=1, ncols=1, squeeze=True,
+         .. note::
+             The *subfigure* concept is new in v3.4, and the API is still provisional.
+ 
++        .. versionchanged:: 3.10
++            subfigures are now added in row-major order.
++
+         Parameters
+         ----------
+         nrows, ncols : int, default: 1
+@@ -1583,9 +1586,9 @@ def subfigures(self, nrows=1, ncols=1, squeeze=True,
+                       left=0, right=1, bottom=0, top=1)
+ 
+         sfarr = np.empty((nrows, ncols), dtype=object)
+-        for i in range(ncols):
+-            for j in range(nrows):
+-                sfarr[j, i] = self.add_subfigure(gs[j, i], **kwargs)
++        for i in range(nrows):
++            for j in range(ncols):
++                sfarr[i, j] = self.add_subfigure(gs[i, j], **kwargs)
+ 
+         if self.get_layout_engine() is None and (wspace is not None or
+                                                  hspace is not None):

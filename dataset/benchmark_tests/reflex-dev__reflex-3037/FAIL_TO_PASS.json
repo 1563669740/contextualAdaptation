@@ -1,0 +1,3 @@
+[
+  "tests/utils/test_types.py::test_validate_literal_error_msg[params0-'1','2','3'-1]"
+]

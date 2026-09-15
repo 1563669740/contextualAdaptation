@@ -1,0 +1,202 @@
+diff --git a/README.md b/README.md
+index ac92ff1034..a7209c35ed 100644
+--- a/README.md
++++ b/README.md
+@@ -187,35 +187,22 @@ Before you start adding new skills and knowledge to your model, you can check ou
+ 
+ Contribute new knowledge or compositional skills to your local [taxonomy](https://github.com/instruct-lab/taxonomy.git) repository.
+ 
+-Detailed contribution instructions can be found in the [taxonomy respoitory](https://github.com/instruct-lab/taxonomy/blob/main/README.md).
++Detailed contribution instructions can be found in the [taxonomy repository](https://github.com/instruct-lab/taxonomy/blob/main/README.md).
+ 
+-### 📜 List your new data
++### 📜 List and validate your new data
+ 
+ ```
+-ilab list
++ilab diff
+ ```
+ 
+-To ensure `ilab` is registering your new knowledge or skills, you can run `ilab list`.
++To ensure `ilab` is registering your new knowledge or skills and that they're valid, you can run `ilab diff`.
+ 
+-The following is the expected result after adding the new compositional skill foo-lang:
+-```
+-(venv) $ ilab list
+-compositional_skills/writing/freeform/foo-lang/foo-lang.yaml
+-```
++The following is the expected result after adding the new compositional skill `foo-lang`:
+ 
+-### 📜 Check your new data
+-
+-```
+-ilab check
+ ```
+-
+-To ensure that your new knowledge or skills are valid, you can run `ilab check`.
+-
+-The following is the expected result after adding the new compositional skill foo-lang:
+-```
+-(venv) $ ilab check 
+-INFO 2024-03-15 11:33:23,973 generate_data.py:564 Found new taxonomy files :
+-INFO 2024-03-15 11:33:23,973 generate_data.py:566 * compositional_skills/writing/freeform/foo-lang/foo-lang.yaml
++(venv) $ ilab diff
++compositional_skills/writing/freeform/foo-lang/foo-lang.yaml
++Taxonomy in /taxonomy/ is valid :)
+ ```
+ 
+ ### 🚀 Generate a synthetic dataset
+diff --git a/cli/generator/generate_data.py b/cli/generator/generate_data.py
+index c50c91e438..8868a6f044 100755
+--- a/cli/generator/generate_data.py
++++ b/cli/generator/generate_data.py
+@@ -547,19 +547,21 @@ def read_taxonomy_file(logger, file_path, yaml_rules: Optional[str] = None):
+     try:
+         with open(file_path, "r", encoding="utf-8") as file:
+             # do general YAML linting if specified
+-            if yaml_rules:
++            if yaml_rules is not None:
+                 try:
+                     yaml_config = YamlLintConfig(file=yaml_rules)
+                 except FileNotFoundError:
+-                    logger.warning(f"Cannot find {yaml_rules}. Using default rules.")
++                    logger.debug(f"Cannot find {yaml_rules}. Using default rules.")
+                     yaml_config = YamlLintConfig(DEFAULT_YAML_RULES)
+-                for p in linter.run(file, yaml_config):
+-                    errors += 1
+-                    logger.error(
+-                        f"error found in file {file.name}: {p.desc} {p.line} {p.rule}"
+-                    )
+-                    return None, warnings, errors
+-            # do more explict checking of file contents
++            else:
++                yaml_config = YamlLintConfig(DEFAULT_YAML_RULES)
++            for p in linter.run(file, yaml_config):
++                errors += 1
++                logger.error(
++                    f"error found in file {file.name}: {p.desc} {p.line} {p.rule}"
++                )
++                return None, warnings, errors
++        # do more explict checking of file contents
+         with open(file_path, "r", encoding="utf-8") as file:
+             contents = yaml.safe_load(file)
+             if not contents:
+@@ -608,7 +610,7 @@ def read_taxonomy_file(logger, file_path, yaml_rules: Optional[str] = None):
+                 )
+     except Exception as e:
+         errors += 1
+-        logger.error(f"Exception {e} raised in {file_path}")
++        raise (f"Exception {e} raised in {file_path}") from e
+ 
+     return seed_instruction_data, warnings, errors
+ 
+@@ -635,9 +637,9 @@ def read_taxonomy(logger, taxonomy, taxonomy_base, yaml_rules):
+         total_errors = 0
+         total_warnings = 0
+         if updated_taxonomy_files:
+-            logger.info("Found new taxonomy files:")
++            logger.debug("Found new taxonomy files:")
+             for e in updated_taxonomy_files:
+-                logger.info(f"* {e}")
++                logger.debug(f"* {e}")
+         for f in updated_taxonomy_files:
+             file_path = os.path.join(taxonomy, f)
+             data, warnings, errors = read_taxonomy_file(logger, file_path, yaml_rules)
+diff --git a/cli/lab.py b/cli/lab.py
+index 88a85c0f76..10985c6dc0 100755
+--- a/cli/lab.py
++++ b/cli/lab.py
+@@ -14,6 +14,7 @@
+ from huggingface_hub import hf_hub_download
+ from huggingface_hub import logging as hf_logging
+ import click
++import yaml
+ 
+ # Local
+ # NOTE: Subcommands are using local imports to speed up startup time.
+@@ -205,20 +206,19 @@ def init(
+ @click.option(
+     "--yaml-rules",
+     type=click.Path(),
+-    default=config.DEFAULT_YAML_RULES,
+-    show_default=True,
+-    help="Custom rules file for YAML linting",
++    default=None,
++    help="Custom rules file for YAML linting.",
+ )
+ @click.option(
+     "--quiet",
+     is_flag=True,
+-    help="Suppress the diff list.",
++    help="Suppress all output. Call returns 0 if check passes, 1 otherwise.",
+ )
+ @click.pass_context
+ def diff(ctx, taxonomy_path, taxonomy_base, yaml_rules, quiet):
+     """
+-    Lists taxonomy files that have changed since <taxonomy-base>.
+-    Similar to 'git diff <ref>' and check that taxonomy is valid.
++    Lists taxonomy files that have changed since <taxonomy-base>
++    and checks that taxonomy is valid. Similar to 'git diff <ref>'.
+     """
+     # pylint: disable=C0415
+     # Local
+@@ -228,32 +228,37 @@ def diff(ctx, taxonomy_path, taxonomy_base, yaml_rules, quiet):
+         taxonomy_base = ctx.obj.config.generate.taxonomy_base
+     if not taxonomy_path:
+         taxonomy_path = ctx.obj.config.generate.taxonomy_path
++    if not ctx.obj:
++        logger = logging.getLogger(__name__)
++    else:
++        logger = ctx.obj.logger
+     if quiet:
+-        if not yaml_rules:
+-            yaml_rules = ctx.obj.config.generate.yaml_rules
+-        if not ctx.obj:
+-            logger = logging.getLogger(__name__)
+-        else:
+-            logger = ctx.obj.logger
+-        # pylint: disable=logging-fstring-interpolation
+-        logger.debug(f"Checking taxonomy: '{taxonomy_path}:{taxonomy_base}'")
++        try:
++            read_taxonomy(logger, taxonomy_path, taxonomy_base, yaml_rules)
++        except (Exception, yaml.YAMLError) as exc:
++            raise SystemExit(1) from exc
++    try:
++        updated_taxonomy_files = get_taxonomy_diff(taxonomy_path, taxonomy_base)
++    except (SystemExit, GitError) as exc:
++        click.secho(
++            f"Reading taxonomy failed with the following error: {exc}",
++            fg="red",
++        )
++        return
++    for f in updated_taxonomy_files:
++        click.echo(f)
++    try:
+         read_taxonomy(logger, taxonomy_path, taxonomy_base, yaml_rules)
+-        # below will only run if `read_taxonomy` throws no errors
++    except (SystemExit, yaml.YAMLError) as exc:
+         click.secho(
+-            f"Taxonomy in {taxonomy_path} is valid :)",
+-            fg="green",
++            f"Reading taxonomy failed with the following error: {exc}",
++            fg="red",
+         )
+-    else:
+-        try:
+-            updated_taxonomy_files = get_taxonomy_diff(taxonomy_path, taxonomy_base)
+-        except (SystemExit, GitError) as exc:
+-            click.secho(
+-                f"Reading taxonomy failed with the following error: {exc}",
+-                fg="red",
+-            )
+-            return
+-        for f in updated_taxonomy_files:
+-            click.echo(f)
++        raise SystemExit(1) from exc
++    click.secho(
++        f"Taxonomy in /{taxonomy_path}/ is valid :)",
++        fg="green",
++    )
+ 
+ 
+ # ilab list => ilab diff

@@ -1,0 +1,29 @@
+diff --git a/tests/roots/test-domain-py/module.rst b/tests/roots/test-domain-py/module.rst
+index 4a280681207..70098f68752 100644
+--- a/tests/roots/test-domain-py/module.rst
++++ b/tests/roots/test-domain-py/module.rst
+@@ -58,3 +58,9 @@ module
+ .. py:module:: object
+ 
+ .. py:function:: sum()
++
++.. py:data:: test
++    :type: typing.Literal[2]
++
++.. py:data:: test2
++    :type: typing.Literal[-2]
+diff --git a/tests/test_domains/test_domain_py.py b/tests/test_domains/test_domain_py.py
+index f94d54382a9..e653c80fcb1 100644
+--- a/tests/test_domains/test_domain_py.py
++++ b/tests/test_domains/test_domain_py.py
+@@ -133,7 +133,9 @@ def assert_refnode(node, module_name, class_name, target, reftype=None,
+     assert_refnode(refnodes[13], False, False, 'list', 'class')
+     assert_refnode(refnodes[14], False, False, 'ModTopLevel', 'class')
+     assert_refnode(refnodes[15], False, False, 'index', 'doc', domain='std')
+-    assert len(refnodes) == 16
++    assert_refnode(refnodes[16], False, False, 'typing.Literal', 'obj', domain='py')
++    assert_refnode(refnodes[17], False, False, 'typing.Literal', 'obj', domain='py')
++    assert len(refnodes) == 18
+ 
+     doctree = app.env.get_doctree('module_option')
+     refnodes = list(doctree.findall(pending_xref))

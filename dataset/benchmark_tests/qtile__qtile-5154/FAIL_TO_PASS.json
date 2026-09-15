@@ -1,0 +1,6 @@
+[
+  "test/layouts/test_spiral.py::test_spiral_shuffle_up[1-x11-SpiralConfig]",
+  "test/layouts/test_spiral.py::test_spiral_shuffle_down[1-x11-SpiralConfig]",
+  "test/layouts/test_spiral.py::test_spiral_shuffle_no_wrap_down[1-x11-SpiralConfig]",
+  "test/layouts/test_spiral.py::test_spiral_shuffle_no_wrap_up[1-x11-SpiralConfig]"
+]

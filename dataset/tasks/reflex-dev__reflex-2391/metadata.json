@@ -1,0 +1,41 @@
+{
+  "task_id": "reflex-dev__reflex-2391",
+  "repo": "reflex-dev/reflex",
+  "pull_number": "2391",
+  "split": "held_out",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "title prefix matches ^\\s*(bug|fix|bugfix)\\s*[:\\-]",
+  "task_type_confidence": 0.85,
+  "base_commit": "27ed574b63fdaf9a0c118c924d4875569758f0de",
+  "repo_commit": "27ed574b63fdaf9a0c118c924d4875569758f0de",
+  "gold_commit": "14a46d791f725926e760717f31fca62d49892f4a",
+  "gold_commit_count": 1,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 2,
+  "gold_loc_added": 10,
+  "gold_loc_deleted": 4,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 3,
+  "pass_to_pass_count": 963,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

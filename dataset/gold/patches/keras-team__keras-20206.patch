@@ -1,0 +1,40 @@
+diff --git a/keras/src/models/sequential.py b/keras/src/models/sequential.py
+index c0ed98fb854b..cdf5687a430c 100644
+--- a/keras/src/models/sequential.py
++++ b/keras/src/models/sequential.py
+@@ -268,7 +268,7 @@ def compute_output_shape(self, input_shape):
+     def input_shape(self):
+         if self._functional:
+             return self._functional.input_shape
+-        raise ValueError(
++        raise AttributeError(
+             f"Sequential model '{self.name}' has no defined input shape yet."
+         )
+ 
+@@ -276,7 +276,7 @@ def input_shape(self):
+     def output_shape(self):
+         if self._functional:
+             return self._functional.output_shape
+-        raise ValueError(
++        raise AttributeError(
+             f"Sequential model '{self.name}' has no defined output shape yet."
+         )
+ 
+@@ -284,7 +284,7 @@ def output_shape(self):
+     def inputs(self):
+         if self._functional:
+             return self._functional.inputs
+-        raise ValueError(
++        raise AttributeError(
+             f"Sequential model '{self.name}' has no defined inputs yet."
+         )
+ 
+@@ -292,7 +292,7 @@ def inputs(self):
+     def outputs(self):
+         if self._functional:
+             return self._functional.outputs
+-        raise ValueError(
++        raise AttributeError(
+             f"Sequential model '{self.name}' has no defined outputs yet."
+         )
+ 

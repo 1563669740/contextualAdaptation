@@ -1,0 +1,28 @@
+diff --git a/doc/whatsnew/fragments/9584.false_negative b/doc/whatsnew/fragments/9584.false_negative
+new file mode 100644
+index 0000000000..41459d6fcc
+--- /dev/null
++++ b/doc/whatsnew/fragments/9584.false_negative
+@@ -0,0 +1,3 @@
++Fix false negative for ``property-with-parameters`` in the case of parameters which are ``positional-only``, ``keyword-only``, ``variadic positional`` or ``variadic keyword``.
++
++Closes #9584
+diff --git a/pylint/checkers/classes/class_checker.py b/pylint/checkers/classes/class_checker.py
+index 996c59dcc2..d77465bcd3 100644
+--- a/pylint/checkers/classes/class_checker.py
++++ b/pylint/checkers/classes/class_checker.py
+@@ -1410,12 +1410,11 @@ def form_annotations(arguments: nodes.Arguments) -> list[str]:
+ 
+     def _check_property_with_parameters(self, node: nodes.FunctionDef) -> None:
+         if (
+-            node.args.args
+-            and len(node.args.args) > 1
++            len(node.args.arguments) > 1
+             and decorated_with_property(node)
+             and not is_property_setter(node)
+         ):
+-            self.add_message("property-with-parameters", node=node)
++            self.add_message("property-with-parameters", node=node, confidence=HIGH)
+ 
+     def _check_invalid_overridden_method(
+         self,

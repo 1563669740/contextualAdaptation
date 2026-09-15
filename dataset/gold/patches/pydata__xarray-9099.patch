@@ -1,0 +1,40 @@
+diff --git a/doc/whats-new.rst b/doc/whats-new.rst
+index 7ec6e08ef96..e7a48458ae2 100644
+--- a/doc/whats-new.rst
++++ b/doc/whats-new.rst
+@@ -22,7 +22,8 @@ v2024.06.1 (unreleased)
+ 
+ New Features
+ ~~~~~~~~~~~~
+-
++- Allow chunking for arrays with duplicated dimension names (:issue:`8759`, :pull:`9099`).
++  By `Martin Raspaud <https://github.com/mraspaud>`_.
+ 
+ Breaking changes
+ ~~~~~~~~~~~~~~~~
+@@ -73,7 +74,6 @@ Bug fixes
+   support arbitrary kwargs such as ``order`` for polynomial interpolation (:issue:`8762`).
+   By `Nicolas Karasiak <https://github.com/nkarasiak>`_.
+ 
+-
+ Documentation
+ ~~~~~~~~~~~~~
+ - Add link to CF Conventions on packed data and sentence on type determination in the I/O user guide (:issue:`9041`, :pull:`9045`).
+diff --git a/xarray/namedarray/core.py b/xarray/namedarray/core.py
+index 960ab9d4d1d..fe47bf50533 100644
+--- a/xarray/namedarray/core.py
++++ b/xarray/namedarray/core.py
+@@ -812,7 +812,12 @@ def chunk(
+             chunks = either_dict_or_kwargs(chunks, chunks_kwargs, "chunk")
+ 
+         if is_dict_like(chunks):
+-            chunks = {self.get_axis_num(dim): chunk for dim, chunk in chunks.items()}
++            # This method of iteration allows for duplicated dimension names, GH8579
++            chunks = {
++                dim_number: chunks[dim]
++                for dim_number, dim in enumerate(self.dims)
++                if dim in chunks
++            }
+ 
+         chunkmanager = guess_chunkmanager(chunked_array_type)
+ 

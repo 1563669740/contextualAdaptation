@@ -1,0 +1,142 @@
+diff --git a/doc/user_guide/configuration/all-options.rst b/doc/user_guide/configuration/all-options.rst
+index cef8e2a72b..eb7d72f2a3 100644
+--- a/doc/user_guide/configuration/all-options.rst
++++ b/doc/user_guide/configuration/all-options.rst
+@@ -167,6 +167,13 @@ Standard Checkers
+ **Default:**  ``True``
+ 
+ 
++--prefer-stubs
++""""""""""""""
++*Resolve imports to .pyi stubs if available. May reduce no-member messages and increase not-an-iterable messages.*
++
++**Default:**  ``False``
++
++
+ --py-version
+ """"""""""""
+ *Minimum Python version to use for version dependent checks. Will default to the version used to run pylint.*
+@@ -271,6 +278,8 @@ Standard Checkers
+ 
+    persistent = true
+ 
++   prefer-stubs = false
++
+    py-version = "sys.version_info[:2]"
+ 
+    recursive = false
+diff --git a/doc/whatsnew/fragments/9139.internal b/doc/whatsnew/fragments/9139.internal
+new file mode 100644
+index 0000000000..98fbbabc2c
+--- /dev/null
++++ b/doc/whatsnew/fragments/9139.internal
+@@ -0,0 +1,5 @@
++Update astroid version to 3.2.1. This solves some reports of ``RecursionError``
++and also makes the *prefer .pyi stubs* feature in astroid 3.2.0 *opt-in*
++with the aforementioned ``--prefer-stubs=y`` option.
++
++Refs #9139
+diff --git a/doc/whatsnew/fragments/9626.bugfix b/doc/whatsnew/fragments/9626.bugfix
+new file mode 100644
+index 0000000000..44b7539eac
+--- /dev/null
++++ b/doc/whatsnew/fragments/9626.bugfix
+@@ -0,0 +1,9 @@
++Add `--prefer-stubs=yes` option to opt-in to the astroid 3.2 feature
++that prefers `.pyi` stubs over same-named `.py` files. This has the
++potential to reduce `no-member` errors but at the cost of more errors
++such as `not-an-iterable` from function bodies appearing as `...`.
++
++Defaults to `no`.
++
++Closes #9626
++Closes #9623
+diff --git a/examples/pylintrc b/examples/pylintrc
+index 4877208fe7..0a917e9cef 100644
+--- a/examples/pylintrc
++++ b/examples/pylintrc
+@@ -87,6 +87,10 @@ load-plugins=
+ # Pickle collected data for later comparisons.
+ persistent=yes
+ 
++# Resolve imports to .pyi stubs if available. May reduce no-member messages
++# and increase not-an-iterable messages.
++prefer-stubs=no
++
+ # Minimum Python version to use for version dependent checks. Will default to
+ # the version used to run pylint.
+ py-version=3.10
+diff --git a/examples/pyproject.toml b/examples/pyproject.toml
+index 2cd404c269..68e8c66737 100644
+--- a/examples/pyproject.toml
++++ b/examples/pyproject.toml
+@@ -77,6 +77,10 @@ limit-inference-results = 100
+ # Pickle collected data for later comparisons.
+ persistent = true
+ 
++# Resolve imports to .pyi stubs if available. May reduce no-member messages
++# and increase not-an-iterable messages.
++prefer-stubs = false
++
+ # Minimum Python version to use for version dependent checks. Will default to the
+ # version used to run pylint.
+ py-version = "3.10"
+diff --git a/pylint/lint/base_options.py b/pylint/lint/base_options.py
+index cd354c49db..59a811d9c6 100644
+--- a/pylint/lint/base_options.py
++++ b/pylint/lint/base_options.py
+@@ -415,6 +415,17 @@ def _make_linter_options(linter: PyLinter) -> Options:
+                 "Useful if running pylint in a server-like mode.",
+             },
+         ),
++        (
++            "prefer-stubs",
++            {
++                "default": False,
++                "type": "yn",
++                "metavar": "<y or n>",
++                "help": "Resolve imports to .pyi stubs if available. May "
++                "reduce no-member messages and increase not-an-iterable "
++                "messages.",
++            },
++        ),
+     )
+ 
+ 
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index f1aca76a4e..eff15cc444 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -1074,6 +1074,7 @@ def open(self) -> None:
+         MANAGER.max_inferable_values = self.config.limit_inference_results
+         MANAGER.extension_package_whitelist.update(self.config.extension_pkg_allow_list)
+         MANAGER.module_denylist.update(self.config.ignored_modules)
++        MANAGER.prefer_stubs = self.config.prefer_stubs
+         if self.config.extension_pkg_whitelist:
+             MANAGER.extension_package_whitelist.update(
+                 self.config.extension_pkg_whitelist
+diff --git a/pylint/utils/utils.py b/pylint/utils/utils.py
+index 203c543d8e..73e9e6a5f3 100644
+--- a/pylint/utils/utils.py
++++ b/pylint/utils/utils.py
+@@ -52,6 +52,7 @@
+     "suggestion-mode",
+     "analyse-fallback-blocks",
+     "allow-global-unused-variables",
++    "prefer-stubs",
+ ]
+ GLOBAL_OPTION_INT = Literal["max-line-length", "docstring-min-length"]
+ GLOBAL_OPTION_LIST = Literal["ignored-modules"]
+diff --git a/pyproject.toml b/pyproject.toml
+index 9972af35a1..e991138b10 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -41,7 +41,7 @@ dependencies    = [
+     # Also upgrade requirements_test_min.txt.
+     # Pinned to dev of second minor update to allow editable installs and fix primer issues,
+     # see https://github.com/pylint-dev/astroid/issues/1341
+-    "astroid>=3.2.0,<=3.3.0-dev0",
++    "astroid>=3.2.1,<=3.3.0-dev0",
+     "isort>=4.2.5,<6,!=5.13.0",
+     "mccabe>=0.6,<0.8",
+     "tomli>=1.1.0;python_version<'3.11'",

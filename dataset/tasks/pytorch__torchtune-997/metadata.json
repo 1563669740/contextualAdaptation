@@ -1,0 +1,41 @@
+{
+  "task_id": "pytorch__torchtune-997",
+  "repo": "pytorch/torchtune",
+  "pull_number": "997",
+  "split": "held_out",
+  "language": "Python",
+  "task_type": "bug_repair",
+  "task_type_reason": "keyword score bug=2 feature=0 docs=0 refactor=0 build=0",
+  "task_type_confidence": 0.79,
+  "base_commit": "f35e5d6a840e1aeadefa92e87fd331c4798a0022",
+  "repo_commit": "f35e5d6a840e1aeadefa92e87fd331c4798a0022",
+  "gold_commit": "743eb983831533d957b9f14901d61090b759a371",
+  "gold_commit_count": 3,
+  "estimated_difficulty": "Medium",
+  "estimated_completion_time_min": 50,
+  "gold_files_changed": 1,
+  "gold_loc_added": 6,
+  "gold_loc_deleted": 2,
+  "gold_modules_changed": 1,
+  "fail_to_pass_count": 6,
+  "pass_to_pass_count": 223,
+  "log_parser": "pytest",
+  "source": {
+    "dataset": "SWE-bench-Live/SWE-bench-Live",
+    "revision": "8feba0c8"
+  },
+  "visibility": {
+    "participant_visible": [
+      "issue",
+      "repository",
+      "environment",
+      "benchmark_test_command",
+      "context_package"
+    ],
+    "evaluation_only": [
+      "gold",
+      "holdout_tests",
+      "benchmark_tests/oracle"
+    ]
+  }
+}

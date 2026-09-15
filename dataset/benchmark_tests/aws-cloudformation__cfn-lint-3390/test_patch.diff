@@ -1,0 +1,94 @@
+diff --git a/test/unit/module/cfn_yaml/test_yaml.py b/test/unit/module/cfn_yaml/test_yaml.py
+index f83b1ade47..1b60db93ab 100644
+--- a/test/unit/module/cfn_yaml/test_yaml.py
++++ b/test/unit/module/cfn_yaml/test_yaml.py
+@@ -27,7 +27,7 @@ def setUp(self):
+             },
+             "generic_bad": {
+                 "filename": "test/fixtures/templates/bad/generic.yaml",
+-                "failures": 33,
++                "failures": 28,
+             },
+         }
+ 
+diff --git a/test/unit/module/test_rules_collections.py b/test/unit/module/test_rules_collections.py
+index 7a391981a5..46e8aac53a 100644
+--- a/test/unit/module/test_rules_collections.py
++++ b/test/unit/module/test_rules_collections.py
+@@ -69,7 +69,7 @@ def test_fail_run(self):
+         filename = "test/fixtures/templates/bad/generic.yaml"
+         template = cfnlint.decode.cfn_yaml.load(filename)
+         cfn = Template(filename, template, ["us-east-1"])
+-        expected_err_count = 36
++        expected_err_count = 31
+         matches = []
+         matches.extend(self.rules.run(filename, cfn))
+         assert (
+diff --git a/test/unit/rules/functions/test_sub.py b/test/unit/rules/functions/test_sub.py
+index 28b1059f7d..11ee1de866 100644
+--- a/test/unit/rules/functions/test_sub.py
++++ b/test/unit/rules/functions/test_sub.py
+@@ -26,6 +26,15 @@ def cfn():
+     return Template(
+         "",
+         {
++            "Parameters": {
++                "MyParameter": {
++                    "Type": "String",
++                    "AllowedValues": [
++                        "one",
++                        "two",
++                    ],
++                }
++            },
+             "Resources": {
+                 "MyResource": {"Type": "AWS::S3::Bucket"},
+                 "MySimpleAd": {"Type": "AWS::DirectoryService::SimpleAD"},
+@@ -96,8 +105,8 @@ def context(cfn):
+                 ValidationError(
+                     (
+                         "'bar' is not one of ["
+-                        "'MyResource', 'MySimpleAd', 'MyPolicy', 'AWS::AccountId', "
+-                        "'AWS::NoValue', 'AWS::NotificationARNs', "
++                        "'MyParameter', 'MyResource', 'MySimpleAd', 'MyPolicy', "
++                        "'AWS::AccountId', 'AWS::NoValue', 'AWS::NotificationARNs', "
+                         "'AWS::Partition', 'AWS::Region', "
+                         "'AWS::StackId', 'AWS::StackName', 'AWS::URLSuffix']"
+                     ),
+@@ -115,8 +124,8 @@ def context(cfn):
+                 ValidationError(
+                     (
+                         "'foo' is not one of ["
+-                        "'MyResource', 'MySimpleAd', 'MyPolicy', 'AWS::AccountId', "
+-                        "'AWS::NoValue', 'AWS::NotificationARNs', "
++                        "'MyParameter', 'MyResource', 'MySimpleAd', 'MyPolicy', "
++                        "'AWS::AccountId', 'AWS::NoValue', 'AWS::NotificationARNs', "
+                         "'AWS::Partition', 'AWS::Region', "
+                         "'AWS::StackId', 'AWS::StackName', 'AWS::URLSuffix']"
+                     ),
+@@ -264,6 +273,25 @@ def context(cfn):
+                 ),
+             ],
+         ),
++        (
++            "One valid resolution",
++            {"Fn::Sub": "${MyParameter}"},
++            {"type": "string", "const": "two"},
++            [],
++        ),
++        (
++            "No valid resolution",
++            {"Fn::Sub": "${MyParameter}"},
++            {"type": "string", "const": "three"},
++            [
++                ValidationError(
++                    ("'three' was expected when 'Fn::Sub' is resolved"),
++                    path=deque(["Fn::Sub"]),
++                    schema_path=deque(["const"]),
++                    validator="fn_sub",
++                ),
++            ],
++        ),
+     ],
+ )
+ def test_validate(name, instance, schema, expected, rule, context, cfn):

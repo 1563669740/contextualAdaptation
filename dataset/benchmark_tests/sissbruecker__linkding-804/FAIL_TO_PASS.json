@@ -1,0 +1,3 @@
+[
+  "bookmarks/tests/test_bookmarks_list_template.py::BookmarkListTemplateTest::test_should_render_generated_web_archive_link_without_saved_snapshot_url"
+]

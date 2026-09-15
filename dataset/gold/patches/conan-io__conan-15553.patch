@@ -1,0 +1,81 @@
+diff --git a/conan/api/model.py b/conan/api/model.py
+index 14983fc1427..70416a2c57b 100644
+--- a/conan/api/model.py
++++ b/conan/api/model.py
+@@ -128,6 +128,7 @@ def load_graph(graphfile, graph_recipes=None, graph_binaries=None):
+             if any(b == "*" or b == binary for b in binaries):
+                 cache_list.add_refs([ref])  # Binary listed forces recipe listed
+                 cache_list.add_prefs(ref, [pref])
++                cache_list.add_configurations({pref: node["info"]})
+         return pkglist
+ 
+ 
+diff --git a/conans/model/conan_file.py b/conans/model/conan_file.py
+index c2d009575f8..554d0938afa 100644
+--- a/conans/model/conan_file.py
++++ b/conans/model/conan_file.py
+@@ -165,6 +165,8 @@ def serialize(self):
+         result["cpp_info"] = self.cpp_info.serialize()
+         result["conf_info"] = self.conf_info.serialize()
+         result["label"] = self.display_name
++        if self.info is not None:
++            result["info"] = self.info.serialize()
+         return result
+ 
+     @property
+diff --git a/conans/model/info.py b/conans/model/info.py
+index a2b9ee85387..552364dea6d 100644
+--- a/conans/model/info.py
++++ b/conans/model/info.py
+@@ -168,7 +168,7 @@ def copy(self):
+         return RequirementsInfo(data)
+ 
+     def serialize(self):
+-        return [str(r) for r in sorted(self._data.values())]
++        return [r.dumps() for r in self._data.values()]
+ 
+     def __bool__(self):
+         return bool(self._data)
+@@ -246,6 +246,9 @@ def copy(self):
+         refs = {r._ref: r.package_id_mode for r in self._refs} if self._refs else None
+         return PythonRequiresInfo(refs, self._default_package_id_mode)
+ 
++    def serialize(self):
++        return [r.dumps() for r in self._refs or []]
++
+     def __bool__(self):
+         return bool(self._refs)
+ 
+@@ -330,6 +333,32 @@ def clone(self):
+         result.settings_target = self.settings_target.copy() if self.settings_target else None
+         return result
+ 
++    def serialize(self):
++        result = {}
++        settings_dumps = self.settings.serialize()
++        if settings_dumps:
++            result["settings"] = settings_dumps
++        if self.settings_target is not None:
++            settings_target_dumps = self.settings_target.serialize()
++            if settings_target_dumps:
++                result["settings_target"] = settings_target_dumps
++        options_dumps = self.options.serialize()
++        if options_dumps:
++            result["options"] = options_dumps
++        requires_dumps = self.requires.serialize()
++        if requires_dumps:
++            result["requires"] = requires_dumps
++        python_requires_dumps = self.python_requires.serialize()
++        if python_requires_dumps:
++            result["python_requires"] = python_requires_dumps
++        build_requires_dumps = self.build_requires.serialize()
++        if build_requires_dumps:
++            result["build_requires"] = build_requires_dumps
++        conf_dumps = self.conf.serialize()
++        if conf_dumps:
++            result["conf"] = conf_dumps
++        return result
++
+     def dumps(self):
+         """
+         Get all the information contained in settings, options, requires,

@@ -1,0 +1,5 @@
+[
+  "tests/io/test_data_catalog.py::TestDataCatalogDatasetFactories::test_sorting_order_patterns",
+  "tests/io/test_data_catalog.py::TestDataCatalogDatasetFactories::test_multiple_catch_all_patterns_not_allowed",
+  "tests/io/test_data_catalog.py::TestDataCatalogDatasetFactories::test_user_default_overwrites_runner_default"
+]

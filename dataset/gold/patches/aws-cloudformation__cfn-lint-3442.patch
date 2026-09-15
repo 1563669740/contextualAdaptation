@@ -1,0 +1,109 @@
+diff --git a/scripts/update_snapshot_results.sh b/scripts/update_snapshot_results.sh
+index 5ba58587ce..557b1c4df5 100755
+--- a/scripts/update_snapshot_results.sh
++++ b/scripts/update_snapshot_results.sh
+@@ -1,5 +1,9 @@
+ #!/usr/bin/env bash
+ 
++# integration/
++cfn-lint test/fixtures/templates/integration/dynamic-references.yaml -e -c I --format json > test/fixtures/results/integration/dynamic-references.json
++cfn-lint test/fixtures/templates/integration/resources-cloudformation-init.yaml -e -c I --format json > test/fixtures/results/integration/resources-cloudformation-init.json
++
+ # public/
+ cfn-lint test/fixtures/templates/public/lambda-poller.yaml -e -c I --format json > test/fixtures/results/public/lambda-poller.json
+ cfn-lint test/fixtures/templates/public/watchmaker.json -e -x E3012:strict=true -c I --format json > test/fixtures/results/public/watchmaker.json
+diff --git a/src/cfnlint/data/schemas/extensions/aws_rds_dbinstance/aurora_exclusive.json b/src/cfnlint/data/schemas/extensions/aws_rds_dbinstance/aurora_exclusive.json
+index 42efdcd482..bee9daf906 100644
+--- a/src/cfnlint/data/schemas/extensions/aws_rds_dbinstance/aurora_exclusive.json
++++ b/src/cfnlint/data/schemas/extensions/aws_rds_dbinstance/aurora_exclusive.json
+@@ -1,7 +1,6 @@
+ {
+  "additionalProperties": true,
+  "description": "When creating an aurora DBInstance don't specify 'AllocatedStorage', 'BackupRetentionPeriod', 'CopyTagsToSnapshot', 'DeletionProtection', 'EnableIAMDatabaseAuthentication', 'MasterUserPassword', or 'StorageEncrypted'",
+- "else": {},
+  "if": {
+   "properties": {
+    "Engine": {
+diff --git a/src/cfnlint/data/schemas/extensions/aws_route53_healthcheck/healthcheckconfig_type_inclusive.json b/src/cfnlint/data/schemas/extensions/aws_route53_healthcheck/healthcheckconfig_type_inclusive.json
+index 96f6ec7533..26d65e8908 100644
+--- a/src/cfnlint/data/schemas/extensions/aws_route53_healthcheck/healthcheckconfig_type_inclusive.json
++++ b/src/cfnlint/data/schemas/extensions/aws_route53_healthcheck/healthcheckconfig_type_inclusive.json
+@@ -1,7 +1,6 @@
+ {
+  "additionalProperties": true,
+  "description": "When 'Type' is 'CLOUDWATCH_METRIC' you must specify 'AlarmIdentifier'",
+- "else": {},
+  "if": {
+   "properties": {
+    "Type": {
+diff --git a/src/cfnlint/jsonschema/_filter.py b/src/cfnlint/jsonschema/_filter.py
+index 2c24b99674..3cd695c99a 100644
+--- a/src/cfnlint/jsonschema/_filter.py
++++ b/src/cfnlint/jsonschema/_filter.py
+@@ -57,6 +57,11 @@ class FunctionFilter:
+         default=True,
+     )
+ 
++    validate_dynamic_references: bool = field(
++        init=True,
++        default=True,
++    )
++
+     def _filter_schemas(self, schema, validator: Validator) -> Tuple[Any, Any]:
+         """
+         Filter the schemas to only include the ones that are required
+@@ -104,7 +109,7 @@ def _filter_schemas(self, schema, validator: Validator) -> Tuple[Any, Any]:
+ 
+     def filter(self, validator: Any, instance: Any, schema: Any):
+         # Lets validate dynamic references when appropriate
+-        if validator.is_type(instance, "string"):
++        if validator.is_type(instance, "string") and self.validate_dynamic_references:
+             if REGEX_DYN_REF.findall(instance):
+                 # if we are in a function we can't validate
+                 # dynamic references the same way
+diff --git a/src/cfnlint/rules/functions/DynamicReference.py b/src/cfnlint/rules/functions/DynamicReference.py
+index 745e3c6bc8..7819ba0bf9 100644
+--- a/src/cfnlint/rules/functions/DynamicReference.py
++++ b/src/cfnlint/rules/functions/DynamicReference.py
+@@ -95,12 +95,17 @@ def dynamicReference(
+         # SSM parameters can be used in Resources and Outputs and Parameters
+         # SSM secrets are only used in a small number of locations
+         # Secrets manager can be used only in resource properties
++        validator = validator.evolve(
++            function_filter=validator.function_filter.evolve(
++                add_cfn_lint_keyword=False,
++            ),
++        )
+ 
+         for v in REGEX_DYN_REF.findall(instance):
+             parts = v.split(":")
+ 
+-            evolved = validator.evolve(schema=_all)
+             found = False
++            evolved = validator.evolve(schema=_all)
+             for err in evolved.iter_errors(parts):
+                 yield self._clean_errors(err)
+                 found = True
+@@ -126,4 +131,3 @@ def dynamicReference(
+ 
+             for err in evolved.iter_errors(parts):
+                 yield self._clean_errors(err)
+-                found = True
+diff --git a/src/cfnlint/rules/jsonschema/CfnLintJsonSchema.py b/src/cfnlint/rules/jsonschema/CfnLintJsonSchema.py
+index e00f58ec51..8e3fda748c 100644
+--- a/src/cfnlint/rules/jsonschema/CfnLintJsonSchema.py
++++ b/src/cfnlint/rules/jsonschema/CfnLintJsonSchema.py
+@@ -67,7 +67,12 @@ def validate(
+             schema = self._schema
+ 
+         cfn_validator = self.extend_validator(
+-            validator=validator,
++            validator=validator.evolve(
++                function_filter=validator.function_filter.evolve(
++                    validate_dynamic_references=False,
++                    add_cfn_lint_keyword=False,
++                )
++            ),
+             schema=schema,
+             context=validator.context.evolve(
+                 functions=[],

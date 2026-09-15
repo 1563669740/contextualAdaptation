@@ -1,0 +1,4 @@
+[
+  "Tests/feaLib/builder_test.py::BuilderTest::test_Fea2feaFile_duplicate_lookup_reference",
+  "Tests/feaLib/builder_test.py::BuilderTest::test_FeatureFile_duplicate_lookup_reference"
+]

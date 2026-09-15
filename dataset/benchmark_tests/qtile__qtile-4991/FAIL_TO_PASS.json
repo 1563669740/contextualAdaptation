@@ -1,0 +1,6 @@
+[
+  "test/test_images.py::TestImg::test_surface_resize[/testbed/test/data/comparison_images/audio-volume-muted_bad.png]",
+  "test/test_images.py::TestImg::test_surface_resize[/testbed/test/data/comparison_images/audio-volume-muted_good.png]",
+  "test/test_images.py::TestImg::test_surface_resize[/testbed/test/data/png/battery-caution-charging.png]",
+  "test/test_images.py::TestImg::test_surface_resize[/testbed/test/data/png/audio-volume-muted.png]"
+]

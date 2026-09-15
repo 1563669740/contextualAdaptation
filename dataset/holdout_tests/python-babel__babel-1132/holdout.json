@@ -1,0 +1,26 @@
+{
+ "task_id": "python-babel__babel-1132",
+ "repo_id": "python-babel/babel",
+ "author_pseudonym": "roleA1",
+ "authored_utc": "2026-09-14T17:05:00Z",
+ "n_tests": 3,
+ "n_discriminating_tests": 3,
+ "test_file_in_patch": "tests/messages/test_po_file_holdout.py",
+ "behaviour_covered": [
+  "two obsolete entries sharing a msgid but differing in msgctxt both survive parsing",
+  "a context-free obsolete entry does not merge with a contextualised one of the same msgid",
+  "writing back preserves both contextualised obsolete entries"
+ ],
+ "why_not_duplicate": "The benchmark test patch asserts four fixed PO documents round-trip. These tests pin the underlying RULE those four are instances of -- an obsolete entry must be keyed by msgid AND context, exactly like a live entry -- by counting entries rather than comparing fixed documents, and they use documents the benchmark never shows.",
+ "authoring_notes": [
+  "This suite passed all three admission criteria on the first verification run, in contrast to the earlier task.",
+  "The difference was understanding the fix: the gold change is one line, replacing a msgid key with the catalog's composite key. Once the rule is clear, the tests write themselves.",
+  "That contrast is itself the finding recorded in audit/HOLDOUT_SCALING_FINDING.md: reading the diff and reasoning about the rule is the human step that cannot be skipped."
+ ],
+ "author_attestation": {
+  "ran_no_experimental_session": true,
+  "saw_candidate_patch": false,
+  "saw_delegation_or_context_label": false,
+  "saw_issue_base_commit_and_gold_patch": true
+ }
+}

@@ -1,0 +1,153 @@
+diff --git a/news/3038.bugfix.md b/news/3038.bugfix.md
+new file mode 100644
+index 0000000000..7071bbe8f4
+--- /dev/null
++++ b/news/3038.bugfix.md
+@@ -0,0 +1,1 @@
++Ignore invalid requires-python values from index.
+diff --git a/pdm.lock b/pdm.lock
+index aef926ce59..ce90b164f2 100644
+--- a/pdm.lock
++++ b/pdm.lock
+@@ -5,7 +5,7 @@
+ groups = ["default", "all", "cookiecutter", "copier", "doc", "keyring", "pytest", "template", "test", "tox", "workflow"]
+ strategy = ["inherit_metadata"]
+ lock_version = "4.5.0"
+-content_hash = "sha256:89752749790efd07ae098751683577b1e5c6412239ae91863adc2cf8fb1fa2f4"
++content_hash = "sha256:a28c1999e735d82f74d27cf8b71c16d65597564f593aa923f1f5a0aeb1ffe6af"
+ 
+ [[metadata.targets]]
+ requires_python = ">=3.8"
+@@ -563,7 +563,7 @@ files = [
+ 
+ [[package]]
+ name = "dep-logic"
+-version = "0.4.3"
++version = "0.4.4"
+ requires_python = ">=3.8"
+ summary = "Python dependency specifications supporting logical operations"
+ groups = ["default"]
+@@ -571,8 +571,8 @@ dependencies = [
+     "packaging>=22",
+ ]
+ files = [
+-    {file = "dep_logic-0.4.3-py3-none-any.whl", hash = "sha256:03f2740fc40e2848f2a4c77baddcc8f5e3773c304da947815306d1e616f3942c"},
+-    {file = "dep_logic-0.4.3.tar.gz", hash = "sha256:e4768f0a26c8c1c0e39fd520f3e0bd099ca528ec6a8f20359fbc89ffcdf8da45"},
++    {file = "dep_logic-0.4.4-py3-none-any.whl", hash = "sha256:3f47301f9a8230443d3df7d7f9bdc33d35d8591a14112d36f221b0e33810d3ae"},
++    {file = "dep_logic-0.4.4.tar.gz", hash = "sha256:e716afdda9351107c54ef4f6fd3fd29568f53529afb333b4958183b9d306e44a"},
+ ]
+ 
+ [[package]]
+diff --git a/pyproject.toml b/pyproject.toml
+index 2d79473e0b..b0d19ca284 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -21,7 +21,7 @@ dependencies = [
+     "virtualenv>=20",
+     "pyproject-hooks",
+     "unearth>=0.16.0",
+-    "dep-logic>=0.4.3",
++    "dep-logic>=0.4.4",
+     "findpython>=0.6.0,<1.0.0a0",
+     "tomlkit>=0.11.1,<1",
+     "shellingham>=1.3.2",
+diff --git a/src/pdm/models/candidates.py b/src/pdm/models/candidates.py
+index 9d062d6d8f..18edd3b5de 100644
+--- a/src/pdm/models/candidates.py
++++ b/src/pdm/models/candidates.py
+@@ -237,6 +237,10 @@ def requires_python(self) -> str:
+ 
+     @requires_python.setter
+     def requires_python(self, value: str) -> None:
++        try:  # ensure the specifier is valid
++            PySpecSet(value)
++        except InvalidPyVersion:
++            return
+         self._requires_python = value
+ 
+     @no_type_check
+diff --git a/src/pdm/models/finder.py b/src/pdm/models/finder.py
+index bef1675ff7..6073e4ef49 100644
+--- a/src/pdm/models/finder.py
++++ b/src/pdm/models/finder.py
+@@ -1,16 +1,18 @@
+ from __future__ import annotations
+ 
++import logging
+ from typing import TYPE_CHECKING, Any, Callable
+ 
+ import unearth
+ from dep_logic.specifiers import InvalidSpecifier, parse_version_specifier
+-from packaging.specifiers import InvalidSpecifier as PkgInvalidSpecifier
+ from packaging.version import Version
+ from unearth.evaluator import Evaluator, FormatControl, LinkMismatchError, Package
+ 
+ from pdm.models.markers import EnvSpec
+ from pdm.utils import parse_version
+ 
++logger = logging.getLogger("unearth")
++
+ if TYPE_CHECKING:
+     from pdm.models.session import PDMPyPIClient
+ 
+@@ -40,8 +42,11 @@ def check_requires_python(self, link: unearth.Link) -> None:
+         if link.requires_python:
+             try:
+                 requires_python = parse_version_specifier(link.requires_python)
+-            except (InvalidSpecifier, PkgInvalidSpecifier) as e:
+-                raise LinkMismatchError(f"Invalid requires-python: {link.requires_python}") from e
++            except InvalidSpecifier as e:
++                logger.debug(
++                    "Invalid requires-python specifier for link(%s) %s: %s", link.redacted, link.requires_python, e
++                )
++                return
+             if (requires_python & self.env_spec.requires_python).is_empty():
+                 raise LinkMismatchError(
+                     f"The package requires-python {link.requires_python} is not compatible with the target {self.env_spec.requires_python}."
+diff --git a/src/pdm/models/requirements.py b/src/pdm/models/requirements.py
+index c2d75fedd3..66b3cbb445 100644
+--- a/src/pdm/models/requirements.py
++++ b/src/pdm/models/requirements.py
+@@ -14,7 +14,7 @@
+ 
+ from packaging.requirements import InvalidRequirement
+ from packaging.requirements import Requirement as PackageRequirement
+-from packaging.specifiers import SpecifierSet
++from packaging.specifiers import InvalidSpecifier, SpecifierSet
+ from packaging.utils import parse_sdist_filename, parse_wheel_filename
+ 
+ from pdm.compat import Distribution
+@@ -143,7 +143,10 @@ def create(cls: type[T], **kwargs: Any) -> T:
+         if "extras" in kwargs and isinstance(kwargs["extras"], str):
+             kwargs["extras"] = tuple(e.strip() for e in kwargs["extras"][1:-1].split(","))
+         version = kwargs.pop("version", "")
+-        kwargs["specifier"] = get_specifier(version)
++        try:
++            kwargs["specifier"] = get_specifier(version)
++        except InvalidSpecifier as e:
++            raise RequirementError(f'Invalid specifier for {kwargs.get("name")}: {version}: {e}') from None
+         return cls(**{k: v for k, v in kwargs.items() if k in inspect.signature(cls).parameters})
+ 
+     @classmethod
+@@ -171,7 +174,7 @@ def from_dist(cls, dist: Distribution) -> Requirement:
+     @classmethod
+     def from_req_dict(cls, name: str, req_dict: RequirementDict, check_installable: bool = True) -> Requirement:
+         if isinstance(req_dict, str):  # Version specifier only.
+-            return NamedRequirement(name=name, specifier=get_specifier(req_dict))
++            return NamedRequirement.create(name=name, version=req_dict)
+         for vcs in VCS_SCHEMA:
+             if vcs in req_dict:
+                 repo = cast(str, req_dict.pop(vcs, None))
+diff --git a/src/pdm/models/specifiers.py b/src/pdm/models/specifiers.py
+index 1048d96c69..d86424d3da 100644
+--- a/src/pdm/models/specifiers.py
++++ b/src/pdm/models/specifiers.py
+@@ -35,7 +35,7 @@ def _read_max_versions() -> dict[Version, int]:
+ def get_specifier(version_str: str | None) -> SpecifierSet:
+     if not version_str or version_str == "*":
+         return SpecifierSet()
+-    return SpecifierSet(fix_legacy_specifier(version_str))
++    return SpecifierSet(version_str)
+ 
+ 
+ _legacy_specifier_re = re.compile(r"(==|!=|<=|>=|<|>)(\s*)([^,;\s)]*)")

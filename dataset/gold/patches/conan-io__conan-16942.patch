@@ -1,0 +1,196 @@
+diff --git a/conan/cli/commands/remote.py b/conan/cli/commands/remote.py
+index 8cd43711003..35cffa9b8b3 100644
+--- a/conan/cli/commands/remote.py
++++ b/conan/cli/commands/remote.py
+@@ -196,14 +196,16 @@ def remote_login(conan_api, parser, subparser, *args):
+         raise ConanException("There are no remotes matching the '{}' pattern".format(args.remote))
+ 
+     creds = RemoteCredentials(conan_api.cache_folder, conan_api.config.global_conf)
+-    user, password = creds.auth(args.remote, args.username, args.password)
+-    if args.username is not None and args.username != user:
+-        raise ConanException(f"User '{args.username}' doesn't match user '{user}' in "
+-                             f"credentials.json or environment variables")
+ 
+     ret = OrderedDict()
+     for r in remotes:
+         previous_info = conan_api.remotes.user_info(r)
++
++        user, password = creds.auth(r, args.username, args.password)
++        if args.username is not None and args.username != user:
++            raise ConanException(f"User '{args.username}' doesn't match user '{user}' in "
++                                 f"credentials.json or environment variables")
++
+         conan_api.remotes.user_login(r, user, password)
+         info = conan_api.remotes.user_info(r)
+         ret[r.name] = {"previous_info": previous_info, "info": info}
+diff --git a/conan/internal/cache/home_paths.py b/conan/internal/cache/home_paths.py
+index ba2402ded2a..30e79002b34 100644
+--- a/conan/internal/cache/home_paths.py
++++ b/conan/internal/cache/home_paths.py
+@@ -55,6 +55,14 @@ def profiles_path(self):
+     def profile_plugin_path(self):
+         return os.path.join(self._home, _EXTENSIONS_FOLDER, _PLUGINS, "profile.py")
+ 
++    @property
++    def auth_remote_plugin_path(self):
++        return os.path.join(self._home, _EXTENSIONS_FOLDER, _PLUGINS, "auth_remote.py")
++
++    @property
++    def auth_source_plugin_path(self):
++        return os.path.join(self._home, _EXTENSIONS_FOLDER, _PLUGINS, "auth_source.py")
++
+     @property
+     def sign_plugin_path(self):
+         return os.path.join(self._home, _EXTENSIONS_FOLDER, _PLUGINS, "sign", "sign.py")
+diff --git a/conans/client/rest/auth_manager.py b/conans/client/rest/auth_manager.py
+index cf1ab8dded9..35b5c9ddce0 100644
+--- a/conans/client/rest/auth_manager.py
++++ b/conans/client/rest/auth_manager.py
+@@ -71,7 +71,7 @@ def _retry_with_new_token(self, user, remote, method_name, *args, **kwargs):
+         credentials are stored in localdb and rest method is called"""
+         for _ in range(LOGIN_RETRIES):
+             creds = RemoteCredentials(self._cache_folder, self._global_conf)
+-            input_user, input_password = creds.auth(remote.name)
++            input_user, input_password = creds.auth(remote)
+             try:
+                 self._authenticate(remote, input_user, input_password)
+             except AuthenticationException:
+diff --git a/conans/client/rest/conan_requester.py b/conans/client/rest/conan_requester.py
+index 4903ac181f8..f59fac373d0 100644
+--- a/conans/client/rest/conan_requester.py
++++ b/conans/client/rest/conan_requester.py
+@@ -9,8 +9,11 @@
+ from jinja2 import Template
+ from requests.adapters import HTTPAdapter
+ 
++from conan.internal.cache.home_paths import HomePaths
++
+ from conans import __version__ as client_version
+-from conans.errors import ConanException
++from conans.client.loader import load_python_file
++from conans.errors import ConanException, scoped_traceback
+ 
+ # Capture SSL warnings as pointed out here:
+ # https://urllib3.readthedocs.org/en/latest/security.html#insecureplatformwarning
+@@ -30,8 +33,11 @@ class _SourceURLCredentials:
+     """
+     def __init__(self, cache_folder):
+         self._urls = {}
++        self.auth_source_plugin = None
+         if not cache_folder:
+             return
++        auth_source_plugin_path = HomePaths(cache_folder).auth_source_plugin_path
++        self.auth_source_plugin = _load_auth_source_plugin(auth_source_plugin_path)
+         creds_path = os.path.join(cache_folder, "source_credentials.json")
+         if not os.path.exists(creds_path):
+             return
+@@ -61,6 +67,22 @@ def _get_auth(credentials):
+             raise ConanException(f"Error loading 'source_credentials.json' {creds_path}: {repr(e)}")
+ 
+     def add_auth(self, url, kwargs):
++        # First, try to use "auth_source_plugin"
++        if self.auth_source_plugin:
++            try:
++                c = self.auth_source_plugin(url)
++            except Exception as e:
++                msg = f"Error while processing 'auth_source_remote.py' plugin"
++                msg = scoped_traceback(msg, e, scope="/extensions/plugins")
++                raise ConanException(msg)
++            if c:
++                if c.get("token"):
++                    kwargs["headers"]["Authorization"] = f"Bearer {c.get('token')}"
++                if c.get("user") and c.get("password"):
++                    kwargs["auth"] = (c.get("user"), c.get("password"))
++                return
++
++        # Then, try to find the credentials in "_urls"
+         for u, creds in self._urls.items():
+             if url.startswith(u):
+                 token = creds.get("token")
+@@ -183,3 +205,9 @@ def _call_method(self, method, url, **kwargs):
+             if popped:
+                 os.environ.clear()
+                 os.environ.update(old_env)
++
++def _load_auth_source_plugin(auth_source_plugin_path):
++    if os.path.exists(auth_source_plugin_path):
++        mod, _ = load_python_file(auth_source_plugin_path)
++        if hasattr(mod, "auth_source_plugin"):
++            return mod.auth_source_plugin
+diff --git a/conans/client/rest/remote_credentials.py b/conans/client/rest/remote_credentials.py
+index 33dbe638d08..d9ad7ddafdd 100644
+--- a/conans/client/rest/remote_credentials.py
++++ b/conans/client/rest/remote_credentials.py
+@@ -4,16 +4,19 @@
+ 
+ from jinja2 import Template
+ 
++from conan.internal.cache.home_paths import HomePaths
++
++from conans.client.loader import load_python_file
+ from conan.api.output import ConanOutput
+ from conans.client.userio import UserInput
+-from conans.errors import ConanException
++from conans.errors import ConanException, scoped_traceback
+ from conans.util.files import load
+ 
+-
+ class RemoteCredentials:
+     def __init__(self, cache_folder, global_conf):
+         self._global_conf = global_conf
+         self._urls = {}
++        self.auth_remote_plugin = _load_auth_remote_plugin(HomePaths(cache_folder).auth_remote_plugin_path)
+         creds_path = os.path.join(cache_folder, "credentials.json")
+         if not os.path.exists(creds_path):
+             return
+@@ -32,8 +35,20 @@ def auth(self, remote, user=None, password=None):
+         if user is not None and password is not None:
+             return user, password
+ 
+-        # First prioritize the cache "credentials.json" file
+-        creds = self._urls.get(remote)
++        # First get the auth_remote_plugin
++
++        if self.auth_remote_plugin is not None:
++            try:
++                plugin_user, plugin_password = self.auth_remote_plugin(remote, user=user)
++            except Exception as e:
++                msg = f"Error while processing 'auth_remote.py' plugin"
++                msg = scoped_traceback(msg, e, scope="/extensions/plugins")
++                raise ConanException(msg)
++            if plugin_user and plugin_password:
++                return plugin_user, plugin_password
++
++        # Then prioritize the cache "credentials.json" file
++        creds = self._urls.get(remote.name)
+         if creds is not None:
+             try:
+                 return creds["user"], creds["password"]
+@@ -41,7 +56,7 @@ def auth(self, remote, user=None, password=None):
+                 raise ConanException(f"Authentication error, wrong credentials.json: {e}")
+ 
+         # Then, check environment definition
+-        env_user, env_passwd = self._get_env(remote, user)
++        env_user, env_passwd = self._get_env(remote.name, user)
+         if env_passwd is not None:
+             if env_user is None:
+                 raise ConanException("Found password in env-var, but not defined user")
+@@ -49,7 +64,7 @@ def auth(self, remote, user=None, password=None):
+ 
+         # If not found, then interactive prompt
+         ui = UserInput(self._global_conf.get("core:non_interactive", check_type=bool))
+-        input_user, input_password = ui.request_login(remote, user)
++        input_user, input_password = ui.request_login(remote.name, user)
+         return input_user, input_password
+ 
+     @staticmethod
+@@ -66,3 +81,9 @@ def _get_env(remote, user):
+         if passwd:
+             ConanOutput().info("Got password '******' from environment")
+         return user, passwd
++
++def _load_auth_remote_plugin(auth_remote_plugin_path):
++    if os.path.exists(auth_remote_plugin_path):
++        mod, _ = load_python_file(auth_remote_plugin_path)
++        if hasattr(mod, "auth_remote_plugin"):
++            return mod.auth_remote_plugin

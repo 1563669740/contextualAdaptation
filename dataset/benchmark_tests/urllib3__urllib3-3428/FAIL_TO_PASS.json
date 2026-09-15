@@ -1,0 +1,3 @@
+[
+  "test/with_dummyserver/test_chunked_transfer.py::TestChunkedTransfer::test_unicode_body_fileio"
+]

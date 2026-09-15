@@ -1,0 +1,1623 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index d5cc5e60f..e9ec351e2 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -5,7 +5,7 @@ requires = ["setuptools >= 61.0", "wheel"]
+ [project]
+ name = "trimesh"
+ requires-python = ">=3.8"
+-version = "4.4.9"
++version = "4.5.0"
+ authors = [{name = "Michael Dawson-Haggerty", email = "mikedh@kerfed.com"}]
+ license = {file = "LICENSE.md"}
+ description = "Import, export, process, analyze and view triangular meshes."
+@@ -32,6 +32,9 @@ dependencies = ["numpy>=1.20"]
+ file = "README.md"
+ content-type = "text/markdown"
+ 
++[project.scripts]
++trimesh = "trimesh:__main__.main"
++
+ [tool.setuptools]
+ packages = [
+     "trimesh",
+@@ -84,7 +87,6 @@ easy = [
+ ]
+ 
+ recommend = [
+-    "glooey",
+     "sympy",
+     "meshio",
+     "pyglet<2",
+@@ -94,22 +96,28 @@ recommend = [
+     # "python-fcl", # do collision checks # TODO : broken on numpy 2
+     "openctm", # load `CTM` compressed models
+     "cascadio", # load `STEP` files
+-    
+ ]
+ 
+-# this is the list of everything that is ever added anywhere
+-# mostly useful for getting our test coverage up
++# stuff to run simple testing
+ test = [
+     "pytest-cov",
++    "pytest",
++    "pyinstrument",
++    "ruff",
++]
++
++# this is the list of everything that is ever added anywhere
++# mostly useful for getting our test coverage up but may not
++# be easy to install on all platforms and is only really
++# a good idea in our "cannonical docker images"
++test_more = [
+     "coveralls",
+     "pyright",
+     "ezdxf",
+-    "pytest",
+-    "pymeshlab; python_version<='3.11'",
+-    "pyinstrument",
++    "pytest-beartype; python_version>='3.10'",
+     "matplotlib",
+-    "ruff",
+-    "pytest-beartype; python_version>='3.10'"
++    "pymeshlab",
++    "triangle",
+ ]
+ 
+ # interfaces.gmsh will be dropped Jan 2025
+@@ -117,7 +125,7 @@ deprecated = ["gmsh==4.12.2"]
+ 
+ # requires pip >= 21.2
+ # https://hynek.me/articles/python-recursive-optional-dependencies/
+-all = ["trimesh[easy,recommend,test,deprecated]"]
++all = ["trimesh[easy,recommend,test,test_more,deprecated]"]
+ 
+ [tool.ruff]
+ target-version = "py38"
+diff --git a/trimesh/__main__.py b/trimesh/__main__.py
+new file mode 100644
+index 000000000..3f9889944
+--- /dev/null
++++ b/trimesh/__main__.py
+@@ -0,0 +1,68 @@
++import argparse
++
++
++def main():
++    """
++    A simple command line utility for accessing trimesh functions.
++
++    To display a mesh:
++      > trimesh hi.stl
++
++    To convert a mesh:
++      > trimesh hi.stl -e hey.glb
++
++    To print some information about a mesh:
++      > trimesh hi.stl --statistics
++    """
++    from .exchange.load import load
++
++    parser = argparse.ArgumentParser()
++    parser.add_argument("file_name", nargs="?")
++
++    parser.add_argument(
++        "-i",
++        "--interact",
++        action="store_true",
++        help="Get an interactive terminal with trimesh and loaded geometry",
++    )
++    parser.add_argument("-e", "--export", help="Export a loaded geometry to a new file.")
++
++    args = parser.parse_args()
++
++    if args.file_name is None:
++        scene = None
++    else:
++        scene = load(args.file_name)
++
++    summary(scene)
++
++    if args.export is not None:
++        scene.export(args.export)
++
++    if args.interact:
++        return interactive(scene)
++
++    scene.show()
++
++
++def summary(geom):
++    """ """
++    print(geom)
++
++
++def interactive(scene):
++    """
++    Run an interactive session with a loaded scene and trimesh.
++
++    This uses the standard library `code.InteractiveConsole`
++    """
++    local = locals()
++
++    from code import InteractiveConsole
++
++    # filter out junk variables.
++    InteractiveConsole(locals={k: v for k, v in local.items() if k != "local"}).interact()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/trimesh/base.py b/trimesh/base.py
+index 388d251a4..c59bde5de 100644
+--- a/trimesh/base.py
++++ b/trimesh/base.py
+@@ -2860,7 +2860,7 @@ def convex_decomposition(self, **kwargs) -> List["Trimesh"]:
+ 
+     def union(
+         self,
+-        other: "Trimesh",
++        other: Union["Trimesh", Sequence["Trimesh"]],
+         engine: Optional[str] = None,
+         check_volume: bool = True,
+         **kwargs,
+@@ -2887,9 +2887,8 @@ def union(
+         union : trimesh.Trimesh
+           Union of self and other Trimesh objects
+         """
+-
+         return boolean.union(
+-            meshes=[self, other],
++            meshes=util.chain(self, other),
+             engine=engine,
+             check_volume=check_volume,
+             **kwargs,
+@@ -2897,18 +2896,18 @@ def union(
+ 
+     def difference(
+         self,
+-        other: "Trimesh",
++        other: Union["Trimesh", Sequence["Trimesh"]],
+         engine: Optional[str] = None,
+         check_volume: bool = True,
+         **kwargs,
+     ) -> "Trimesh":
+         """
+-         Boolean difference between this mesh and n other meshes
++         Boolean difference between this mesh and other meshes.
+ 
+          Parameters
+          ------------
+-         other : trimesh.Trimesh, or list of trimesh.Trimesh objects
+-           Meshes to difference
++         other
++           One or more meshes to difference with the current mesh.
+          engine
+            Which backend to use, the default
+            recommendation is: `pip install manifold3d`.
+@@ -2925,12 +2924,15 @@ def difference(
+            Difference between self and other Trimesh objects
+         """
+         return boolean.difference(
+-            meshes=[self, other], engine=engine, check_volume=check_volume, **kwargs
++            meshes=util.chain(self, other),
++            engine=engine,
++            check_volume=check_volume,
++            **kwargs,
+         )
+ 
+     def intersection(
+         self,
+-        other: "Trimesh",
++        other: Union["Trimesh", Sequence["Trimesh"]],
+         engine: Optional[str] = None,
+         check_volume: bool = True,
+         **kwargs,
+@@ -2958,7 +2960,7 @@ def intersection(
+            Mesh of the volume contained by all passed meshes
+         """
+         return boolean.intersection(
+-            meshes=[self, other],
++            meshes=util.chain(self, other),
+             engine=engine,
+             check_volume=check_volume,
+             **kwargs,
+diff --git a/trimesh/boolean.py b/trimesh/boolean.py
+index 71c5108c6..009d767d3 100644
+--- a/trimesh/boolean.py
++++ b/trimesh/boolean.py
+@@ -144,10 +144,16 @@ def boolean_manifold(
+ 
+     # Perform operations
+     if operation == "difference":
+-        if len(meshes) != 2:
++        if len(meshes) < 2:
+             raise ValueError("Difference only defined over two meshes.")
+-
+-        result_manifold = manifolds[0] - manifolds[1]
++        elif len(meshes) == 2:
++            # apply the single difference
++            result_manifold = manifolds[0] - manifolds[1]
++        elif len(meshes) > 2:
++            # union all the meshes to be subtracted from the final result
++            unioned = reduce_cascade(lambda a, b: a + b, manifolds[1:])
++            # apply the difference
++            result_manifold = manifolds[0] - unioned
+     elif operation == "union":
+         result_manifold = reduce_cascade(lambda a, b: a + b, manifolds)
+     elif operation == "intersection":
+diff --git a/trimesh/creation.py b/trimesh/creation.py
+index 7980af9b4..2687a79fd 100644
+--- a/trimesh/creation.py
++++ b/trimesh/creation.py
+@@ -16,7 +16,7 @@
+ from .constants import log, tol
+ from .geometry import align_vectors, faces_to_edges, plane_transform
+ from .resources import get_json
+-from .typed import ArrayLike, Dict, Integer, NDArray, Number, Optional
++from .typed import ArrayLike, Dict, Integer, NDArray, Number, Optional, Tuple
+ 
+ try:
+     # shapely is a soft dependency
+@@ -41,6 +41,7 @@
+ def revolve(
+     linestring: ArrayLike,
+     angle: Optional[Number] = None,
++    cap: bool = False,
+     sections: Optional[Integer] = None,
+     transform: Optional[ArrayLike] = None,
+     **kwargs,
+@@ -61,9 +62,13 @@ def revolve(
+     -------------
+     linestring : (n, 2) float
+       Lines in 2D which will be revolved
+-    angle : None or float
+-      Angle in radians to revolve curve by
+-    sections : None or int
++    angle
++      Angle in radians to revolve curve by or if not
++      passed will be a full revolution (`angle = 2*pi`)
++    cap
++      If not a full revolution (`0.0 < angle < 2 * pi`)
++      and cap is True attempt to add a tesselated cap.
++    sections
+       Number of sections result should have
+       If not specified default is 32 per revolution
+     transform : None or (4, 4) float
+@@ -104,6 +109,7 @@ def revolve(
+ 
+     # how many points per slice
+     per = len(linestring)
++
+     # use the 2D X component as radius
+     radius = linestring[:, 0]
+     # use the 2D Y component as the height along revolution
+@@ -125,10 +131,6 @@ def revolve(
+         # chop off duplicate vertices
+         vertices = vertices[:-per]
+ 
+-    if transform is not None:
+-        # apply transform to vertices
+-        vertices = tf.transform_points(vertices, transform)
+-
+     # how many slices of the pie
+     slices = len(theta) - 1
+ 
+@@ -160,18 +162,46 @@ def revolve(
+     # if 'process' not in kwargs:
+     #    kwargs['process'] = False
+ 
++    # Handle capping before applying any transformation
++    if not closed and cap:
++        # Use the triangulated linestring as the base cap faces (cap_0), assuming no new vertices
++        # are added, indices defining triangles of cap_0 should be reusable for cap_angle
++        cap_0_vertices, cap_0_faces = triangulate_polygon(
++            Polygon(linestring), force_vertices=True
++        )
++
++        if tol.strict:
++            # make sure we didn't screw up triangulation
++            _, idx = np.unique(cap_0_vertices, return_index=True)
++            cap_0_uvtxs = cap_0_vertices[np.sort(idx)]
++            _, idx = np.unique(linestring, return_index=True)
++            line_uvtxs = linestring[np.sort(idx)]
++            assert np.allclose(cap_0_uvtxs, line_uvtxs)
++
++        # Use the last set of vertices as the top cap contour (cap_angle)
++        offset = len(vertices) - per
++        cap_angle_faces = cap_0_faces + offset
++        flipped_cap_angle_faces = np.fliplr(cap_angle_faces)  # reverse the winding
++
++        # Append cap faces to the face array
++        faces = np.vstack([faces, cap_0_faces, flipped_cap_angle_faces])
++
++    if transform is not None:
++        # apply transform to vertices
++        vertices = tf.transform_points(vertices, transform)
++
+     # create the mesh from our vertices and faces
+     mesh = Trimesh(vertices=vertices, faces=faces, **kwargs)
+ 
+-    # strict checks run only in unit tests
++    # strict checks run only in unit tests and when cap is True
+     if tol.strict and (
+         np.allclose(radius[[0, -1]], 0.0) or np.allclose(linestring[0], linestring[-1])
+     ):
+-        # if revolved curve starts and ends with zero radius
+-        # it should really be a valid volume, unless the sign
+-        # reversed on the input linestring
+-        assert closed
+-        assert mesh.is_volume
++        if closed or cap:
++            # if revolved curve starts and ends with zero radius
++            # it should really be a valid volume, unless the sign
++            # reversed on the input linestring
++            assert mesh.is_volume
+         assert mesh.body_count == 1
+ 
+     return mesh
+@@ -531,8 +561,12 @@ def extrude_triangulation(
+ 
+ 
+ def triangulate_polygon(
+-    polygon, triangle_args: Optional[str] = None, engine: Optional[str] = None, **kwargs
+-):
++    polygon,
++    triangle_args: Optional[str] = None,
++    engine: Optional[str] = None,
++    force_vertices: bool = False,
++    **kwargs,
++) -> Tuple[NDArray[np.float64], NDArray[np.int64]]:
+     """
+     Given a shapely polygon create a triangulation using a
+     python interface to the permissively licensed `mapbox-earcut`
+@@ -545,10 +579,14 @@ def triangulate_polygon(
+     ---------
+     polygon : Shapely.geometry.Polygon
+         Polygon object to be triangulated.
+-    triangle_args : str or None
++    triangle_args
+         Passed to triangle.triangulate i.e: 'p', 'pq30', 'pY'="don't insert vert"
+-    engine : None or str
++    engine
+       None or 'earcut' will use earcut, 'triangle' will use triangle
++    force_vertices
++      Many operations can't handle new vertices being inserted, so this will
++      attempt to generate a triangulation without new vertices and raise a
++      ValueError if it is unable to do so.
+ 
+     Returns
+     --------------
+@@ -565,6 +603,8 @@ def triangulate_polygon(
+     if polygon is None or polygon.is_empty:
+         return [], []
+ 
++    vertices = None
++
+     if engine == "earcut":
+         from mapbox_earcut import triangulate_float64
+ 
+@@ -584,8 +624,6 @@ def triangulate_polygon(
+             .reshape((-1, 3))
+         )
+ 
+-        return vertices, faces
+-
+     elif engine == "manifold":
+         import manifold3d
+ 
+@@ -599,9 +637,8 @@ def triangulate_polygon(
+         rings.extend(
+             np.array(b.coords)[:: (-1 if b.is_ccw else 1)][:-1] for b in polygon.interiors
+         )
+-        faces = manifold3d.triangulate(rings)
+-        vertices = np.vstack(rings)
+-        return vertices, faces
++        faces = manifold3d.triangulate(rings).astype(np.int64)
++        vertices = np.vstack(rings, dtype=np.float64)
+ 
+     elif engine == "triangle":
+         from triangle import triangulate
+@@ -612,16 +649,23 @@ def triangulate_polygon(
+             # turn the polygon in to vertices, segments, and holes
+         arg = _polygon_to_kwargs(polygon)
+         # run the triangulation
+-        result = triangulate(arg, triangle_args)
+-        return result["vertices"], result["triangles"]
+-
+-    log.warning(
+-        "try running `pip install manifold3d`"
+-        + "or `triangle`, `mapbox_earcut`, then explicitly pass:\n"
+-        + '`triangulate_polygon(*args, engine="triangle")`\n'
+-        + "to use the non-FSF-approved-license triangle engine"
+-    )
+-    raise ValueError("No available triangulation engine!")
++        blob = triangulate(arg, triangle_args)
++        vertices, faces = blob["vertices"], blob["triangles"].astype(np.int64)
++
++        # triangle may insert vertices
++        if force_vertices:
++            assert np.allclose(arg["vertices"], vertices)
++
++    if vertices is None:
++        log.warning(
++            "try running `pip install mapbox-earcut manifold3d`"
++            + "or `triangle`, `mapbox_earcut`, then explicitly pass:\n"
++            + '`triangulate_polygon(*args, engine="triangle")`\n'
++            + "to use the non-FSF-approved-license triangle engine"
++        )
++        raise ValueError("No available triangulation engine!")
++
++    return vertices, faces
+ 
+ 
+ def _polygon_to_kwargs(polygon) -> Dict:
+diff --git a/trimesh/exchange/export.py b/trimesh/exchange/export.py
+index c2c64a157..d5fd12b48 100644
+--- a/trimesh/exchange/export.py
++++ b/trimesh/exchange/export.py
+@@ -43,7 +43,7 @@ def export_mesh(mesh, file_obj, file_type=None, resolver=None, **kwargs):
+         # handle `pathlib` objects by converting to string
+         file_obj = str(file_obj.absolute())
+ 
+-    if util.is_string(file_obj):
++    if isinstance(file_obj, str):
+         if file_type is None:
+             # get file type from file name
+             file_type = (str(file_obj).split(".")[-1]).lower()
+@@ -247,7 +247,7 @@ def export_scene(scene, file_obj, file_type=None, resolver=None, **kwargs):
+ 
+     # if we weren't passed a file type extract from file_obj
+     if file_type is None:
+-        if util.is_string(file_obj):
++        if isinstance(file_obj, str):
+             file_type = str(file_obj).split(".")[-1]
+         else:
+             raise ValueError("file_type not specified!")
+@@ -266,7 +266,7 @@ def export_scene(scene, file_obj, file_type=None, resolver=None, **kwargs):
+         # if we are exporting by name automatically create a
+         # resolver which lets the exporter write assets like
+         # the materials and textures next to the exported mesh
+-        if resolver is None and util.is_string(file_obj):
++        if resolver is None and isinstance(file_obj, str):
+             resolver = resolvers.FilePathResolver(file_obj)
+         data = export_obj(scene, resolver=resolver, **kwargs)
+     elif file_type == "dict64":
+@@ -290,7 +290,7 @@ def export_scene(scene, file_obj, file_type=None, resolver=None, **kwargs):
+         # represent multiple files so create a filepath
+         # resolver and write the files if someone passed
+         # a path we can write to.
+-        if resolver is None and util.is_string(file_obj):
++        if resolver is None and isinstance(file_obj, str):
+             resolver = resolvers.FilePathResolver(file_obj)
+             # the requested "gltf"
+             bare_path = os.path.split(file_obj)[-1]
+@@ -306,7 +306,7 @@ def export_scene(scene, file_obj, file_type=None, resolver=None, **kwargs):
+     if hasattr(file_obj, "write"):
+         # if it's just a regular file object
+         return util.write_encoded(file_obj, data)
+-    elif util.is_string(file_obj):
++    elif isinstance(file_obj, str):
+         # assume strings are file paths
+         file_path = os.path.abspath(os.path.expanduser(file_obj))
+         with open(file_path, "wb") as f:
+diff --git a/trimesh/exchange/gltf.py b/trimesh/exchange/gltf.py
+index 856b8b355..89ab3b0ce 100644
+--- a/trimesh/exchange/gltf.py
++++ b/trimesh/exchange/gltf.py
+@@ -1299,12 +1299,10 @@ def parse_values_and_textures(input_dict):
+                 result[k] = np.array(v, dtype=np.float64)
+             elif not isinstance(v, dict):
+                 result[k] = v
+-            elif "index" in v:
+-                # get the index of image for texture
+-
++            elif images is not None and "index" in v:
+                 try:
++                    # get the index of image for texture
+                     texture = header["textures"][v["index"]]
+-
+                     # check to see if this is using a webp extension texture
+                     # should this be case sensitive?
+                     webp = (
+@@ -1317,7 +1315,6 @@ def parse_values_and_textures(input_dict):
+                     else:
+                         # fallback (or primary, if extensions are not present)
+                         idx = texture["source"]
+-
+                     # store the actual image as the value
+                     result[k] = images[idx]
+                 except BaseException:
+diff --git a/trimesh/exchange/load.py b/trimesh/exchange/load.py
+index d2b2bdce3..b6951dc77 100644
+--- a/trimesh/exchange/load.py
++++ b/trimesh/exchange/load.py
+@@ -575,7 +575,7 @@ def _parse_file_args(
+ 
+     if util.is_file(file_obj) and file_type is None:
+         raise ValueError("file_type must be set for file objects!")
+-    if util.is_string(file_obj):
++    if isinstance(file_obj, str):
+         try:
+             # os.path.isfile will return False incorrectly
+             # if we don't give it an absolute path
+@@ -614,7 +614,7 @@ def _parse_file_args(
+     if file_type is None:
+         file_type = file_obj.__class__.__name__
+ 
+-    if util.is_string(file_type) and "." in file_type:
++    if isinstance(file_type, str) and "." in file_type:
+         # if someone has passed the whole filename as the file_type
+         # use the file extension as the file_type
+         if "file_path" not in metadata:
+diff --git a/trimesh/exchange/misc.py b/trimesh/exchange/misc.py
+index 89e7e82c6..eab91e78b 100644
+--- a/trimesh/exchange/misc.py
++++ b/trimesh/exchange/misc.py
+@@ -34,7 +34,7 @@ def load_dict(data, **kwargs):
+         raise ValueError("data passed to load_dict was None!")
+     if util.is_instance_named(data, "Trimesh"):
+         return data
+-    if util.is_string(data):
++    if isinstance(data, str):
+         if "{" not in data:
+             raise ValueError("Object is not a JSON encoded dictionary!")
+         data = json.loads(data.decode("utf-8"))
+diff --git a/trimesh/exchange/ply.py b/trimesh/exchange/ply.py
+index 1deac93ea..3278daced 100644
+--- a/trimesh/exchange/ply.py
++++ b/trimesh/exchange/ply.py
+@@ -4,12 +4,13 @@
+ from string import Template
+ 
+ import numpy as np
++from numpy.lib.recfunctions import structured_to_unstructured, unstructured_to_structured
+ 
+ from .. import grouping, resources, util, visual
+ from ..constants import log
+ from ..geometry import triangulate_quads
+ from ..resolvers import Resolver
+-from ..typed import Optional
++from ..typed import NDArray, Optional
+ 
+ # from ply specification, and additional dtypes found in the wild
+ _dtypes = {
+@@ -283,17 +284,73 @@ def export_ply(
+     # will be appended to main dtype if needed
+     dtype_vertex_normal = ("normals", "<f4", (3))
+     dtype_color = ("rgba", "<u1", (4))
++    # for Path objects.
++    dtype_edge = [("index", "<i4", (2))]
+ 
+     # get template strings in dict
+     templates = resources.get_json("templates/ply.json")
+     # start collecting elements into a string for the header
+     header = [templates["intro"]]
++    header_params = {"encoding": encoding}
++
++    # structured arrays for exports
++    pack_edges: Optional[NDArray] = None
++    pack_vertex: Optional[NDArray] = None
++    pack_faces: Optional[NDArray] = None
+ 
+     # check if scene has geometry
+-    if hasattr(mesh, "vertices"):
++    # check if this is a `trimesh.path.Path` object.
++    if hasattr(mesh, "entities"):
++        if len(mesh.vertices) and mesh.vertices.shape[-1] != 3:
++            raise ValueError("only Path3D export is supported for ply")
++
++        if len(mesh.vertices) > 0:
++            # run the discrete curve step for each entity
++            discrete = [e.discrete(mesh.vertices) for e in mesh.entities]
++
++            # how long was each discrete curve
++            discrete_len = np.array([d.shape[0] for d in discrete])
++            # what's the index offset based on these lengths
++            discrete_off = np.concatenate(([0], np.cumsum(discrete_len)[:-1]))
++
++            # pre-stack edges we can slice and offset
++            longest = discrete_len.max()
++            stack = np.column_stack((np.arange(0, longest - 1), np.arange(1, longest)))
++
++            # get the indexes that reconstruct the discrete curves when stacked
++            edges = np.vstack(
++                [
++                    stack[:length] + offset
++                    for length, offset in zip(discrete_len - 1, discrete_off)
++                ]
++            )
++
++            vertices = np.vstack(discrete)
++            # create and populate the custom dtype for vertices
++            num_vertices = len(vertices)
++            # put mesh edge data into custom dtype to export
++            num_edges = len(edges)
++
++            if num_edges > 0 and num_vertices > 0:
++                header.append(templates["vertex"])
++                pack_vertex = np.zeros(num_vertices, dtype=dtype_vertex)
++                pack_vertex["vertex"] = np.asarray(vertices, dtype=np.float32)
++
++                # add the edge info to the header
++                header.append(templates["edge"])
++                # pack edges into our dtype
++                pack_edges = unstructured_to_structured(edges, dtype=dtype_edge)
++
++                # add the values for the header
++                header_params.update(
++                    {"edge_count": num_edges, "vertex_count": num_vertices}
++                )
++
++    elif hasattr(mesh, "vertices"):
+         header.append(templates["vertex"])
+ 
+         num_vertices = len(mesh.vertices)
++        header_params["vertex_count"] = num_vertices
+         # if we're exporting vertex normals add them
+         # to the header and dtype
+         if vertex_normal:
+@@ -301,7 +358,12 @@ def export_ply(
+             dtype_vertex.append(dtype_vertex_normal)
+ 
+         # if mesh has a vertex color add it to the header
+-        if mesh.visual.kind == "vertex":
++        vertex_color = (
++            hasattr(mesh, "visual")
++            and mesh.visual.kind == "vertex"
++            and len(mesh.visual.vertex_colors) == len(mesh.vertices)
++        )
++        if vertex_color:
+             header.append(templates["color"])
+             dtype_vertex.append(dtype_color)
+ 
+@@ -310,19 +372,15 @@ def export_ply(
+             _add_attributes_to_dtype(dtype_vertex, mesh.vertex_attributes)
+ 
+         # create and populate the custom dtype for vertices
+-        vertex = np.zeros(num_vertices, dtype=dtype_vertex)
+-        vertex["vertex"] = mesh.vertices
++        pack_vertex = np.zeros(num_vertices, dtype=dtype_vertex)
++        pack_vertex["vertex"] = mesh.vertices
+         if vertex_normal:
+-            vertex["normals"] = mesh.vertex_normals
+-        if mesh.visual.kind == "vertex" and len(mesh.visual.vertex_colors):
+-            vertex["rgba"] = mesh.visual.vertex_colors
++            pack_vertex["normals"] = mesh.vertex_normals
++        if vertex_color:
++            pack_vertex["rgba"] = mesh.visual.vertex_colors
+ 
+         if include_attributes and hasattr(mesh, "vertex_attributes"):
+-            _add_attributes_to_data_array(vertex, mesh.vertex_attributes)
+-    else:
+-        num_vertices = 0
+-
+-    header_params = {"vertex_count": num_vertices, "encoding": encoding}
++            _add_attributes_to_data_array(pack_vertex, mesh.vertex_attributes)
+ 
+     if hasattr(mesh, "faces"):
+         header.append(templates["face"])
+@@ -335,37 +393,50 @@ def export_ply(
+             _add_attributes_to_dtype(dtype_face, mesh.face_attributes)
+ 
+         # put mesh face data into custom dtype to export
+-        faces = np.zeros(len(mesh.faces), dtype=dtype_face)
+-        faces["count"] = 3
+-        faces["index"] = mesh.faces
++        pack_faces = np.zeros(len(mesh.faces), dtype=dtype_face)
++        pack_faces["count"] = 3
++        pack_faces["index"] = mesh.faces
+         if mesh.visual.kind == "face" and encoding != "ascii":
+-            faces["rgba"] = mesh.visual.face_colors
++            pack_faces["rgba"] = mesh.visual.face_colors
+         header_params["face_count"] = len(mesh.faces)
+ 
+         if include_attributes and hasattr(mesh, "face_attributes"):
+-            _add_attributes_to_data_array(faces, mesh.face_attributes)
++            _add_attributes_to_data_array(pack_faces, mesh.face_attributes)
+ 
+     header.append(templates["outro"])
+     export = [Template("".join(header)).substitute(header_params).encode("utf-8")]
+ 
+     if encoding == "binary_little_endian":
+-        if hasattr(mesh, "vertices"):
+-            export.append(vertex.tobytes())
+-        if hasattr(mesh, "faces"):
+-            export.append(faces.tobytes())
++        if pack_vertex is not None:
++            export.append(pack_vertex.tobytes())
++        if pack_faces is not None:
++            export.append(pack_faces.tobytes())
++        if pack_edges is not None:
++            export.append(pack_edges.tobytes())
+     elif encoding == "ascii":
+-        export.append(
+-            util.structured_array_to_string(vertex, col_delim=" ", row_delim="\n").encode(
+-                "utf-8"
+-            ),
+-        )
++        if pack_vertex is not None:
++            export.append(
++                util.structured_array_to_string(
++                    pack_vertex, col_delim=" ", row_delim="\n"
++                ).encode("utf-8"),
++            )
+ 
+-        if hasattr(mesh, "faces"):
++        if pack_faces is not None:
+             export.extend(
+                 [
+                     b"\n",
+                     util.structured_array_to_string(
+-                        faces, col_delim=" ", row_delim="\n"
++                        pack_faces, col_delim=" ", row_delim="\n"
++                    ).encode("utf-8"),
++                ]
++            )
++
++        if pack_edges is not None:
++            export.extend(
++                [
++                    b"\n",
++                    util.structured_array_to_string(
++                        pack_edges, col_delim=" ", row_delim="\n"
+                     ).encode("utf-8"),
+                 ]
+             )
+@@ -631,6 +702,14 @@ def _elements_to_kwargs(elements, fix_texture, image, prefer_color=None):
+     if "vertex" in elements:
+         kwargs["vertex_colors"] = _element_colors(elements["vertex"])
+ 
++    if "edge" in elements:
++        # this is a Path element.
++
++        from ..path.exchange.misc import edges_to_path
++
++        edges = structured_to_unstructured(elements["edge"]["data"])
++        kwargs.update(edges_to_path(edges, kwargs["vertices"]))
++
+     return kwargs
+ 
+ 
+diff --git a/trimesh/exchange/threemf.py b/trimesh/exchange/threemf.py
+index f1c024496..554398e39 100644
+--- a/trimesh/exchange/threemf.py
++++ b/trimesh/exchange/threemf.py
+@@ -1,12 +1,35 @@
+-import collections
+ import io
+ import uuid
+ import zipfile
++from collections import defaultdict
+ 
+ import numpy as np
+ 
+ from .. import graph, util
+ from ..constants import log
++from ..util import unique_name
++
++
++def _read_mesh(mesh):
++    vertices = mesh.find("{*}vertices")
++    v_array = np.array(
++        [
++            [i.attrib["x"], i.attrib["y"], i.attrib["z"]]
++            for i in vertices.iter("{*}vertex")
++        ],
++        dtype=np.float64,
++    )
++
++    faces = mesh.find("{*}triangles")
++    f_array = np.array(
++        [
++            [i.attrib["v1"], i.attrib["v2"], i.attrib["v3"]]
++            for i in faces.iter("{*}triangle")
++        ],
++        dtype=np.int64,
++    )
++
++    return v_array, f_array
+ 
+ 
+ def load_3MF(file_obj, postprocess=True, **kwargs):
+@@ -23,6 +46,7 @@ def load_3MF(file_obj, postprocess=True, **kwargs):
+     kwargs : dict
+       Constructor arguments for `trimesh.Scene`
+     """
++
+     # dict, {name in archive: BytesIo}
+     archive = util.decompress(file_obj, file_type="zip")
+     # get model with case-insensitive keys
+@@ -40,59 +64,44 @@ def load_3MF(file_obj, postprocess=True, **kwargs):
+     # { mesh id : mesh name}
+     id_name = {}
+     # { mesh id: (n,3) float vertices}
+-    v_seq = {}
++    v_seq = defaultdict(list)
+     # { mesh id: (n,3) int faces}
+-    f_seq = {}
++    f_seq = defaultdict(list)
+     # components are objects that contain other objects
+     # {id : [other ids]}
+-    components = collections.defaultdict(list)
++    components = defaultdict(list)
+     # load information about the scene graph
+     # each instance is a single geometry
+     build_items = []
+ 
++    # keep track of names we can use
++    consumed_counts = {}
+     consumed_names = set()
++
+     # iterate the XML object and build elements with an LXML iterator
+     # loaded elements are cleared to avoid ballooning memory
+     model.seek(0)
+-    for _, obj in etree.iterparse(model, tag=("{*}object", "{*}build")):
++    for _, obj in etree.iterparse(model, tag=("{*}object", "{*}build"), events=("end",)):
+         # parse objects
+         if "object" in obj.tag:
+             # id is mandatory
+             index = obj.attrib["id"]
+ 
+             # start with stored name
+-            name = obj.attrib.get("name", str(index))
+             # apparently some exporters name multiple meshes
+             # the same thing so check to see if it's been used
+-            if name in consumed_names:
+-                name = name + str(index)
++            name = unique_name(
++                obj.attrib.get("name", str(index)), consumed_names, consumed_counts
++            )
+             consumed_names.add(name)
+             # store name reference on the index
+             id_name[index] = name
+ 
+             # if the object has actual geometry data parse here
+             for mesh in obj.iter("{*}mesh"):
+-                vertices = mesh.find("{*}vertices")
+-                v_seq[index] = np.array(
+-                    [
+-                        [i.attrib["x"], i.attrib["y"], i.attrib["z"]]
+-                        for i in vertices.iter("{*}vertex")
+-                    ],
+-                    dtype=np.float64,
+-                )
+-                vertices.clear()
+-                vertices.getparent().remove(vertices)
+-
+-                faces = mesh.find("{*}triangles")
+-                f_seq[index] = np.array(
+-                    [
+-                        [i.attrib["v1"], i.attrib["v2"], i.attrib["v3"]]
+-                        for i in faces.iter("{*}triangle")
+-                    ],
+-                    dtype=np.int64,
+-                )
+-                faces.clear()
+-                faces.getparent().remove(faces)
++                v, f = _read_mesh(mesh)
++                v_seq[index].append(v)
++                f_seq[index].append(f)
+ 
+             # components are references to other geometries
+             for c in obj.iter("{*}component"):
+@@ -100,6 +109,29 @@ def load_3MF(file_obj, postprocess=True, **kwargs):
+                 transform = _attrib_to_transform(c.attrib)
+                 components[index].append((mesh_index, transform))
+ 
++                # if this references another file as the `path` attrib
++                path = next(
++                    (v.strip("/") for k, v in c.attrib.items() if k.endswith("path")),
++                    None,
++                )
++                if path is not None and path in archive:
++                    archive[path].seek(0)
++                    name = unique_name(
++                        obj.attrib.get("name", str(mesh_index)),
++                        consumed_names,
++                        consumed_counts,
++                    )
++                    consumed_names.add(name)
++                    # store name reference on the index
++                    id_name[mesh_index] = name
++
++                    for _, m in etree.iterparse(
++                        archive[path], tag=("{*}mesh"), events=("end",)
++                    ):
++                        v, f = _read_mesh(m)
++                        v_seq[mesh_index].append(v)
++                        f_seq[mesh_index].append(f)
++
+         # parse build
+         if "build" in obj.tag:
+             # scene graph information stored here, aka "build" the scene
+@@ -109,19 +141,15 @@ def load_3MF(file_obj, postprocess=True, **kwargs):
+                 # the index of the geometry this item instantiates
+                 build_items.append((item.attrib["objectid"], transform))
+ 
+-        # free resources
+-        obj.clear()
+-        obj.getparent().remove(obj)
+-        del obj
+-
+     # have one mesh per 3MF object
+     # one mesh per geometry ID, store as kwargs for the object
+     meshes = {}
+     for gid in v_seq.keys():
++        v, f = util.append_faces(v_seq[gid], f_seq[gid])
+         name = id_name[gid]
+         meshes[name] = {
+-            "vertices": v_seq[gid],
+-            "faces": f_seq[gid],
++            "vertices": v,
++            "faces": f,
+             "metadata": metadata.copy(),
+         }
+         meshes[name].update(kwargs)
+@@ -143,7 +171,7 @@ def load_3MF(file_obj, postprocess=True, **kwargs):
+     # flatten the scene structure and simplify to
+     # a single unique node per instance
+     graph_args = []
+-    parents = collections.defaultdict(set)
++    parents = defaultdict(set)
+     for path in graph.multigraph_paths(G=g, source="world"):
+         # collect all the transform on the path
+         transforms = graph.multigraph_collect(G=g, traversal=path, attrib="matrix")
+@@ -157,8 +185,9 @@ def load_3MF(file_obj, postprocess=True, **kwargs):
+         last = path[-1][0]
+         # if someone included an undefined component, skip it
+         if last not in id_name:
+-            log.debug(f"id {last} included but not defined!")
++            log.warning(f"id {last} included but not defined!")
+             continue
++
+         # frame names unique
+         name = id_name[last] + util.unique_id()
+         # index in meshes
+diff --git a/trimesh/intersections.py b/trimesh/intersections.py
+index 64b6a0982..3d934ae13 100644
+--- a/trimesh/intersections.py
++++ b/trimesh/intersections.py
+@@ -782,7 +782,8 @@ def slice_mesh_plane(
+             # collect new faces
+             faces = [f]
+             for p in polygons.edges_to_polygons(edges[unique_edge], vertices_2D[:, :2]):
+-                vn, fn = triangulate_polygon(p, engine=engine)
++                # triangulate cap and raise an error if any new vertices were inserted
++                vn, fn = triangulate_polygon(p, engine=engine, force_vertices=True)
+                 # collect the original index for the new vertices
+                 vn3 = tf.transform_points(util.stack_3D(vn), to_3D)
+                 distance, vid = tree.query(vn3)
+diff --git a/trimesh/path/entities.py b/trimesh/path/entities.py
+index b09b25062..6a25437a1 100644
+--- a/trimesh/path/entities.py
++++ b/trimesh/path/entities.py
+@@ -348,7 +348,7 @@ def __init__(
+         if align is None:
+             # if not set make everything centered
+             align = ["center", "center"]
+-        elif util.is_string(align):
++        elif isinstance(align, str):
+             # if only one is passed set for both
+             # horizontal and vertical
+             align = [align, align]
+diff --git a/trimesh/path/exchange/export.py b/trimesh/path/exchange/export.py
+index 9a5db560f..41e450432 100644
+--- a/trimesh/path/exchange/export.py
++++ b/trimesh/path/exchange/export.py
+@@ -1,6 +1,7 @@
+ import os
+ 
+ from ... import util
++from ...exchange import ply
+ from . import dxf, svg_io
+ 
+ 
+@@ -23,7 +24,7 @@ def export_path(path, file_type=None, file_obj=None, **kwargs):
+     """
+     # if file object is a string it is probably a file path
+     # so we can split the extension to set the file type
+-    if util.is_string(file_obj):
++    if isinstance(file_obj, str):
+         file_type = util.split_extension(file_obj)
+ 
+     # run the export
+@@ -73,4 +74,9 @@ def _write_export(export, file_obj=None):
+     return export
+ 
+ 
+-_path_exporters = {"dxf": dxf.export_dxf, "svg": svg_io.export_svg, "dict": export_dict}
++_path_exporters = {
++    "dxf": dxf.export_dxf,
++    "svg": svg_io.export_svg,
++    "ply": ply.export_ply,
++    "dict": export_dict,
++}
+diff --git a/trimesh/path/exchange/load.py b/trimesh/path/exchange/load.py
+index f3d012b2f..b6b28fc30 100644
+--- a/trimesh/path/exchange/load.py
++++ b/trimesh/path/exchange/load.py
+@@ -1,6 +1,7 @@
+ import os
+ 
+ from ... import util
++from ...exchange.ply import load_ply
+ from ..path import Path
+ from . import misc
+ from .dxf import _dxf_loaders
+@@ -42,14 +43,22 @@ def load_path(file_obj, file_type=None, **kwargs):
+         return file_obj
+     elif util.is_file(file_obj):
+         # for open file file_objects use loaders
+-        kwargs.update(path_loaders[file_type](file_obj, file_type=file_type))
+-    elif util.is_string(file_obj):
++        if file_type == "ply":
++            # we cannot register this exporter to path_loaders since this is already reserved by TriMesh in ply format in trimesh.load()
++            kwargs.update(load_ply(file_obj, file_type=file_type))
++        else:
++            kwargs.update(path_loaders[file_type](file_obj, file_type=file_type))
++    elif isinstance(file_obj, str):
+         # strings passed are evaluated as file file_objects
+         with open(file_obj, "rb") as f:
+             # get the file type from the extension
+             file_type = os.path.splitext(file_obj)[-1][1:].lower()
+-            # call the loader
+-            kwargs.update(path_loaders[file_type](f, file_type=file_type))
++            if file_type == "ply":
++                # we cannot register this exporter to path_loaders since this is already reserved by TriMesh in ply format in trimesh.load()
++                kwargs.update(load_ply(f, file_type=file_type))
++            else:
++                # call the loader
++                kwargs.update(path_loaders[file_type](f, file_type=file_type))
+     elif util.is_instance_named(file_obj, ["Polygon", "MultiPolygon"]):
+         # convert from shapely polygons to Path2D
+         kwargs.update(misc.polygon_to_path(file_obj))
+diff --git a/trimesh/path/exchange/svg_io.py b/trimesh/path/exchange/svg_io.py
+index cf2d8d1be..18f127bb1 100644
+--- a/trimesh/path/exchange/svg_io.py
++++ b/trimesh/path/exchange/svg_io.py
+@@ -627,7 +627,7 @@ def _encode(stuff):
+     encoded : str
+       Packaged into url-safe b64 string
+     """
+-    if util.is_string(stuff) and '"' not in stuff:
++    if isinstance(stuff, str) and '"' not in stuff:
+         return stuff
+     pack = base64.urlsafe_b64encode(
+         jsonify(
+@@ -664,9 +664,8 @@ def _deep_same(original, other):
+     # but otherwise types should be identical
+     if isinstance(original, np.ndarray):
+         assert isinstance(other, (list, np.ndarray))
+-    elif util.is_string(original):
+-        # handle python 2+3 unicode vs str
+-        assert util.is_string(other)
++    elif isinstance(original, str):
++        assert isinstance(other, str)
+     else:
+         # otherwise they should be the same type
+         assert isinstance(original, type(other))
+diff --git a/trimesh/path/polygons.py b/trimesh/path/polygons.py
+index 2ff79f951..e481dd57b 100644
+--- a/trimesh/path/polygons.py
++++ b/trimesh/path/polygons.py
+@@ -3,6 +3,7 @@
+ from shapely.geometry import Polygon
+ 
+ from .. import bounds, geometry, graph, grouping
++from ..boolean import reduce_cascade
+ from ..constants import log
+ from ..constants import tol_path as tol
+ from ..transformations import transform_points
+@@ -162,14 +163,14 @@ def edges_to_polygons(edges: NDArray[int64], vertices: NDArray[float64]):
+     # find which polygons contain which other polygons
+     roots, tree = enclosure_tree(polygons)
+ 
+-    # generate list of polygons with proper interiors
+-    complete = []
+-    for root in roots:
+-        interior = list(tree[root].keys())
+-        shell = polygons[root].exterior.coords
+-        holes = [polygons[i].exterior.coords for i in interior]
+-        complete.append(Polygon(shell=shell, holes=holes))
+-    return complete
++    # generate polygons with proper interiors
++    return [
++        Polygon(
++            shell=polygons[root].exterior,
++            holes=[polygons[i].exterior for i in tree[root].keys()],
++        )
++        for root in roots
++    ]
+ 
+ 
+ def polygons_obb(polygons: Iterable[Polygon]):
+@@ -864,17 +865,13 @@ def projected(
+         return polygons[0]
+     elif len(polygons) == 0:
+         return None
+-    # inflate each polygon before unioning to remove zero-size
+-    # gaps then deflate the result after unioning by the same amount
+-    # note the following provides a 25% speedup but needs
+-    # more testing to see if it deflates to a decent looking
+-    # result:
+-    # polygon = ops.unary_union(
+-    #    [p.buffer(padding,
+-    #              join_style=2,
+-    #              mitre_limit=1.5)
+-    #     for p in polygons]).buffer(-padding)
+-    return ops.unary_union([p.buffer(padding) for p in polygons]).buffer(-padding)
++
++    # in my tests this was substantially faster than `shapely.ops.unary_union`
++    reduced = reduce_cascade(lambda a, b: a.union(b), polygons)
++
++    # can be None
++    if reduced is not None:
++        return reduced.buffer(padding).buffer(-padding)
+ 
+ 
+ def second_moments(polygon: Polygon, return_centered=False):
+diff --git a/trimesh/path/raster.py b/trimesh/path/raster.py
+index bc6a67fef..2c3554348 100644
+--- a/trimesh/path/raster.py
++++ b/trimesh/path/raster.py
+@@ -19,8 +19,17 @@
+     ImageDraw = _handle
+     ImageChops = _handle
+ 
++from ..typed import ArrayLike, Floating, Optional, Union
+ 
+-def rasterize(path, pitch=None, origin=None, resolution=None, fill=True, width=None):
++
++def rasterize(
++    path: "trimesh.path.Path2D",  # noqa
++    pitch: Union[Floating, ArrayLike, None] = None,
++    origin: Optional[ArrayLike] = None,
++    resolution=None,
++    fill=True,
++    width=None,
++):
+     """
+     Rasterize a Path2D object into a boolean image ("mode 1").
+ 
+diff --git a/trimesh/resolvers.py b/trimesh/resolvers.py
+index 7edab5e30..02e0ba62a 100644
+--- a/trimesh/resolvers.py
++++ b/trimesh/resolvers.py
+@@ -12,6 +12,7 @@
+ import os
+ 
+ from . import caching, util
++from .typed import Optional, Union
+ 
+ # URL parsing for remote resources via WebResolver
+ try:
+@@ -58,7 +59,7 @@ class FilePathResolver(Resolver):
+     Resolve files from a source path on the file system.
+     """
+ 
+-    def __init__(self, source):
++    def __init__(self, source: str):
+         """
+         Resolve files based on a source path.
+ 
+@@ -101,7 +102,7 @@ def keys(self):
+             for name in names:
+                 yield os.path.join(path, name)
+ 
+-    def namespaced(self, namespace):
++    def namespaced(self, namespace: str) -> "FilePathResolver":
+         """
+         Return a resolver which changes the root of the
+         resolver by an added namespace.
+@@ -118,7 +119,7 @@ def namespaced(self, namespace):
+         """
+         return FilePathResolver(os.path.join(self.parent, namespace))
+ 
+-    def get(self, name):
++    def get(self, name: str):
+         """
+         Get an asset.
+ 
+@@ -140,7 +141,7 @@ def get(self, name):
+             data = f.read()
+         return data
+ 
+-    def write(self, name, data):
++    def write(self, name: str, data: Union[str, bytes]):
+         """
+         Write an asset to a file path.
+ 
+@@ -204,7 +205,7 @@ def keys(self):
+             ]
+         return self.archive.keys()
+ 
+-    def write(self, key, value):
++    def write(self, key: str, value):
+         """
+         Store a value in the current archive.
+ 
+@@ -219,7 +220,7 @@ def write(self, key, value):
+             self.archive = {}
+         self.archive[key] = value
+ 
+-    def get(self, name):
++    def get(self, name: str):
+         """
+         Get an asset from the ZIP archive.
+ 
+@@ -265,7 +266,7 @@ def get(self, name):
+         obj.seek(0)
+         return data
+ 
+-    def namespaced(self, namespace):
++    def namespaced(self, namespace: str) -> "ZipResolver":
+         """
+         Return a "sub-resolver" with a root namespace.
+ 
+@@ -283,7 +284,7 @@ def namespaced(self, namespace):
+         """
+         return ZipResolver(archive=self.archive, namespace=namespace)
+ 
+-    def export(self):
++    def export(self) -> bytes:
+         """
+         Export the contents of the current archive as
+         a ZIP file.
+@@ -399,7 +400,13 @@ def write(self, key, value):
+ 
+ 
+ class GithubResolver(Resolver):
+-    def __init__(self, repo, branch=None, commit=None, save=None):
++    def __init__(
++        self,
++        repo: str,
++        branch: Optional[str] = None,
++        commit: Optional[str] = None,
++        save: Optional[str] = None,
++    ):
+         """
+         Get files from a remote Github repository by
+         downloading a zip file with the entire branch
+@@ -407,25 +414,24 @@ def __init__(self, repo, branch=None, commit=None, save=None):
+ 
+         Parameters
+         -------------
+-        repo : str
++        repo
+           In the format of `owner/repo`
+-        branch : str
++        branch
+           The remote branch you want to get files from.
+-        commit : str
++        commit
+           The full commit hash: pass either this OR branch.
+-        save : None or str
++        save
+           A path if you want to save results locally.
+         """
+-        # the github URL for the latest commit of a branch.
+-        if commit is None:
+-            self.url = (
+-                "https://github.com/{repo}/archive/" + "refs/heads/{branch}.zip"
+-            ).format(repo=repo, branch=branch)
++
++        if commit is not None:
++            # just get the exact commit
++            self.url = f"https://github.com/{repo}/archive/{commit}.zip"
++        elif branch is not None:
++            # gets the latest commit on the specified branch.
++            self.url = f"https://github.com/{repo}/archive/refs/heads/{branch}.zip"
+         else:
+-            # get a commit URL
+-            self.url = ("https://github.com/{repo}/archive/" + "{commit}.zip").format(
+-                repo=repo, commit=commit
+-            )
++            raise ValueError("`commit` or `branch` must be passed!")
+ 
+         if save is not None:
+             self.cache = caching.DiskCache(save)
+@@ -447,7 +453,7 @@ def write(self, name, data):
+         raise NotImplementedError("`write` not implemented!")
+ 
+     @property
+-    def zipped(self):
++    def zipped(self) -> ZipResolver:
+         """
+ 
+         - opened zip file
+@@ -455,15 +461,14 @@ def zipped(self):
+         - retrieve zip file and saved
+         """
+ 
+-        def fetch():
++        def fetch() -> bytes:
+             """
+             Fetch the remote zip file.
+             """
+-            import requests
++            import httpx
+ 
+-            response = requests.get(self.url)
+-            if not response.ok:
+-                raise ValueError(response.content)
++            response = httpx.get(self.url, follow_redirects=True)
++            response.raise_for_status()
+             return response.content
+ 
+         if hasattr(self, "_zip"):
+diff --git a/trimesh/resources/templates/ply.json b/trimesh/resources/templates/ply.json
+index a4edb8345..1798240c7 100644
+--- a/trimesh/resources/templates/ply.json
++++ b/trimesh/resources/templates/ply.json
+@@ -1,8 +1,9 @@
+ {
+-    "face": "element face $face_count\nproperty list uchar int vertex_indices\n",
+-    "vertex": "element vertex $vertex_count\nproperty float x\nproperty float y\nproperty float z\n",
+-    "vertex_normal": "property float nx\nproperty float ny\nproperty float nz\n",
+-    "color": "property uchar red\nproperty uchar green\nproperty uchar blue\nproperty uchar alpha\n",
+-    "intro": "ply\nformat $encoding 1.0\ncomment https://github.com/mikedh/trimesh\n",
+-    "outro": "end_header\n"
++  "face": "element face $face_count\nproperty list uchar int vertex_indices\n",
++  "vertex": "element vertex $vertex_count\nproperty float x\nproperty float y\nproperty float z\n",
++  "vertex_normal": "property float nx\nproperty float ny\nproperty float nz\n",
++  "color": "property uchar red\nproperty uchar green\nproperty uchar blue\nproperty uchar alpha\n",
++  "edge": "element edge $edge_count\nproperty int vertex1\nproperty int vertex2\n",
++  "intro": "ply\nformat $encoding 1.0\ncomment https://github.com/mikedh/trimesh\n",
++  "outro": "end_header\n"
+ }
+diff --git a/trimesh/scene/scene.py b/trimesh/scene/scene.py
+index a777989c9..d1facb752 100644
+--- a/trimesh/scene/scene.py
++++ b/trimesh/scene/scene.py
+@@ -244,7 +244,7 @@ def delete_geometry(self, names: Union[set, str, Sequence]) -> None:
+           Name that references self.geometry
+         """
+         # make sure we have a set we can check
+-        if util.is_string(names):
++        if isinstance(names, str):
+             names = [names]
+         names = set(names)
+ 
+diff --git a/trimesh/scene/transforms.py b/trimesh/scene/transforms.py
+index 5b2ca9d81..c2823f0c2 100644
+--- a/trimesh/scene/transforms.py
++++ b/trimesh/scene/transforms.py
+@@ -489,7 +489,7 @@ def remove_geometries(self, geometries: Union[str, set, Sequence]):
+           Name of scene.geometry to dereference.
+         """
+         # make sure we have a set of geometries to remove
+-        if util.is_string(geometries):
++        if isinstance(geometries, str):
+             geometries = [geometries]
+         geometries = set(geometries)
+ 
+diff --git a/trimesh/triangles.py b/trimesh/triangles.py
+index 91128d109..8920a625c 100644
+--- a/trimesh/triangles.py
++++ b/trimesh/triangles.py
+@@ -83,8 +83,10 @@ def normals(triangles=None, crosses=None):
+     valid : (n,) bool
+       Was the face nonzero area or not
+     """
+-    if triangles is not None and triangles.shape[-1] == 2:
+-        return np.tile([0.0, 0.0, 1.0], (triangles.shape[0], 1))
++    if triangles is not None:
++        triangles = np.asanyarray(triangles, dtype=np.float64)
++        if triangles.shape[-1] == 2:
++            return np.tile([0.0, 0.0, 1.0], (triangles.shape[0], 1))
+     if crosses is None:
+         crosses = cross(triangles)
+     # unitize the cross product vectors
+diff --git a/trimesh/util.py b/trimesh/util.py
+index 0ff69b8d8..d2bd8f381 100644
+--- a/trimesh/util.py
++++ b/trimesh/util.py
+@@ -1,12 +1,5 @@
+ """
+-util.py
+------------
+-
+-Standalone functions which require only imports from numpy and the
+-standard library.
+-
+-Other libraries may be imported must be wrapped in try/except blocks
+-or imported inside of a function
++"Grab bag" of utility functions.
+ """
+ 
+ import abc
+@@ -26,10 +19,12 @@
+ # for type checking
+ from collections.abc import Mapping
+ from io import BytesIO, StringIO
+-from typing import Union
+ 
+ import numpy as np
+ 
++# use our wrapped types for wider version compatibility
++from .typed import Any, Iterable, List, Union
++
+ # create a default logger
+ log = logging.getLogger("trimesh")
+ 
+@@ -186,42 +181,19 @@ def is_pathlib(obj):
+ 
+ def is_string(obj) -> bool:
+     """
+-    Check if an object is a string.
+-
+-    Parameters
+-    ------------
+-    obj : object
+-       Any object type to be checked
++    DEPRECATED : this is not necessary since we dropped Python 2.
+ 
+-    Returns
+-    ------------
+-    is_string : bool
+-        True if obj is a string
++    Replace with `isinstance(obj, str)`
+     """
+-    return isinstance(obj, str)
+-
+-
+-def is_none(obj) -> bool:
+-    """
+-    Check to see if an object is None or not.
+-
+-    Handles the case of np.array(None) as well.
+-
+-    Parameters
+-    -------------
+-    obj : object
+-      Any object type to be checked
++    warnings.warn(
++        "`trimesh.util.is_string` is deprecated "
++        + "and will be removed in January 2025. "
++        + "replace with `isinstance(obj, str)`",
++        category=DeprecationWarning,
++        stacklevel=2,
++    )
+ 
+-    Returns
+-    -------------
+-    is_none : bool
+-        True if obj is None or numpy None-like
+-    """
+-    if obj is None:
+-        return True
+-    if is_sequence(obj) and len(obj) == 1 and obj[0] is None:
+-        return True
+-    return False
++    return isinstance(obj, str)
+ 
+ 
+ def is_sequence(obj) -> bool:
+@@ -362,9 +334,9 @@ def make_sequence(obj):
+        Contains input value
+     """
+     if is_sequence(obj):
+-        return np.array(list(obj))
++        return list(obj)
+     else:
+-        return np.array([obj])
++        return [obj]
+ 
+ 
+ def vector_hemisphere(vectors, return_sign=False):
+@@ -1412,6 +1384,59 @@ class : Optional[Callable]
+     raise ValueError("Unable to extract class of name " + name)
+ 
+ 
++def chain(*args: Union[Iterable[Any], Any, None]) -> List[Any]:
++    """
++    A less principled version of `list(itertools.chain(*args))` that
++    accepts non-iterable values, filters `None`, and returns a list
++    rather than yielding values.
++
++    If all passed values are iterables this will return identical
++    results to `list(itertools.chain(*args))`.
++
++
++    Examples
++    ----------
++
++    In [1]: list(itertools.chain([1,2], [3]))
++    Out[1]: [1, 2, 3]
++
++    In [2]: trimesh.util.chain([1,2], [3])
++    Out[2]: [1, 2, 3]
++
++    In [3]: trimesh.util.chain([1,2], [3], 4)
++    Out[3]: [1, 2, 3, 4]
++
++    In [4]: list(itertools.chain([1,2], [3], 4))
++      ----> 1 list(itertools.chain([1,2], [3], 4))
++      TypeError: 'int' object is not iterable
++
++    In [5]: trimesh.util.chain([1,2], None, 3, None, [4], [], [], 5, [])
++    Out[5]: [1, 2, 3, 4, 5]
++
++
++    Parameters
++    -----------
++    args
++      Will be individually checked to see if they're iterable
++      before either being appended or extended to a flat list.
++
++
++    Returns
++    ----------
++    chained
++      The values in a flat list.
++    """
++    # collect values to a flat list
++    chained = []
++    # extend if it's a sequence, otherwise append
++    [
++        chained.extend(a) if is_sequence(a) else chained.append(a)
++        for a in args
++        if a is not None
++    ]
++    return chained
++
++
+ def concatenate(
+     a, b=None
+ ) -> Union["trimesh.Trimesh", "trimesh.path.Path2D", "trimesh.path.Path3D"]:  # noqa: F821
+@@ -1428,31 +1453,20 @@ def concatenate(
+ 
+     Returns
+     ----------
+-    result : trimesh.Trimesh
++    result
+       Concatenated mesh
+     """
+-
+-    # get a flat list of meshes
+-    flat = []
+-    if a is not None:
+-        if is_sequence(a):
+-            flat.extend(a)
+-        else:
+-            flat.append(a)
+-    if b is not None:
+-        if is_sequence(b):
+-            flat.extend(b)
+-        else:
+-            flat.append(b)
+     dump = []
+-    for i in flat:
++    for i in chain(a, b):
+         if is_instance_named(i, "Scene"):
++            # get every mesh in the final frame.
+             dump.extend(i.dump())
+         else:
++            # just append to our flat list
+             dump.append(i)
+ 
+     if len(dump) == 1:
+-        # if there is only one mesh just return the first
++        # if there is only one geometry just return the first
+         return dump[0].copy()
+     elif len(dump) == 0:
+         # if there are no meshes return an empty mesh
+@@ -1463,6 +1477,7 @@ def concatenate(
+     is_mesh = [f for f in dump if is_instance_named(f, "Trimesh")]
+     is_path = [f for f in dump if is_instance_named(f, "Path")]
+ 
++    # if we have more
+     if len(is_path) > len(is_mesh):
+         from .path.util import concatenate as concatenate_path
+ 
+@@ -1716,7 +1731,7 @@ def convert_like(item, like):
+         return np.asanyarray(item, dtype=like.dtype)
+ 
+     # if it's already the desired type just return it
+-    if isinstance(item, like.__class__) or is_none(like):
++    if isinstance(item, like.__class__) or like is None:
+         return item
+ 
+     # if it's an array with one item return it

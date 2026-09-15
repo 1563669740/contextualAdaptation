@@ -1,0 +1,63 @@
+diff --git a/changes/1810.bugfix.rst b/changes/1810.bugfix.rst
+new file mode 100644
+index 000000000..24150ad2f
+--- /dev/null
++++ b/changes/1810.bugfix.rst
+@@ -0,0 +1,1 @@
++The formal name of an app is now validated.
+diff --git a/src/briefcase/commands/new.py b/src/briefcase/commands/new.py
+index ef52b0409..1a8e6dffa 100644
+--- a/src/briefcase/commands/new.py
++++ b/src/briefcase/commands/new.py
+@@ -164,6 +164,26 @@ def make_app_name(self, formal_name):
+             # use a dummy app name as the suggestion.
+             return "myapp"
+ 
++    def validate_formal_name(self, candidate):
++        """Determine if the formal name is valid.
++
++        A formal name is valid if it contains at least one identifier character.
++
++        :param candidate: The candidate name
++        :returns: True the formal name is valid.
++        :raises: ValueError if the name is not a valid formal name.
++        """
++        if not make_class_name(candidate):  # Check whether a class name may be derived
++            raise ValueError(
++                self.input.textwrap(
++                    f"{candidate!r} is not a valid formal name.\n"
++                    "\n"
++                    "Formal names must include at least one valid Python identifier character."
++                )
++            )
++
++        return True
++
+     def _validate_existing_app_name(self, candidate):
+         """Perform internal validation preventing the use of pre-existing app names.
+ 
+@@ -459,6 +479,7 @@ def build_app_context(self, project_overrides: dict[str, str]) -> dict[str, str]
+             ),
+             variable="formal name",
+             default="Hello World",
++            validator=self.validate_formal_name,
+             override_value=project_overrides.pop("formal_name", None),
+         )
+ 
+diff --git a/src/briefcase/config.py b/src/briefcase/config.py
+index 34d50800a..bf158cfce 100644
+--- a/src/briefcase/config.py
++++ b/src/briefcase/config.py
+@@ -73,7 +73,11 @@ def make_class_name(formal_name):
+ 
+     # If the first character isn't in the 'start' character set,
+     # and it isn't already an underscore, prepend an underscore.
+-    if unicodedata.category(class_name[0]) not in xid_start and class_name[0] != "_":
++    if (
++        class_name
++        and unicodedata.category(class_name[0]) not in xid_start
++        and class_name[0] != "_"
++    ):
+         class_name = f"_{class_name}"
+ 
+     return class_name

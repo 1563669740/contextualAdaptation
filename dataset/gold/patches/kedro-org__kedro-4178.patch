@@ -1,0 +1,131 @@
+diff --git a/RELEASE.md b/RELEASE.md
+index 88f900bcec..943f5691d0 100644
+--- a/RELEASE.md
++++ b/RELEASE.md
+@@ -1,6 +1,7 @@
+ # Upcoming Release
+ 
+ ## Major features and improvements
++* Moved development requirements from `requirements.txt` to the dedicated section in `pyproject.toml` for project template.
+ * Implemented `Protocol` abstraction for the current `DataCatalog` and adding new catalog implementations.
+ * Refactored `kedro run` and `kedro catalog` commands.
+ * Moved pattern resolution logic from `DataCatalog` to a separate component - `CatalogConfigResolver`. Updated `DataCatalog` to use `CatalogConfigResolver` internally.
+diff --git a/docs/source/development/linting.md b/docs/source/development/linting.md
+index 61989cdf85..fbc0b0147c 100644
+--- a/docs/source/development/linting.md
++++ b/docs/source/development/linting.md
+@@ -18,17 +18,17 @@ There are a variety of Python tools available to use with your Kedro projects. T
+ type.
+ 
+ ### Install the tools
+-Install `ruff` by adding the following lines to your project's `requirements.txt`
+-file:
+-```text
+-ruff # Used for linting, formatting and sorting module imports
++To install `ruff` add the following section to the `pyproject.toml` file located in the project root:
++```toml
++[project.optional-dependencies]
++dev = ["ruff"]
+ ```
+ 
+-To install all the project-specific dependencies, including the linting tools, navigate to the root directory of the
++Then to install your project including all the project-specific dependencies and the linting tools, navigate to the root directory of the
+ project and run:
+ 
+ ```bash
+-pip install -r requirements.txt
++pip install ."[dev]"
+ ```
+ 
+ Alternatively, you can individually install the linting tools using the following shell commands:
+diff --git a/features/load_node.feature b/features/load_node.feature
+index fbc5a65a07..e745378e22 100644
+--- a/features/load_node.feature
++++ b/features/load_node.feature
+@@ -5,5 +5,6 @@ Feature: load_node in new project
+     And I have run a non-interactive kedro new with starter "default"
+ 
+   Scenario: Execute ipython load_node magic
+-    When I execute the load_node magic command
++    When I install project and its dev dependencies
++    And I execute the load_node magic command
+     Then the logs should show that load_node executed successfully
+diff --git a/features/steps/cli_steps.py b/features/steps/cli_steps.py
+index 7ee2c153d8..62cda23001 100644
+--- a/features/steps/cli_steps.py
++++ b/features/steps/cli_steps.py
+@@ -755,3 +755,13 @@ def exec_magic_command(context):
+ def change_dir(context, dir):
+     """Execute Kedro target."""
+     util.chdir(dir)
++
++
++@when("I install project and its dev dependencies")
++def pip_install_project_and_dev_dependencies(context):
++    """Install project and its development dependencies using pip."""
++    _ = run(
++        [context.pip, "install", ".[dev]"],
++        env=context.env,
++        cwd=str(context.root_project_dir),
++    )
+diff --git a/kedro/templates/project/hooks/utils.py b/kedro/templates/project/hooks/utils.py
+index 947c234f19..c112d72bbb 100644
+--- a/kedro/templates/project/hooks/utils.py
++++ b/kedro/templates/project/hooks/utils.py
+@@ -20,7 +20,9 @@
+ ]
+ 
+ # Configuration key for documentation dependencies
+-docs_pyproject_requirements = ["project.optional-dependencies"]  # For pyproject.toml
++docs_pyproject_requirements = ["project.optional-dependencies.docs"]  # For pyproject.toml
++# Configuration key for linting and testing dependencies
++dev_pyproject_requirements = ["project.optional-dependencies.dev"]  # For pyproject.toml
+ 
+ # Requirements for example pipelines
+ example_pipeline_requirements = "seaborn~=0.12.1\nscikit-learn~=1.0\n"
+@@ -191,12 +193,14 @@ def setup_template_tools(
+         python_package_name (str): The name of the python package.
+         example_pipeline (str): 'True' if example pipeline was selected
+     """
++
++    if "Linting" not in selected_tools_list and "Testing" not in selected_tools_list:
++        _remove_from_toml(pyproject_file_path, dev_pyproject_requirements)
++
+     if "Linting" not in selected_tools_list:
+-        _remove_from_file(requirements_file_path, lint_requirements)
+         _remove_from_toml(pyproject_file_path, lint_pyproject_requirements)
+ 
+     if "Testing" not in selected_tools_list:
+-        _remove_from_file(requirements_file_path, test_requirements)
+         _remove_from_toml(pyproject_file_path, test_pyproject_requirements)
+         _remove_dir(current_dir / "tests")
+ 
+diff --git a/kedro/templates/project/{{ cookiecutter.repo_name }}/pyproject.toml b/kedro/templates/project/{{ cookiecutter.repo_name }}/pyproject.toml
+index f22a91242f..b2ab54c3bb 100644
+--- a/kedro/templates/project/{{ cookiecutter.repo_name }}/pyproject.toml
++++ b/kedro/templates/project/{{ cookiecutter.repo_name }}/pyproject.toml
+@@ -24,6 +24,12 @@ docs = [
+     "Jinja2<3.2.0",
+     "myst-parser>=1.0,<2.1"
+ ]
++dev = [
++    "pytest-cov~=3.0",
++    "pytest-mock>=1.7.1, <2.0",
++    "pytest~=7.2",
++    "ruff~=0.1.8"
++]
+ 
+ 
+ [tool.setuptools.dynamic]
+diff --git a/kedro/templates/project/{{ cookiecutter.repo_name }}/requirements.txt b/kedro/templates/project/{{ cookiecutter.repo_name }}/requirements.txt
+index 9301f4e3f3..1be43016fb 100644
+--- a/kedro/templates/project/{{ cookiecutter.repo_name }}/requirements.txt
++++ b/kedro/templates/project/{{ cookiecutter.repo_name }}/requirements.txt
+@@ -2,7 +2,3 @@ ipython>=8.10
+ jupyterlab>=3.0
+ notebook
+ kedro~={{ cookiecutter.kedro_version }}
+-pytest-cov~=3.0
+-pytest-mock>=1.7.1, <2.0
+-pytest~=7.2
+-ruff~=0.1.8

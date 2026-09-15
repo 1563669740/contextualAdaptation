@@ -1,0 +1,13 @@
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index 328dda4a6a71..5e69bcb57d7f 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -1028,7 +1028,7 @@ def axhspan(self, ymin, ymax, xmin=0, xmax=1, **kwargs):
+         # For Rectangles and non-separable transforms, add_patch can be buggy
+         # and update the x limits even though it shouldn't do so for an
+         # yaxis_transformed patch, so undo that update.
+-        ix = self.dataLim.intervalx
++        ix = self.dataLim.intervalx.copy()
+         mx = self.dataLim.minposx
+         self.add_patch(p)
+         self.dataLim.intervalx = ix

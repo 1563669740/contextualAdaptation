@@ -1,0 +1,101 @@
+{
+ "task_id": "python-babel__babel-1132",
+ "calibrated_utc": "2026-09-14T17:08:31Z",
+ "repo_id": "python-babel/babel",
+ "base_commit": "f91754b01cb9f32b83aeaa80b74ed10b5dfccb6a",
+ "fail_to_pass": [
+  "tests/messages/test_pofile.py::ReadPoTestCase::test_obsolete_message_with_context",
+  "tests/messages/test_pofile.py::ReadPoTestCase::test_obsolete_messages_roundtrip",
+  "tests/messages/test_pofile.py::ReadPoTestCase::test_obsolete_messages_with_context",
+  "tests/messages/test_pofile.py::ReadPoTestCase::test_obsolete_plural_with_square_brackets"
+ ],
+ "pass_to_pass_count": 7089,
+ "gold_patch_file": "C:\\Users\\Administrator\\Desktop\\TIFS\\dataset\\gold\\patches\\python-babel__babel-1132.patch",
+ "test_patch_file": "C:\\Users\\Administrator\\Desktop\\TIFS\\dataset\\benchmark_tests\\python-babel__babel-1132\\test_patch.diff",
+ "workspace_source": "codeload_tarball",
+ "apply_test_patch": {
+  "applied": true
+ },
+ "base_without_gold": {
+  "rc": 1,
+  "summary": "4 failed in 0.48s",
+  "f2p_failed": true,
+  "stderr_tail": ""
+ },
+ "apply_gold": {
+  "applied": true
+ },
+ "base_with_gold": {
+  "rc": 0,
+  "summary": "4 passed in 0.29s",
+  "f2p_passed": true,
+  "stderr_tail": ""
+ },
+ "verdict": {
+  "oracle_reproduced": true,
+  "note": "oracle_reproduced must be true before holdout tests are worth authoring: it proves this environment can distinguish the defect from the fix"
+ },
+ "gold_diff": "diff --git a/babel/messages/pofile.py b/babel/messages/pofile.py\nindex 5cd65d867..fa9f2a713 100644\n--- a/babel/messages/pofile.py\n+++ b/babel/messages/pofile.py\n@@ -239,7 +239,7 @@ def _add_message(self) -> None:\n                           context=msgctxt)\n         if self.obsolete:\n             if not self.ignore_obsolete:\n-                self.catalog.obsolete[msgid] = message\n+                self.catalog.obsolete[self.catalog._key_for(msgid, msgctxt)] = message\n         else:\n             self.catalog[msgid] = message\n         self.counter += 1\n",
+ "gold_files": [
+  "babel/messages/pofile.py"
+ ],
+ "gold_added_lines": [
+  "                self.catalog.obsolete[self.catalog._key_for(msgid, msgctxt)] = message"
+ ],
+ "test_patch_added_lines": [
+  "        message = catalog.obsolete[(\"foo\", \"other\")]",
+  "    def test_obsolete_messages_with_context(self):",
+  "        buf = StringIO('''",
+  "# This is an obsolete message",
+  "#~ msgctxt \"apple\"",
+  "#~ msgid \"foo\"",
+  "#~ msgstr \"Foo\"",
+  "",
+  "# This is an obsolete message with the same id but different context",
+  "#~ msgctxt \"orange\"",
+  "#~ msgid \"foo\"",
+  "#~ msgstr \"Bar\"",
+  "''')",
+  "        catalog = pofile.read_po(buf)",
+  "        assert len(catalog) == 0",
+  "        assert len(catalog.obsolete) == 2",
+  "        assert 'foo' not in catalog.obsolete",
+  "",
+  "        apple_msg = catalog.obsolete[('foo', 'apple')]",
+  "        assert apple_msg.id == 'foo'",
+  "        assert apple_msg.string == 'Foo'",
+  "        assert apple_msg.user_comments == ['This is an obsolete message']",
+  "",
+  "        orange_msg = catalog.obsolete[('foo', 'orange')]",
+  "        assert orange_msg.id == 'foo'",
+  "        assert orange_msg.string == 'Bar'",
+  "        assert orange_msg.user_comments == ['This is an obsolete message with the same id but different context']",
+  "",
+  "    def test_obsolete_messages_roundtrip(self):",
+  "        buf = StringIO('''\\",
+  "# This message is not obsolete",
+  "#: main.py:1",
+  "msgid \"bar\"",
+  "msgstr \"Bahr\"",
+  "",
+  "# This is an obsolete message",
+  "#~ msgid \"foo\"",
+  "#~ msgstr \"Voh\"",
+  "",
+  "# This is an obsolete message",
+  "#~ msgctxt \"apple\"",
+  "#~ msgid \"foo\"",
+  "#~ msgstr \"Foo\"",
+  "",
+  "# This is an obsolete message with the same id but different context",
+  "#~ msgctxt \"orange\"",
+  "#~ msgid \"foo\"",
+  "#~ msgstr \"Bar\"",
+  "",
+  "''')",
+  "        generated_po_file = ''.join(pofile.generate_po(pofile.read_po(buf), omit_header=True))",
+  "        assert buf.getvalue() == generated_po_file",
+  "",
+  "        message = catalog.obsolete['foo']"
+ ]
+}

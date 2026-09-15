@@ -1,0 +1,49 @@
+diff --git a/haystack/components/preprocessors/document_cleaner.py b/haystack/components/preprocessors/document_cleaner.py
+index 92e11eb342..8a1a0ce751 100644
+--- a/haystack/components/preprocessors/document_cleaner.py
++++ b/haystack/components/preprocessors/document_cleaner.py
+@@ -113,9 +113,9 @@ def _remove_empty_lines(self, text: str) -> str:
+         :param text: Text to clean.
+         :returns: The text without empty lines.
+         """
+-        lines = text.split("\n")
+-        non_empty_lines = filter(lambda line: line.strip() != "", lines)
+-        return "\n".join(non_empty_lines)
++        pages = text.split("\f")
++        cleaned_pages = ["\n".join(line for line in page.split("\n") if line.strip()) for page in pages]
++        return "\f".join(cleaned_pages)
+ 
+     def _remove_extra_whitespaces(self, text: str) -> str:
+         """
+@@ -124,7 +124,9 @@ def _remove_extra_whitespaces(self, text: str) -> str:
+         :param text: Text to clean.
+         :returns: The text without extra whitespaces.
+         """
+-        return re.sub(r"\s\s+", " ", text).strip()
++        texts = text.split("\f")
++        cleaned_text = [re.sub(r"\s\s+", " ", text).strip() for text in texts]
++        return "\f".join(cleaned_text)
+ 
+     def _remove_regex(self, text: str, regex: str) -> str:
+         """
+@@ -134,7 +136,9 @@ def _remove_regex(self, text: str, regex: str) -> str:
+         :param regex: Regex to match and replace substrings by "".
+         :returns: The text without the substrings that match the regex.
+         """
+-        return re.sub(regex, "", text).strip()
++        texts = text.split("\f")
++        cleaned_text = [re.sub(regex, "", text).strip() for text in texts]
++        return "\f".join(cleaned_text)
+ 
+     def _remove_substrings(self, text: str, substrings: List[str]) -> str:
+         """
+diff --git a/releasenotes/notes/fix-document-cleaner-page-tag-15c66d6433b82b0a.yaml b/releasenotes/notes/fix-document-cleaner-page-tag-15c66d6433b82b0a.yaml
+new file mode 100644
+index 0000000000..b25bbb662c
+--- /dev/null
++++ b/releasenotes/notes/fix-document-cleaner-page-tag-15c66d6433b82b0a.yaml
+@@ -0,0 +1,4 @@
++---
++fixes:
++  - |
++    Fix the DocumentCleaner removing the `\f` tag from content preventing from counting page number (by Splitter for example).

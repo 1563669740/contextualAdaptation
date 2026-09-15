@@ -1,0 +1,3 @@
+[
+  "conans/test/integration/graph/core/test_provides.py::test_self_build_require"
+]

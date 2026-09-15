@@ -1,0 +1,49 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index f97540b1d..8af65229d 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -187,7 +187,7 @@ jobs:
+     strategy:
+       fail-fast: false
+       matrix:
+-        framework: [ "toga", "pyside6", "pygame" ]
++        framework: [ "toga", "pyside6", "pygame", "console" ]
+         runner-os: [ "macos-12", "macos-14", "ubuntu-22.04", "windows-latest" ]
+ 
+   verify-apps:
+@@ -206,5 +206,5 @@ jobs:
+     strategy:
+       fail-fast: false
+       matrix:
+-        framework: [ "toga", "pyside6", "pygame" ]
++        framework: [ "toga", "pyside6", "pygame", "console" ]
+         runner-os: [ "macos-12", "macos-14", "ubuntu-22.04", "windows-latest" ]
+diff --git a/automation/src/automation/bootstraps/console.py b/automation/src/automation/bootstraps/console.py
+index 3436c4cdf..4faa15abb 100644
+--- a/automation/src/automation/bootstraps/console.py
++++ b/automation/src/automation/bootstraps/console.py
+@@ -12,5 +12,4 @@ def main():
+     time.sleep(2)
+     print("{EXIT_SUCCESS_NOTIFY}")
+     print("{BRIEFCASE_EXIT_SUCCESS_SIGNAL}")
+-
+ """
+diff --git a/changes/1867.misc.rst b/changes/1867.misc.rst
+new file mode 100644
+index 000000000..6d7e52a14
+--- /dev/null
++++ b/changes/1867.misc.rst
+@@ -0,0 +1,1 @@
++Console app testing was added to CI.
+diff --git a/src/briefcase/bootstraps/console.py b/src/briefcase/bootstraps/console.py
+index b9f7568db..58de0ad4a 100644
+--- a/src/briefcase/bootstraps/console.py
++++ b/src/briefcase/bootstraps/console.py
+@@ -10,7 +10,6 @@ def app_source(self):
+ def main():
+     # Your app logic goes here
+     print("Hello, World.")
+-
+ """
+ 
+     def app_start_source(self):

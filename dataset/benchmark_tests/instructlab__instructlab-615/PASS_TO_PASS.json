@@ -1,0 +1,14 @@
+[
+  "tests/test_config.py::TestConfig::test_config",
+  "tests/test_config.py::TestConfig::test_config_missing_arguments",
+  "tests/test_config.py::TestConfig::test_config_unexpected_arguments",
+  "tests/test_lab.py::TestConfig::test_cli_params_hyphenated",
+  "tests/test_lab_download.py::TestLabDownload::test_download",
+  "tests/test_lab_download.py::TestLabDownload::test_download_error",
+  "tests/test_lab_init.py::TestLabInit::test_init_config",
+  "tests/test_lab_init.py::TestLabInit::test_init_interactive",
+  "tests/test_lab_init.py::TestLabInit::test_init_interactive_clone",
+  "tests/test_lab_init.py::TestLabInit::test_init_interactive_with_preexisting_config",
+  "tests/test_lab_init.py::TestLabInit::test_init_interactive_with_preexisting_nonempty_taxonomy",
+  "tests/test_lab_init.py::TestLabInit::test_init_noninteractive"
+]

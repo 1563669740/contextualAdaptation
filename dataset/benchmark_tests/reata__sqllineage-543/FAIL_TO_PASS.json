@@ -1,0 +1,3 @@
+[
+  "tests/core/test_runner.py::test_get_column_lineage_exclude_subquery_inpath"
+]

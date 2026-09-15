@@ -1,0 +1,7 @@
+[
+  "shapely/tests/test_ragged_array.py::test_linestrings",
+  "shapely/tests/test_ragged_array.py::test_polygons",
+  "shapely/tests/test_ragged_array.py::test_multipoints",
+  "shapely/tests/test_ragged_array.py::test_multilinestrings",
+  "shapely/tests/test_ragged_array.py::test_multipolygons"
+]

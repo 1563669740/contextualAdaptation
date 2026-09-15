@@ -1,0 +1,3 @@
+[
+  "tests/test_validators.py::TestIn_::test_is_hashable"
+]

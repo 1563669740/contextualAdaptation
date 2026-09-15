@@ -1,0 +1,13 @@
+diff --git a/dspy/primitives/example.py b/dspy/primitives/example.py
+index 55b06ad8d1..5165a442f9 100644
+--- a/dspy/primitives/example.py
++++ b/dspy/primitives/example.py
+@@ -54,7 +54,7 @@ def __str__(self):
+         return self.__repr__()
+     
+     def __eq__(self, other):
+-        return self._store == other._store
++        return isinstance(other, Example) and self._store == other._store
+     
+     def __hash__(self):
+         return hash(tuple(self._store.items()))

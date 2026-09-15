@@ -1,0 +1,1979 @@
+diff --git a/docs/_newsfragments/1853.breakingchange.rst b/docs/_newsfragments/1853.breakingchange.rst
+index e6183c030..9333b0104 100644
+--- a/docs/_newsfragments/1853.breakingchange.rst
++++ b/docs/_newsfragments/1853.breakingchange.rst
+@@ -1,3 +1,60 @@
+-The deprecated ``has_representation()`` method for :class:`~falcon.HTTPError` was
+-removed, along with the ``NoRepresentation`` and ``OptionalRepresentation``
+-classes.
++A number of previously deprecated methods, attributes and classes have now been
++removed:
++
++* In Falcon 3.0, the use of positional arguments was deprecated for the
++  optional initializer parameters of :class:`falcon.HTTPError` and its
++  subclasses.
++
++  We have now redefined these optional arguments as keyword-only, so passing
++  them as positional arguments will result in a :class:`TypeError`:
++
++  >>> import falcon
++  >>> falcon.HTTPForbidden('AccessDenied')
++  Traceback (most recent call last):
++    <...>
++  TypeError: HTTPForbidden.__init__() takes 1 positional argument but 2 were given
++  >>> falcon.HTTPForbidden('AccessDenied', 'No write access')
++  Traceback (most recent call last):
++    <...>
++  TypeError: HTTPForbidden.__init__() takes 1 positional argument but 3 were given
++
++  Instead, simply pass these parameters as keyword arguments:
++
++  >>> import falcon
++  >>> falcon.HTTPForbidden(title='AccessDenied')
++  <HTTPForbidden: 403 Forbidden>
++  >>> falcon.HTTPForbidden(title='AccessDenied', description='No write access')
++  <HTTPForbidden: 403 Forbidden>
++
++* The ``falcon-print-routes`` command-line utility is no longer supported;
++  ``falcon-inspect-app`` is a direct replacement.
++
++* A deprecated utility function, ``falcon.get_http_status()``, was removed.
++  Please use :meth:`falcon.code_to_http_status` instead.
++
++* A deprecated routing utility, ``compile_uri_template()``, was removed.
++  This function was only employed in the early versions of the framework, and
++  is expected to have been fully supplanted by the
++  :class:`~falcon.routing.CompiledRouter`. In a pinch, you can simply copy its
++  implementation from the Falcon 3.x source tree into your application.
++
++* The deprecated ``Response.add_link()`` method was removed; please use
++  :meth:`Response.append_link <falcon.Response.append_link>` instead.
++
++* The deprecated ``has_representation()`` method for :class:`~falcon.HTTPError`
++  was removed, along with the ``NoRepresentation`` and
++  ``OptionalRepresentation`` classes.
++
++* An undocumented, deprecated public method ``find_by_media_type()`` of
++  :class:`media.Handlers <falcon.media.Handlers>` was removed.
++  Apart from configuring handlers for Internet media types, the rest of
++  :class:`~falcon.media.Handlers` is only meant to be used internally by the
++  framework (unless documented otherwise).
++
++* Previously, the ``json`` module could be imported via ``falcon.util``.
++  This deprecated alias was removed; please import ``json`` directly from the
++  :mod:`standard library <json>`, or another third-party JSON library of
++  choice.
++
++We decided, on the other hand, to keep the deprecated :class:`falcon.API` alias
++until Falcon 5.0.
+diff --git a/docs/_newsfragments/2090.breakingchange.rst b/docs/_newsfragments/2090.breakingchange.rst
+index 9c5a677f2..6e16920ca 100644
+--- a/docs/_newsfragments/2090.breakingchange.rst
++++ b/docs/_newsfragments/2090.breakingchange.rst
+@@ -1,4 +1,5 @@
+ The deprecated ``api_helpers`` was removed in favor of the ``app_helpers``
+ module. In addition, the deprecated ``body``
+-attributes for the :class:`~falcon.HTTPResponse`,
+-:class:`~falcon.asgi.HTTPResponse`, and :class:`~falcon.HTTPStatus` classes.
++attributes for the :class:`~falcon.Response`,
++:class:`asgi.Response <falcon.asgi.Response>`,
++and :class:`~falcon.HTTPStatus` classes.
+diff --git a/docs/_newsfragments/2253.misc.rst b/docs/_newsfragments/2253.misc.rst
+index 256f4a736..178cc5494 100644
+--- a/docs/_newsfragments/2253.misc.rst
++++ b/docs/_newsfragments/2253.misc.rst
+@@ -1,3 +1,3 @@
+ The :ref:`utility functions <util>` ``create_task()`` and
+ ``get_running_loop()`` are now deprecated in favor of their standard library
+-counterparts, :func:`asyncio.create_task` and `:func:`asyncio.get_running_loop`.
++counterparts, :func:`asyncio.create_task` and :func:`asyncio.get_running_loop`.
+diff --git a/docs/api/routing.rst b/docs/api/routing.rst
+index 4d339c9da..c3a3fc41f 100644
+--- a/docs/api/routing.rst
++++ b/docs/api/routing.rst
+@@ -478,8 +478,6 @@ be used by custom routing engines.
+ 
+ .. autofunction:: falcon.routing.set_default_responders
+ 
+-.. autofunction:: falcon.routing.compile_uri_template
+-
+ .. autofunction:: falcon.app_helpers.prepare_middleware
+ 
+ .. autofunction:: falcon.app_helpers.prepare_middleware_ws
+diff --git a/docs/api/util.rst b/docs/api/util.rst
+index 810790448..094bf4434 100644
+--- a/docs/api/util.rst
++++ b/docs/api/util.rst
+@@ -32,7 +32,6 @@ HTTP Status
+ 
+ .. autofunction:: falcon.http_status_to_code
+ .. autofunction:: falcon.code_to_http_status
+-.. autofunction:: falcon.get_http_status
+ 
+ Media types
+ -----------
+diff --git a/falcon/__init__.py b/falcon/__init__.py
+index d6bcc1a06..542323b31 100644
+--- a/falcon/__init__.py
++++ b/falcon/__init__.py
+@@ -77,7 +77,6 @@
+     'ETag',
+     'get_argnames',
+     'get_bound_method',
+-    'get_http_status',
+     'get_running_loop',
+     'http_cookies',
+     'http_date_to_dt',
+@@ -609,7 +608,6 @@
+ from falcon.util import ETag
+ from falcon.util import get_argnames
+ from falcon.util import get_bound_method
+-from falcon.util import get_http_status
+ from falcon.util import get_running_loop
+ from falcon.util import http_cookies
+ from falcon.util import http_date_to_dt
+diff --git a/falcon/app.py b/falcon/app.py
+index 6ef6cda25..56ba35289 100644
+--- a/falcon/app.py
++++ b/falcon/app.py
+@@ -1263,7 +1263,7 @@ def _update_sink_and_static_routes(self) -> None:
+ 
+ 
+ # TODO(myusko): This class is a compatibility alias, and should be removed
+-# in the next major release (4.0).
++# in Falcon 5.0.
+ class API(App):
+     """Compatibility alias of :class:`falcon.App`.
+ 
+@@ -1271,12 +1271,12 @@ class API(App):
+     reflect the breadth of applications that :class:`App <falcon.App>`, and its
+     ASGI counterpart in particular, can now be used for.
+ 
+-    This compatibility alias should be considered deprecated; it will be
+-    removed in a future release.
++    This compatibility alias is deprecated; it will be removed entirely in
++    Falcon 5.0.
+     """
+ 
+     @deprecation.deprecated(
+-        'API class may be removed in a future release, use falcon.App instead.'
++        'The API class will be removed in Falcon 5.0, use falcon.App instead.'
+     )
+     def __init__(self, *args: Any, **kwargs: Any) -> None:
+         super().__init__(*args, **kwargs)
+diff --git a/falcon/asgi/app.py b/falcon/asgi/app.py
+index 4478728c2..9b69eb58c 100644
+--- a/falcon/asgi/app.py
++++ b/falcon/asgi/app.py
+@@ -1058,7 +1058,7 @@ async def _call_lifespan_handlers(
+                     )
+                     return
+ 
+-                if self.req_options.auto_parse_form_urlencoded:
++                if self.req_options._auto_parse_form_urlencoded:
+                     await send(
+                         {
+                             'type': EventType.LIFESPAN_STARTUP_FAILED,
+diff --git a/falcon/asgi/request.py b/falcon/asgi/request.py
+index f4f4f1d73..5fb622885 100644
+--- a/falcon/asgi/request.py
++++ b/falcon/asgi/request.py
+@@ -41,7 +41,7 @@
+ from falcon.typing import MISSING
+ from falcon.typing import MissingOr
+ from falcon.typing import StoreArgument
+-from falcon.util import deprecated
++from falcon.util import deprecation
+ from falcon.util import ETag
+ from falcon.util.uri import parse_host
+ from falcon.util.uri import parse_query_string
+@@ -348,8 +348,12 @@ def root_path(self) -> str:
+         return ''
+ 
+     @property
+-    # NOTE(caselit): Deprecated long ago. Warns since 4.0
+-    @deprecated('Use `root_path` instead', is_property=True)
++    # NOTE(caselit): Deprecated long ago. Warns since 4.0.
++    @deprecation.deprecated(
++        'Use `root_path` instead. '
++        '(This compatibility alias will be removed in Falcon 5.0.)',
++        is_property=True,
++    )
+     def app(self) -> str:
+         """Deprecated alias for :attr:`root_path`."""
+         return self.root_path
+diff --git a/falcon/cmd/inspect_app.py b/falcon/cmd/inspect_app.py
+index d1a1a038d..d48c0d30d 100644
+--- a/falcon/cmd/inspect_app.py
++++ b/falcon/cmd/inspect_app.py
+@@ -84,12 +84,13 @@ def load_app(parser, args):
+     return app
+ 
+ 
++# TODO(vytas): Remove this placeholder altogether in Falcon 5.0.
+ def route_main():
+-    print(
+-        'The "falcon-print-routes" command is deprecated. '
+-        'Please use "falcon-inspect-app"'
++    sys.stderr.write(
++        'The "falcon-print-routes" command is no longer supported. \n\n'
++        'Please use "falcon-inspect-app" instead.\n\n'
+     )
+-    main()
++    sys.exit(2)
+ 
+ 
+ def main():
+diff --git a/falcon/errors.py b/falcon/errors.py
+index afc1faa8a..af64cf0f5 100644
+--- a/falcon/errors.py
++++ b/falcon/errors.py
+@@ -41,7 +41,6 @@ def on_get(self, req, resp):
+ 
+ from falcon.http_error import HTTPError
+ import falcon.status_codes as status
+-from falcon.util.deprecation import deprecated_args
+ from falcon.util.misc import dt_to_http
+ 
+ if TYPE_CHECKING:
+@@ -176,6 +175,40 @@ class WebSocketServerError(WebSocketDisconnected):
+ 
+ 
+ HTTPErrorKeywordArguments = Union[str, int, None]
++
++# TODO(vytas): Passing **kwargs down to HTTPError results in arg-type error in
++#   Mypy, because it is impossible to verify that, e.g., an int value was not
++#   erroneously passed to href instead of code, etc.
++#
++#   It is hard to properly type this on older Pythons, so we just sprinkle type
++#   ignores on the super().__init__(...) calls below. In any case, this call is
++#   internal to the framework.
++#
++#   On Python 3.11+, I have verified it is possible to properly type this
++#   pattern using typing.Unpack:
++#
++#   class HTTPErrorKeywordArguments(TypedDict):
++#       href: Optional[str]
++#       href_text: Optional[str]
++#       code: Optional[int]
++#
++#   class HTTPErrorSubclass(HTTPError):
++#       def __init__(
++#           self,
++#           *,
++#           title: Optional[str] = None,
++#           description: Optional[str] = None,
++#           headers: Optional[HeaderList] = None,
++#           **kwargs: Unpack[HTTPErrorKeywordArguments],
++#       ) -> None:
++#           super().__init__(
++#               status.HTTP_400,
++#               title=title,
++#               description=description,
++#               headers=headers,
++#               **kwargs,
++#           )
++
+ RetryAfter = Union[int, datetime, None]
+ 
+ 
+@@ -189,10 +222,7 @@ class HTTPBadRequest(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.1)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '400 Bad Request').
+@@ -224,9 +254,9 @@ class HTTPBadRequest(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -237,7 +267,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -262,10 +292,7 @@ class HTTPUnauthorized(HTTPError):
+ 
+     (See also: RFC 7235, Section 3.1)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '401 Unauthorized').
+@@ -307,9 +334,9 @@ class HTTPUnauthorized(HTTPError):
+ 
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -325,7 +352,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -350,10 +377,7 @@ class HTTPForbidden(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.4)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '403 Forbidden').
+@@ -385,9 +409,9 @@ class HTTPForbidden(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -398,7 +422,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -419,10 +443,7 @@ class HTTPNotFound(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.3)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Human-friendly error title. If not provided, and
+@@ -456,9 +477,9 @@ class HTTPNotFound(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -469,7 +490,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -483,10 +504,7 @@ class HTTPRouteNotFound(HTTPNotFound):
+     behavior can be customized by registering a custom error handler for
+     :class:`~.HTTPRouteNotFound`.
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Human-friendly error title. If not provided, and
+@@ -536,11 +554,8 @@ class HTTPMethodNotAllowed(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.5)
+ 
+-    Note:
+-        ``allowed_methods`` is the only positional argument allowed, the other
+-        arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    `allowed_methods` is the only positional argument allowed,
++    the other arguments are defined as keyword-only.
+ 
+     Args:
+         allowed_methods (list of str): Allowed HTTP methods for this
+@@ -582,10 +597,10 @@ class HTTPMethodNotAllowed(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=1)
+     def __init__(
+         self,
+         allowed_methods: Iterable[str],
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -598,7 +613,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -620,10 +635,7 @@ class HTTPNotAcceptable(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.6)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         description (str): Human-friendly description of the error, along with
+@@ -654,9 +666,9 @@ class HTTPNotAcceptable(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -667,7 +679,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -692,10 +704,7 @@ class HTTPConflict(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.8)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '409 Conflict').
+@@ -727,9 +736,9 @@ class HTTPConflict(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -740,7 +749,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -769,10 +778,7 @@ class HTTPGone(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.9)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Human-friendly error title. If not provided, and
+@@ -806,9 +812,9 @@ class HTTPGone(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -819,7 +825,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -835,10 +841,7 @@ class HTTPLengthRequired(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.10)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '411 Length Required').
+@@ -870,9 +873,9 @@ class HTTPLengthRequired(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -883,7 +886,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -900,10 +903,7 @@ class HTTPPreconditionFailed(HTTPError):
+ 
+     (See also: RFC 7232, Section 4.2)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '412 Precondition Failed').
+@@ -935,9 +935,9 @@ class HTTPPreconditionFailed(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -948,7 +948,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -967,10 +967,7 @@ class HTTPPayloadTooLarge(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.11)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '413 Payload Too Large').
+@@ -1010,9 +1007,9 @@ class HTTPPayloadTooLarge(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         retry_after: RetryAfter = None,
+@@ -1024,7 +1021,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=_parse_retry_after(headers, retry_after),
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1046,10 +1043,7 @@ class HTTPUriTooLong(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.12)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '414 URI Too Long').
+@@ -1081,9 +1075,9 @@ class HTTPUriTooLong(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1094,7 +1088,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1111,10 +1105,7 @@ class HTTPUnsupportedMediaType(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.5.13)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '415 Unsupported Media Type').
+@@ -1146,9 +1137,9 @@ class HTTPUnsupportedMediaType(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1159,7 +1150,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1180,11 +1171,8 @@ class HTTPRangeNotSatisfiable(HTTPError):
+ 
+     (See also: RFC 7233, Section 4.4)
+ 
+-    Note:
+-        ``resource_length`` is the only positional argument allowed, the other
+-        arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    `resource_length` is the only positional argument allowed,
++    the other arguments are defined as keyword-only.
+ 
+     Args:
+         resource_length: The maximum value for the last-byte-pos of a range
+@@ -1224,10 +1212,10 @@ class HTTPRangeNotSatisfiable(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=1)
+     def __init__(
+         self,
+         resource_length: int,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1241,7 +1229,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1260,10 +1248,7 @@ class HTTPUnprocessableEntity(HTTPError):
+ 
+     (See also: RFC 4918, Section 11.2)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '422 Unprocessable Entity').
+@@ -1295,9 +1280,9 @@ class HTTPUnprocessableEntity(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1308,7 +1293,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1322,10 +1307,7 @@ class HTTPLocked(HTTPError):
+ 
+     (See also: RFC 4918, Section 11.3)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '423 Locked').
+@@ -1357,9 +1339,9 @@ class HTTPLocked(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1370,7 +1352,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1383,10 +1365,7 @@ class HTTPFailedDependency(HTTPError):
+ 
+     (See also: RFC 4918, Section 11.4)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '424 Failed Dependency').
+@@ -1418,9 +1397,9 @@ class HTTPFailedDependency(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1431,7 +1410,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1452,10 +1431,7 @@ class HTTPPreconditionRequired(HTTPError):
+ 
+     (See also: RFC 6585, Section 3)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '428 Precondition Required').
+@@ -1487,9 +1463,9 @@ class HTTPPreconditionRequired(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1500,7 +1476,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1518,10 +1494,7 @@ class HTTPTooManyRequests(HTTPError):
+ 
+     (See also: RFC 6585, Section 4)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '429 Too Many Requests').
+@@ -1561,9 +1534,9 @@ class HTTPTooManyRequests(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1575,7 +1548,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=_parse_retry_after(headers, retry_after),
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1595,10 +1568,7 @@ class HTTPRequestHeaderFieldsTooLarge(HTTPError):
+ 
+     (See also: RFC 6585, Section 5)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '431 Request Header Fields Too Large').
+@@ -1630,9 +1600,9 @@ class HTTPRequestHeaderFieldsTooLarge(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1643,7 +1613,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1670,10 +1640,7 @@ class HTTPUnavailableForLegalReasons(HTTPError):
+ 
+     (See also: RFC 7725, Section 3)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '451 Unavailable For Legal Reasons').
+@@ -1705,9 +1672,9 @@ class HTTPUnavailableForLegalReasons(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1718,7 +1685,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1730,10 +1697,7 @@ class HTTPInternalServerError(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.6.1)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '500 Internal Server Error').
+@@ -1766,9 +1730,9 @@ class HTTPInternalServerError(HTTPError):
+ 
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1779,7 +1743,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1797,10 +1761,7 @@ class HTTPNotImplemented(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.6.2)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '500 Internal Server Error').
+@@ -1834,9 +1795,9 @@ class HTTPNotImplemented(HTTPError):
+ 
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1847,7 +1808,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1860,10 +1821,7 @@ class HTTPBadGateway(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.6.3)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '502 Bad Gateway').
+@@ -1895,9 +1853,9 @@ class HTTPBadGateway(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1908,7 +1866,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -1929,10 +1887,7 @@ class HTTPServiceUnavailable(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.6.4)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '503 Service Unavailable').
+@@ -1972,9 +1927,9 @@ class HTTPServiceUnavailable(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -1986,7 +1941,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=_parse_retry_after(headers, retry_after),
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -2000,10 +1955,7 @@ class HTTPGatewayTimeout(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.6.5)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '503 Service Unavailable').
+@@ -2035,9 +1987,9 @@ class HTTPGatewayTimeout(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -2048,7 +2000,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -2067,10 +2019,7 @@ class HTTPVersionNotSupported(HTTPError):
+ 
+     (See also: RFC 7231, Section 6.6.6)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '503 Service Unavailable').
+@@ -2102,9 +2051,9 @@ class HTTPVersionNotSupported(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -2115,7 +2064,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -2132,10 +2081,7 @@ class HTTPInsufficientStorage(HTTPError):
+ 
+     (See also: RFC 4918, Section 11.5)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '507 Insufficient Storage').
+@@ -2167,9 +2113,9 @@ class HTTPInsufficientStorage(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -2180,7 +2126,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -2194,10 +2140,7 @@ class HTTPLoopDetected(HTTPError):
+ 
+     (See also: RFC 5842, Section 7.2)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '508 Loop Detected').
+@@ -2229,9 +2172,9 @@ class HTTPLoopDetected(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -2242,7 +2185,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -2268,10 +2211,7 @@ class HTTPNetworkAuthenticationRequired(HTTPError):
+ 
+     (See also: RFC 6585, Section 6)
+ 
+-    Note:
+-        All the arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    All the arguments are defined as keyword-only.
+ 
+     Keyword Args:
+         title (str): Error title (default '511 Network Authentication Required').
+@@ -2303,9 +2243,9 @@ class HTTPNetworkAuthenticationRequired(HTTPError):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+@@ -2316,7 +2256,7 @@ def __init__(
+             title=title,
+             description=description,
+             headers=headers,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -2325,11 +2265,8 @@ class HTTPInvalidHeader(HTTPBadRequest):
+ 
+     One of the headers in the request is invalid.
+ 
+-    Note:
+-        ``msg`` and ``header_name`` are the only positional argument allowed,
+-        the other arguments should be passed as keyword only. Using them as
+-        positional arguments will raise a deprecation warning and will result
+-        in an error in a future version of falcon.
++    `msg` and `header_name` are the only positional arguments allowed,
++    the other arguments are defined as keyword-only.
+ 
+     Args:
+         msg (str): A description of why the value is invalid.
+@@ -2362,11 +2299,11 @@ class HTTPInvalidHeader(HTTPBadRequest):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=2)
+     def __init__(
+         self,
+         msg: str,
+         header_name: str,
++        *,
+         headers: Optional[HeaderList] = None,
+         **kwargs: HTTPErrorKeywordArguments,
+     ):
+@@ -2386,11 +2323,8 @@ class HTTPMissingHeader(HTTPBadRequest):
+ 
+     A header is missing from the request.
+ 
+-    Note:
+-        ``header_name`` is the only positional argument allowed, the other
+-        arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    `header_name` is the only positional argument allowed,
++    the other arguments are defined as keyword-only.
+ 
+     Args:
+         header_name (str): The name of the missing header.
+@@ -2422,10 +2356,10 @@ class HTTPMissingHeader(HTTPBadRequest):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=1)
+     def __init__(
+         self,
+         header_name: str,
++        *,
+         headers: Optional[HeaderList] = None,
+         **kwargs: HTTPErrorKeywordArguments,
+     ):
+@@ -2447,11 +2381,8 @@ class HTTPInvalidParam(HTTPBadRequest):
+     parameter in a query string, form, or document that was submitted
+     with the request.
+ 
+-    Note:
+-        ``msg`` and ``param_name`` are the only positional argument allowed,
+-        the other arguments should be passed as keyword only. Using them as
+-        positional arguments will raise a deprecation warning and will result
+-        in an error in a future version of falcon.
++    `msg` and `param_name` are the only positional arguments allowed,
++    the other arguments are defined as keyword-only.
+ 
+     Args:
+         msg (str): A description of the invalid parameter.
+@@ -2484,11 +2415,11 @@ class HTTPInvalidParam(HTTPBadRequest):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=2)
+     def __init__(
+         self,
+         msg: str,
+         param_name: str,
++        *,
+         headers: Optional[HeaderList] = None,
+         **kwargs: HTTPErrorKeywordArguments,
+     ) -> None:
+@@ -2510,11 +2441,8 @@ class HTTPMissingParam(HTTPBadRequest):
+     parameter in a query string, form, or document that was submitted
+     with the request.
+ 
+-    Note:
+-        ``param_name`` is the only positional argument allowed, the other
+-        arguments should be passed as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    `param_name` is the only positional argument allowed,
++    the other arguments are defined as keyword-only.
+ 
+     Args:
+         param_name (str): The name of the missing parameter.
+@@ -2546,10 +2474,10 @@ class HTTPMissingParam(HTTPBadRequest):
+             base articles related to this error (default ``None``).
+     """
+ 
+-    @deprecated_args(allowed_positional=1)
+     def __init__(
+         self,
+         param_name: str,
++        *,
+         headers: Optional[HeaderList] = None,
+         **kwargs: HTTPErrorKeywordArguments,
+     ) -> None:
+@@ -2607,7 +2535,7 @@ def __init__(self, media_type: str, **kwargs: HTTPErrorKeywordArguments) -> None
+         super().__init__(
+             title='Invalid {0}'.format(media_type),
+             description='Could not parse an empty {0} body'.format(media_type),
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+@@ -2652,7 +2580,9 @@ def __init__(
+         self, media_type: str, **kwargs: Union[HeaderList, HTTPErrorKeywordArguments]
+     ):
+         super().__init__(
+-            title='Invalid {0}'.format(media_type), description=None, **kwargs
++            title='Invalid {0}'.format(media_type),
++            description=None,
++            **kwargs,  # type: ignore[arg-type]
+         )
+         self._media_type = media_type
+ 
+@@ -2749,9 +2679,9 @@ class MultipartParseError(MediaMalformedError):
+     # NOTE(caselit): remove the description @property in MediaMalformedError
+     description = None
+ 
+-    @deprecated_args(allowed_positional=0)
+     def __init__(
+         self,
++        *,
+         description: Optional[str] = None,
+         **kwargs: Union[HeaderList, HTTPErrorKeywordArguments],
+     ) -> None:
+@@ -2759,7 +2689,7 @@ def __init__(
+             self,
+             title='Malformed multipart/form-data request media',
+             description=description,
+-            **kwargs,
++            **kwargs,  # type: ignore[arg-type]
+         )
+ 
+ 
+diff --git a/falcon/http_error.py b/falcon/http_error.py
+index 3f4af635c..51e837151 100644
+--- a/falcon/http_error.py
++++ b/falcon/http_error.py
+@@ -23,7 +23,6 @@
+ from falcon.util import code_to_http_status
+ from falcon.util import http_status_to_code
+ from falcon.util import uri
+-from falcon.util.deprecation import deprecated_args
+ 
+ if TYPE_CHECKING:
+     from falcon.media import BaseHandler
+@@ -49,11 +48,8 @@ class HTTPError(Exception):
+     is implemented via ``to_dict()``). To also support XML, override
+     the ``to_xml()`` method.
+ 
+-    Note:
+-        ``status`` is the only positional argument allowed, the other
+-        arguments should be used as keyword only. Using them as positional
+-        arguments will raise a deprecation warning and will result in an
+-        error in a future version of falcon.
++    `status` is the only positional argument allowed,
++    the other arguments are defined as keyword-only.
+ 
+     Args:
+         status (Union[str,int]): HTTP status code or line (e.g.,
+@@ -117,10 +113,10 @@ class HTTPError(Exception):
+         'code',
+     )
+ 
+-    @deprecated_args(allowed_positional=1)
+     def __init__(
+         self,
+         status: ResponseStatus,
++        *,
+         title: Optional[str] = None,
+         description: Optional[str] = None,
+         headers: Optional[HeaderList] = None,
+diff --git a/falcon/http_status.py b/falcon/http_status.py
+index 1a591fcf4..dd5522777 100644
+--- a/falcon/http_status.py
++++ b/falcon/http_status.py
+@@ -18,7 +18,6 @@
+ from typing import Optional, TYPE_CHECKING
+ 
+ from falcon.util import http_status_to_code
+-from falcon.util.deprecation import AttributeRemovedError
+ 
+ if TYPE_CHECKING:
+     from falcon.typing import HeaderList
+@@ -69,10 +68,3 @@ def __init__(
+     def status_code(self) -> int:
+         """HTTP status code normalized from :attr:`status`."""
+         return http_status_to_code(self.status)
+-
+-    @property
+-    def body(self) -> None:
+-        raise AttributeRemovedError(
+-            'The body attribute is no longer supported. '
+-            'Please use the text attribute instead.'
+-        )
+diff --git a/falcon/media/handlers.py b/falcon/media/handlers.py
+index 4eeaf4f7f..8c1965f06 100644
+--- a/falcon/media/handlers.py
++++ b/falcon/media/handlers.py
+@@ -30,7 +30,6 @@
+ from falcon.media.urlencoded import URLEncodedFormHandler
+ from falcon.typing import DeserializeSync
+ from falcon.typing import SerializeSync
+-from falcon.util import deprecation
+ from falcon.util import misc
+ from falcon.vendor import mimeparse
+ 
+@@ -180,35 +179,6 @@ def copy(self) -> Handlers:
+         handlers_cls = type(self)
+         return handlers_cls(self.data)
+ 
+-    @deprecation.deprecated(
+-        'This undocumented method is no longer supported as part of the public '
+-        'interface and will be removed in a future release.'
+-    )
+-    def find_by_media_type(
+-        self, media_type: Optional[str], default: str, raise_not_found: bool = True
+-    ) -> Optional[BaseHandler]:
+-        # PERF(jmvrbanac): Check via a quick methods first for performance
+-        if media_type == '*/*' or not media_type:
+-            media_type = default
+-
+-        try:
+-            return self.data[media_type]
+-        except KeyError:
+-            pass
+-
+-        # PERF(jmvrbanac): Fallback to the slower method.
+-        # NOTE(kgriffs): Wrap keys in a tuple to make them hashable.
+-        resolved = _best_match(media_type, tuple(self.data.keys()))
+-
+-        if not resolved:
+-            if raise_not_found:
+-                raise errors.HTTPUnsupportedMediaType(
+-                    description='{0} is an unsupported media type.'.format(media_type)
+-                )
+-            return None
+-
+-        return self.data[resolved]
+-
+ 
+ def _best_match(media_type: str, all_media_types: Sequence[str]) -> Optional[str]:
+     result = None
+diff --git a/falcon/request.py b/falcon/request.py
+index db7ad6ea4..6c4fd8b4c 100644
+--- a/falcon/request.py
++++ b/falcon/request.py
+@@ -35,6 +35,7 @@
+     Union,
+ )
+ from uuid import UUID
++import warnings
+ 
+ from falcon import errors
+ from falcon import request_helpers as helpers
+@@ -50,7 +51,7 @@
+ from falcon.typing import MissingOr
+ from falcon.typing import ReadableIO
+ from falcon.typing import StoreArgument
+-from falcon.util import deprecated
++from falcon.util import deprecation
+ from falcon.util import ETag
+ from falcon.util import structures
+ from falcon.util.uri import parse_host
+@@ -323,7 +324,7 @@ def __init__(
+         # cycles and parse the content type for real, but
+         # this heuristic will work virtually all the time.
+         if (
+-            self.options.auto_parse_form_urlencoded
++            self.options._auto_parse_form_urlencoded
+             and self.content_type is not None
+             and 'application/x-www-form-urlencoded' in self.content_type
+             and
+@@ -634,8 +635,12 @@ def root_path(self) -> str:
+             return ''
+ 
+     @property
+-    # NOTE(caselit): Deprecated long ago. Warns since 4.0
+-    @deprecated('Use `root_path` instead', is_property=True)
++    # NOTE(caselit): Deprecated long ago. Warns since 4.0.
++    @deprecation.deprecated(
++        'Use `root_path` instead. '
++        '(This compatibility alias will be removed in Falcon 5.0.)',
++        is_property=True,
++    )
+     def app(self) -> str:
+         """Deprecated alias for :attr:`root_path`."""
+         return self.root_path
+@@ -2411,37 +2416,58 @@ class RequestOptions:
+     For comma-separated values, this option also determines whether or not
+     empty elements in the parsed list are retained.
+     """
+-    auto_parse_form_urlencoded: bool
+-    """Set to ``True`` in order to automatically consume the request stream and merge
+-    the results into the request's query string params when the request's content
+-    type is ``application/x-www-form-urlencoded``` (default ``False``).
+ 
+-    Enabling this option for WSGI apps makes the form parameters accessible via
+-    :attr:`~falcon.Request.params`, :meth:`~falcon.Request.get_param`, etc.
++    @property
++    def auto_parse_form_urlencoded(self) -> bool:
++        """Set to ``True`` in order to automatically consume the request stream
++        and merge the results into the request's query string params when the
++        request's content type is ``application/x-www-form-urlencoded```
++        (default ``False``).
++
++        Enabling this option for WSGI apps makes the form parameters accessible
++        via :attr:`~falcon.Request.params`, :meth:`~falcon.Request.get_param`,
++        etc.
+ 
+-    Warning:
+-        The `auto_parse_form_urlencoded` option is not supported for
+-        ASGI apps, and is considered deprecated for WSGI apps as of
+-        Falcon 3.0, in favor of accessing URL-encoded forms
+-        through :attr:`~Request.media`.
++        Warning:
++            The `auto_parse_form_urlencoded` option is not supported for
++            ASGI apps, and is considered deprecated for WSGI apps as of
++            Falcon 3.0, in favor of accessing URL-encoded forms
++            through :attr:`~Request.media`.
+ 
+-        See also: :ref:`access_urlencoded_form`
++            The attribute and the auto-parsing functionality will be removed
++            entirely in Falcon 5.0.
+ 
+-    Warning:
+-        When this option is enabled, the request's body
+-        stream will be left at EOF. The original data is
+-        not retained by the framework.
++            See also: :ref:`access_urlencoded_form`.
++
++        Warning:
++            When this option is enabled, the request's body
++            stream will be left at EOF. The original data is
++            not retained by the framework.
++
++        Note:
++            The character encoding for fields, before
++            percent-encoding non-ASCII bytes, is assumed to be
++            UTF-8. The special `_charset_` field is ignored if
++            present.
++
++            Falcon expects form-encoded request bodies to be
++            encoded according to the standard W3C algorithm (see
++            also https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#application%2Fx-www-form-urlencoded-encoding-algorithm).
++        """  # noqa: D205
++        return self._auto_parse_form_urlencoded
++
++    @auto_parse_form_urlencoded.setter
++    def auto_parse_form_urlencoded(self, value: bool) -> None:
++        if value:
++            warnings.warn(
++                'The RequestOptions.auto_parse_form_urlencoded option is '
++                'deprecated. Please use Request.get_media() to consume '
++                'the submitted URL-encoded form instead.',
++                category=deprecation.DeprecatedWarning,
++            )
++
++        self._auto_parse_form_urlencoded = value
+ 
+-    Note:
+-        The character encoding for fields, before
+-        percent-encoding non-ASCII bytes, is assumed to be
+-        UTF-8. The special `_charset_` field is ignored if
+-        present.
+-
+-        Falcon expects form-encoded request bodies to be
+-        encoded according to the standard W3C algorithm (see
+-        also https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#application%2Fx-www-form-urlencoded-encoding-algorithm).
+-    """
+     auto_parse_qs_csv: bool
+     """Set to ``True`` to split query string values on any non-percent-encoded
+     commas (default ``False``).
+@@ -2487,7 +2513,7 @@ class RequestOptions:
+ 
+     __slots__ = (
+         'keep_blank_qs_values',
+-        'auto_parse_form_urlencoded',
++        '_auto_parse_form_urlencoded',
+         'auto_parse_qs_csv',
+         'strip_url_path_trailing_slash',
+         'default_media_type',
+@@ -2496,7 +2522,7 @@ class RequestOptions:
+ 
+     def __init__(self) -> None:
+         self.keep_blank_qs_values = True
+-        self.auto_parse_form_urlencoded = False
++        self._auto_parse_form_urlencoded = False
+         self.auto_parse_qs_csv = False
+         self.strip_url_path_trailing_slash = False
+         self.default_media_type = DEFAULT_MEDIA_TYPE
+diff --git a/falcon/response.py b/falcon/response.py
+index 5c2a5c2f7..a8575970e 100644
+--- a/falcon/response.py
++++ b/falcon/response.py
+@@ -56,7 +56,6 @@
+ from falcon.util import http_status_to_code
+ from falcon.util import structures
+ from falcon.util.deprecation import AttributeRemovedError
+-from falcon.util.deprecation import deprecated
+ from falcon.util.uri import encode_check_escaped as uri_encode
+ from falcon.util.uri import encode_value_check_escaped as uri_encode_value
+ 
+@@ -210,20 +209,6 @@ def status_code(self) -> int:
+     def status_code(self, value: int) -> None:
+         self.status = value
+ 
+-    @property
+-    def body(self) -> NoReturn:
+-        raise AttributeRemovedError(
+-            'The body attribute is no longer supported. '
+-            'Please use the text attribute instead.'
+-        )
+-
+-    @body.setter
+-    def body(self, value: Any) -> NoReturn:
+-        raise AttributeRemovedError(
+-            'The body attribute is no longer supported. '
+-            'Please use the text attribute instead.'
+-        )
+-
+     @property
+     def data(self) -> Optional[bytes]:
+         """Byte string representing response content.
+@@ -983,10 +968,12 @@ def append_link(
+         else:
+             _headers['link'] = value
+ 
+-    # NOTE(kgriffs): Alias deprecated as of 3.0
+-    add_link = deprecated('Please use append_link() instead.', method_name='add_link')(
+-        append_link
+-    )
++    @property
++    def add_link(self) -> NoReturn:
++        raise AttributeRemovedError(
++            'The add_link() method is no longer supported. '
++            'Please use append_link() instead.'
++        )
+ 
+     cache_control: Union[str, Iterable[str], None] = header_property(
+         'Cache-Control',
+diff --git a/falcon/routing/__init__.py b/falcon/routing/__init__.py
+index 9db1c4862..802165702 100644
+--- a/falcon/routing/__init__.py
++++ b/falcon/routing/__init__.py
+@@ -29,7 +29,6 @@
+ from falcon.routing.converters import UUIDConverter
+ from falcon.routing.static import StaticRoute
+ from falcon.routing.static import StaticRouteAsync
+-from falcon.routing.util import compile_uri_template
+ from falcon.routing.util import map_http_methods
+ from falcon.routing.util import set_default_responders
+ 
+diff --git a/falcon/routing/util.py b/falcon/routing/util.py
+index b789b0829..eb709a442 100644
+--- a/falcon/routing/util.py
++++ b/falcon/routing/util.py
+@@ -16,12 +16,10 @@
+ 
+ from __future__ import annotations
+ 
+-import re
+-from typing import Optional, Set, Tuple, TYPE_CHECKING
++from typing import Optional, TYPE_CHECKING
+ 
+ from falcon import constants
+ from falcon import responders
+-from falcon.util.deprecation import deprecated
+ 
+ if TYPE_CHECKING:
+     from falcon.typing import MethodDict
+@@ -33,78 +31,6 @@ def __init__(self, message: str) -> None:
+         self.message = message
+ 
+ 
+-# NOTE(kgriffs): Published method; take care to avoid breaking changes.
+-@deprecated('This method will be removed in Falcon 4.0.')
+-def compile_uri_template(template: str) -> Tuple[Set[str], re.Pattern[str]]:
+-    """Compile the given URI template string into a pattern matcher.
+-
+-    This function can be used to construct custom routing engines that
+-    iterate through a list of possible routes, attempting to match
+-    an incoming request against each route's compiled regular expression.
+-
+-    Each field is converted to a named group, so that when a match
+-    is found, the fields can be easily extracted using
+-    :meth:`re.MatchObject.groupdict`.
+-
+-    This function does not support the more flexible templating
+-    syntax used in the default router. Only simple paths with bracketed
+-    field expressions are recognized. For example::
+-
+-        /
+-        /books
+-        /books/{isbn}
+-        /books/{isbn}/characters
+-        /books/{isbn}/characters/{name}
+-
+-    Warning:
+-        If the template contains a trailing slash character, it will be
+-        stripped.
+-
+-        Note that this is **different** from :ref:`the default behavior
+-        <trailing_slash_in_path>` of :func:`~falcon.App.add_route` used
+-        with the default :class:`~falcon.routing.CompiledRouter`.
+-
+-        The :attr:`~falcon.RequestOptions.strip_url_path_trailing_slash`
+-        request option is not considered by ``compile_uri_template()``.
+-
+-
+-    Args:
+-        template(str): The template to compile. Note that field names are
+-            restricted to ASCII a-z, A-Z, and the underscore character.
+-
+-    Returns:
+-        tuple: (template_field_names, template_regex)
+-
+-    .. deprecated:: 3.1
+-    """
+-
+-    if not isinstance(template, str):
+-        raise TypeError('uri_template is not a string')
+-
+-    if not template.startswith('/'):
+-        raise ValueError("uri_template must start with '/'")
+-
+-    if '//' in template:
+-        raise ValueError("uri_template may not contain '//'")
+-
+-    if template != '/' and template.endswith('/'):
+-        template = template[:-1]
+-
+-    # template names should be able to start with A-Za-z
+-    # but also contain 0-9_ in the remaining portion
+-    expression_pattern = r'{([a-zA-Z]\w*)}'
+-
+-    # Get a list of field names
+-    fields = set(re.findall(expression_pattern, template))
+-
+-    # Convert Level 1 var patterns to equivalent named regex groups
+-    escaped = re.sub(r'[\.\(\)\[\]\?\*\+\^\|]', r'\\\g<0>', template)
+-    pattern = re.sub(expression_pattern, r'(?P<\1>[^/]+)', escaped)
+-    pattern = r'\A' + pattern + r'\Z'
+-
+-    return fields, re.compile(pattern, re.IGNORECASE)
+-
+-
+ def map_http_methods(resource: object, suffix: Optional[str] = None) -> MethodDict:
+     """Map HTTP methods (e.g., GET, POST) to methods of a resource object.
+ 
+diff --git a/falcon/util/__init__.py b/falcon/util/__init__.py
+index 03d810e9a..9c5ad4140 100644
+--- a/falcon/util/__init__.py
++++ b/falcon/util/__init__.py
+@@ -34,7 +34,6 @@
+ from falcon.util.misc import dt_to_http
+ from falcon.util.misc import get_argnames
+ from falcon.util.misc import get_bound_method
+-from falcon.util.misc import get_http_status
+ from falcon.util.misc import http_date_to_dt
+ from falcon.util.misc import http_now
+ from falcon.util.misc import http_status_to_code
+@@ -80,18 +79,3 @@
+ BufferedReader = (
+     (_CyBufferedReader or _PyBufferedReader) if IS_64_BITS else _PyBufferedReader
+ )
+-
+-
+-def __getattr__(name: str) -> ModuleType:
+-    if name == 'json':
+-        import json  # NOQA
+-        import warnings
+-
+-        warnings.warn(
+-            'Importing json from "falcon.util" is deprecated.', DeprecatedWarning
+-        )
+-        return json
+-
+-    # fallback to the default implementation
+-    mod = sys.modules[__name__]
+-    return ModuleType.__getattr__(mod, name)
+diff --git a/falcon/util/misc.py b/falcon/util/misc.py
+index 1fbe09ef3..051d62698 100644
+--- a/falcon/util/misc.py
++++ b/falcon/util/misc.py
+@@ -55,7 +55,6 @@
+     'to_query_str',
+     'get_bound_method',
+     'get_argnames',
+-    'get_http_status',
+     'http_status_to_code',
+     'code_to_http_status',
+     'secure_filename',
+@@ -331,47 +330,6 @@ def get_argnames(func: Callable[..., Any]) -> List[str]:
+     return args
+ 
+ 
+-@deprecated('Please use falcon.code_to_http_status() instead.')
+-def get_http_status(
+-    status_code: Union[str, int], default_reason: str = _DEFAULT_HTTP_REASON
+-) -> str:
+-    """Get both the http status code and description from just a code.
+-
+-    Warning:
+-        As of Falcon 3.0, this method has been deprecated in favor of
+-        :meth:`~falcon.code_to_http_status`.
+-
+-    Args:
+-        status_code: integer or string that can be converted to an integer
+-        default_reason: default text to be appended to the status_code
+-            if the lookup does not find a result
+-
+-    Returns:
+-        str: status code e.g. "404 Not Found"
+-
+-    Raises:
+-        ValueError: the value entered could not be converted to an integer
+-
+-    """
+-    # sanitize inputs
+-    try:
+-        code = float(status_code)  # float can validate values like "401.1"
+-        code = int(code)  # converting to int removes the decimal places
+-        if code < 100:
+-            raise ValueError
+-    except ValueError:
+-        raise ValueError(
+-            'get_http_status failed: "%s" is not a valid status code', status_code
+-        )
+-
+-    # lookup the status code
+-    try:
+-        return getattr(status_codes, 'HTTP_' + str(code))
+-    except AttributeError:
+-        # not found
+-        return str(code) + ' ' + default_reason
+-
+-
+ def secure_filename(filename: Optional[str]) -> str:
+     """Sanitize the provided `filename` to contain only ASCII characters.
+ 
+@@ -461,9 +419,8 @@ def code_to_http_status(status: Union[int, http.HTTPStatus, bytes, str]) -> str:
+     An LRU is used to minimize lookup time.
+ 
+     Note:
+-        Unlike the deprecated :func:`get_http_status`, this function will not
+-        attempt to coerce a string status to an integer code, assuming the
+-        string already denotes an HTTP status line.
++        This function will not attempt to coerce a string status to an
++        integer code, assuming the string already denotes an HTTP status line.
+ 
+     Args:
+         status: The status code or enum to normalize.
+@@ -519,6 +476,6 @@ def _encode_items_to_latin1(data: Dict[str, str]) -> List[Tuple[bytes, bytes]]:
+ 
+ _encode_items_to_latin1 = _cy_encode_items_to_latin1 or _encode_items_to_latin1
+ 
+-isascii = deprecated('This will be removed in V5. Please use `str.isascii`')(
+-    str.isascii
+-)
++isascii = deprecated(
++    'This method will be removed in Falcon 5.0; please use str.isascii() instead.'
++)(str.isascii)
+diff --git a/falcon/util/sync.py b/falcon/util/sync.py
+index 0bfc24021..6d9d4e45f 100644
+--- a/falcon/util/sync.py
++++ b/falcon/util/sync.py
+@@ -6,7 +6,7 @@
+ import os
+ from typing import Any, Awaitable, Callable, Optional, TypeVar, Union
+ 
+-from falcon.util import deprecated
++from falcon.util import deprecation
+ 
+ __all__ = (
+     'async_to_sync',
+@@ -56,11 +56,13 @@ def __call__(self) -> _DummyRunner:
+ _active_runner = _ActiveRunner(getattr(asyncio, 'Runner', _DummyRunner))
+ _one_thread_to_rule_them_all = ThreadPoolExecutor(max_workers=1)
+ 
+-create_task = deprecated(
+-    'This will be removed in V5. Please use `asyncio.create_task`'
++create_task = deprecation.deprecated(
++    'This alias is deprecated; it will be removed in Falcon 5.0. '
++    'Please use asyncio.create_task() directly.'
+ )(asyncio.create_task)
+-get_running_loop = deprecated(
+-    'This will be removed in V5. Please use `asyncio.get_running_loop`'
++get_running_loop = deprecation.deprecated(
++    'This alias is deprecated; it will be removed in Falcon 5.0. '
++    'Please use asyncio.get_running_loop() directly.'
+ )(asyncio.get_running_loop)
+ 
+ 
+diff --git a/falcon/util/time.py b/falcon/util/time.py
+index 6e4cce993..952cbb3bf 100644
+--- a/falcon/util/time.py
++++ b/falcon/util/time.py
+@@ -22,7 +22,10 @@ class TimezoneGMT(datetime.tzinfo):
+ 
+     GMT_ZERO = datetime.timedelta(hours=0)
+ 
+-    @deprecated('TimezoneGMT is deprecated, use datetime.timezone.utc instead')
++    @deprecated(
++        'TimezoneGMT is deprecated, use datetime.timezone.utc instead. '
++        '(TimezoneGMT will be removed in Falcon 5.0.)'
++    )
+     def __init__(self) -> None:
+         super().__init__()
+ 

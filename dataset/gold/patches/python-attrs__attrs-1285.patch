@@ -1,0 +1,25 @@
+diff --git a/changelog.d/1285.change.md b/changelog.d/1285.change.md
+new file mode 100644
+index 000000000..5f5a2997a
+--- /dev/null
++++ b/changelog.d/1285.change.md
+@@ -0,0 +1,1 @@
++`attrs.make_class()` now populates the `__annotations__` dict of the generated class, so that `attrs.resolve_types()` can resolve them.
+diff --git a/src/attr/_make.py b/src/attr/_make.py
+index d1c08dea4..097534fbb 100644
+--- a/src/attr/_make.py
++++ b/src/attr/_make.py
+@@ -3056,7 +3056,12 @@ def make_class(
+         True,
+     )
+ 
+-    return _attrs(these=cls_dict, **attributes_arguments)(type_)
++    cls = _attrs(these=cls_dict, **attributes_arguments)(type_)
++    # Only add type annotations now or "_attrs()" will complain:
++    cls.__annotations__ = {
++        k: v.type for k, v in cls_dict.items() if v.type is not None
++    }
++    return cls
+ 
+ 
+ # These are required by within this module so we define them here and merely

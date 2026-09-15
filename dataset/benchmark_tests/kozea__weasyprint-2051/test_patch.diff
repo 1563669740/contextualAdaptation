@@ -1,0 +1,12 @@
+diff --git a/tests/draw/test_table.py b/tests/draw/test_table.py
+index 6015ee202..ad95d6da5 100644
+--- a/tests/draw/test_table.py
++++ b/tests/draw/test_table.py
+@@ -1473,7 +1473,6 @@ def test_running_elements_table_border_collapse_span(assert_pixels):
+     ''')
+ 
+ 
+-@pytest.mark.xfail
+ @assert_no_logs
+ def test_running_elements_table_border_collapse_margin(assert_pixels):
+     assert_pixels(2 * '''

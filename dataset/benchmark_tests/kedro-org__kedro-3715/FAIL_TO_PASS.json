@@ -1,0 +1,4 @@
+[
+  "tests/pipeline/test_node.py::test_bad_node[bad_input_variable_name-names",
+  "tests/pipeline/test_node.py::test_bad_node[bad_output_variable_name-names"
+]

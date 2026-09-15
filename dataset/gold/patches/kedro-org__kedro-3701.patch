@@ -1,0 +1,123 @@
+diff --git a/RELEASE.md b/RELEASE.md
+index dfe9e6fe8e..31b082842f 100644
+--- a/RELEASE.md
++++ b/RELEASE.md
+@@ -5,11 +5,13 @@
+ * Improved error message when passing wrong value to node.
+ * Cookiecutter errors are shown in short format without the `--verbose` flag.
+ * Kedro commands now work from any subdirectory within a Kedro project.
+-* Kedro CLI now provides a better error message when project commands are run outside of a project i.e. `kedro run`.
++* Kedro CLI now provides a better error message when project commands are run outside of a project i.e. `kedro run`
++* Adds the `--telemetry` flag to `kedro new`, allowing the user to register consent to have user analytics collected at the same time as the project is created.
+ * Dropped the dependency on `toposort` in favour of the built-in `graphlib` module.
+ * Improved the performance of `Pipeline` object creation and summing.
+ * Improved suggestions to resume failed pipeline runs.
+ 
++
+ ## Bug fixes and other changes
+ * Updated `kedro pipeline create` and `kedro pipeline delete` to read the base environment from the project settings.
+ * Updated CLI command `kedro catalog resolve` to read credentials properly.
+diff --git a/docs/source/get_started/new_project.md b/docs/source/get_started/new_project.md
+index 984680dff8..85f15cbdcd 100644
+--- a/docs/source/get_started/new_project.md
++++ b/docs/source/get_started/new_project.md
+@@ -49,7 +49,7 @@ Select the tools by number, or `all` or follow the default to add `none`.
+ 
+ ### Project examples
+ 
+-Finally, the CLI offers the option to include starter example code in the project:
++The CLI offers the option to include starter example code in the project:
+ 
+ ```text
+ Would you like to include an example pipeline? :
+@@ -112,6 +112,11 @@ You can also enter this in a single line as follows:
+ kedro new --name=testproject --tools=lint,docs,pyspark --example=n
+ ```
+ 
++### Telemetry consent
++
++The `--telemetry` flag offers the option to register consent to have user analytics collected in the moment of the creation of the project. This option bypasses the prompt to collect analytics that would otherwise appear on the moment the `kedro` command is invoked for the first time inside the project. In case the `--telemetry` flag is not used, the user will be prompted to accept or reject analytics collection as usual.
++
++When creating your new Kedro project, use the values `yes` or `no` to register consent to have user analytics collected for this specific project. Selecting `yes` means you consent to your data being collected, whereas `no` means you do not consent and no data will be collected.
+ 
+ ## Run the new project
+ 
+diff --git a/kedro/framework/cli/starters.py b/kedro/framework/cli/starters.py
+index 5ec32af209..5a4b76a347 100644
+--- a/kedro/framework/cli/starters.py
++++ b/kedro/framework/cli/starters.py
+@@ -67,6 +67,11 @@
+ """
+ EXAMPLE_ARG_HELP = "Enter y to enable, n to disable the example pipeline."
+ 
++TELEMETRY_ARG_HELP = """Allow or not allow Kedro to collect usage analytics.
++We cannot see nor store information contained into a Kedro project. Opt in with "yes"
++and out with "no".
++"""
++
+ 
+ @define(order=True)
+ class KedroStarterSpec:
+@@ -261,6 +266,7 @@ def starter() -> None:
+ @click.option("--tools", "-t", "selected_tools", help=TOOLS_ARG_HELP)
+ @click.option("--name", "-n", "project_name", help=NAME_ARG_HELP)
+ @click.option("--example", "-e", "example_pipeline", help=EXAMPLE_ARG_HELP)
++@click.option("--telemetry", "-tc", "telemetry_consent", help=TELEMETRY_ARG_HELP)
+ def new(  # noqa: PLR0913
+     config_path: str,
+     starter_alias: str,
+@@ -268,7 +274,8 @@ def new(  # noqa: PLR0913
+     project_name: str,
+     checkout: str,
+     directory: str,
+-    example_pipeline: str,  # This will be True or False
++    example_pipeline: str,
++    telemetry_consent: str,
+     **kwargs: Any,
+ ) -> None:
+     """Create a new kedro project."""
+@@ -280,6 +287,7 @@ def new(  # noqa: PLR0913
+         "checkout": checkout,
+         "directory": directory,
+         "example": example_pipeline,
++        "telemetry_consent": telemetry_consent,
+     }
+     _validate_flag_inputs(flag_inputs)
+     starters_dict = _get_starters_dict()
+@@ -343,7 +351,13 @@ def new(  # noqa: PLR0913
+         template_path=template_path,
+     )
+ 
+-    _create_project(project_template, cookiecutter_args)
++    if telemetry_consent is not None:
++        _validate_input_with_regex_pattern("yes_no", telemetry_consent)
++        telemetry_consent = (
++            "true" if _parse_yes_no_to_bool(telemetry_consent) else "false"
++        )
++
++    _create_project(project_template, cookiecutter_args, telemetry_consent)
+ 
+     # If not a starter, print tools and example selection
+     if not starter_alias:
+@@ -876,7 +890,9 @@ def _validate_range(start: Any, end: Any) -> None:
+     return selected
+ 
+ 
+-def _create_project(template_path: str, cookiecutter_args: dict[str, Any]) -> None:
++def _create_project(
++    template_path: str, cookiecutter_args: dict[str, Any], telemetry_consent: str | None
++) -> None:
+     """Creates a new kedro project using cookiecutter.
+ 
+     Args:
+@@ -893,6 +909,10 @@ def _create_project(template_path: str, cookiecutter_args: dict[str, Any]) -> No
+ 
+     try:
+         result_path = cookiecutter(template=template_path, **cookiecutter_args)
++
++        if telemetry_consent is not None:
++            with open(result_path + "/.telemetry", "w") as telemetry_file:
++                telemetry_file.write("consent: " + telemetry_consent)
+     except Exception as exc:
+         raise KedroCliError(
+             "Failed to generate project when running cookiecutter."

@@ -1,0 +1,6 @@
+[
+  "tests/messages/test_pofile.py::ReadPoTestCase::test_obsolete_message_with_context",
+  "tests/messages/test_pofile.py::ReadPoTestCase::test_obsolete_messages_roundtrip",
+  "tests/messages/test_pofile.py::ReadPoTestCase::test_obsolete_messages_with_context",
+  "tests/messages/test_pofile.py::ReadPoTestCase::test_obsolete_plural_with_square_brackets"
+]

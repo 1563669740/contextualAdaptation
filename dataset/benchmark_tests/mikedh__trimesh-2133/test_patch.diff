@@ -1,0 +1,38 @@
+diff --git a/tests/generic.py b/tests/generic.py
+index ae1e815c1..a9466c32f 100644
+--- a/tests/generic.py
++++ b/tests/generic.py
+@@ -351,6 +351,7 @@ def check(item):
+                 loaded = trimesh.load(os.path.join(dir_models, file_name))
+             except BaseException as E:
+                 if raise_error:
++                    log.error(f'failed to load {file_name}')
+                     raise E
+                 continue
+ 
+diff --git a/tests/test_export.py b/tests/test_export.py
+index 22fc44953..a8707834d 100644
+--- a/tests/test_export.py
++++ b/tests/test_export.py
+@@ -47,6 +47,9 @@ def test_export(self):
+ 
+                 g.log.info("Export/import testing on %s", mesh.metadata["file_name"])
+ 
++                if isinstance(export, str):
++                    assert export.endswith("\n"), f"{file_type} doesn't end with newline"
++
+                 # if export is string or bytes wrap as pseudo file object
+                 if isinstance(export, str) or isinstance(export, bytes):
+                     file_obj = g.io_wrap(export)
+@@ -180,6 +183,11 @@ def test_export(self):
+                     assert len(r.vertices) == len(mesh.vertices)
+                     assert len(r.faces) == len(mesh.faces)
+ 
++                    if option.get("encoding", None) == "ascii":
++                        with open(temp.name) as f:
++                            exported = f.read()
++                        assert exported.endswith("\n")
++
+                     # manual cleanup
+                     g.os.remove(temp.name)
+                     g.os.remove(temp_off.name)

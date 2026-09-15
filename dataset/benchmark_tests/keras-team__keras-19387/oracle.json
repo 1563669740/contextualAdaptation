@@ -1,0 +1,11 @@
+{
+  "task_id": "keras-team__keras-19387",
+  "log_parser": "pytest",
+  "test_cmds": [
+    "SKIP_APPLICATIONS_TESTS=True pytest -rA keras"
+  ],
+  "fail_to_pass_count": 1,
+  "pass_to_pass_count": 6875,
+  "resolution_rule": "resolved iff every FAIL_TO_PASS test passes AND every PASS_TO_PASS test still passes after applying the candidate patch",
+  "visibility": "evaluation_only"
+}

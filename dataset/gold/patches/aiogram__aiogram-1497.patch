@@ -1,0 +1,20 @@
+diff --git a/CHANGES/1496.bugfix.rst b/CHANGES/1496.bugfix.rst
+new file mode 100644
+index 0000000000..02d44dbf30
+--- /dev/null
++++ b/CHANGES/1496.bugfix.rst
+@@ -0,0 +1,1 @@
++Fixed wrong :code:`MarkdownV2` custom emoji parsing in :code:`aiogram.utils.text_decorations`
+diff --git a/aiogram/utils/text_decorations.py b/aiogram/utils/text_decorations.py
+index 58d6c0f4aa..ae6227d3f4 100644
+--- a/aiogram/utils/text_decorations.py
++++ b/aiogram/utils/text_decorations.py
+@@ -253,7 +253,7 @@ def quote(self, value: str) -> str:
+         return re.sub(pattern=self.MARKDOWN_QUOTE_PATTERN, repl=r"\\\1", string=value)
+ 
+     def custom_emoji(self, value: str, custom_emoji_id: str) -> str:
+-        return self.link(value=value, link=f"tg://emoji?id={custom_emoji_id}")
++        return f'!{self.link(value=value, link=f"tg://emoji?id={custom_emoji_id}")}'
+ 
+     def blockquote(self, value: str) -> str:
+         return "\n".join(f">{line}" for line in value.splitlines())

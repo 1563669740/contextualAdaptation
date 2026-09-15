@@ -1,0 +1,4 @@
+[
+  "tests/test_slots.py::TestSlotsHandler::test_get_slot_name_on_primary",
+  "tests/test_slots.py::TestSlotsHandler::test_should_enforce_hot_standby_feedback"
+]

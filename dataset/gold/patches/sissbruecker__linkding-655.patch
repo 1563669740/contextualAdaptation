@@ -1,0 +1,32 @@
+diff --git a/bookmarks/api/serializers.py b/bookmarks/api/serializers.py
+index 6fd437a5..6e82e339 100644
+--- a/bookmarks/api/serializers.py
++++ b/bookmarks/api/serializers.py
+@@ -30,6 +30,7 @@ class Meta:
+             "notes",
+             "website_title",
+             "website_description",
++            "web_archive_snapshot_url",
+             "is_archived",
+             "unread",
+             "shared",
+@@ -40,6 +41,7 @@ class Meta:
+         read_only_fields = [
+             "website_title",
+             "website_description",
++            "web_archive_snapshot_url",
+             "date_added",
+             "date_modified",
+         ]
+diff --git a/docs/API.md b/docs/API.md
+index 533cf43a..8099f519 100644
+--- a/docs/API.md
++++ b/docs/API.md
+@@ -48,6 +48,7 @@ Example response:
+       "notes": "Example notes",
+       "website_title": "Website title",
+       "website_description": "Website description",
++      "web_archive_snapshot_url": "https://web.archive.org/web/20200926094623/https://example.com",
+       "is_archived": false,
+       "unread": false,
+       "shared": false,

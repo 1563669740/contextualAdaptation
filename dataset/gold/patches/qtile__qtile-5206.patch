@@ -1,0 +1,105 @@
+diff --git a/CHANGELOG b/CHANGELOG
+index e1a93b6d58..52d908088a 100644
+--- a/CHANGELOG
++++ b/CHANGELOG
+@@ -3,6 +3,7 @@ Qtile x.xx.x, released xxxx-xx-xx:
+       - Output of `qtile cmd-obj` is now in JSON.
+     * features
+     * bugfixes
++      - `window.can_steal_focus = False` should be set in a `group_window_add` instead of the previously recommended `client_new` hook.
+ 
+ Qtile 0.31.0, released 2025-03-07:
+     !!! breaking changes !!!
+diff --git a/libqtile/core/manager.py b/libqtile/core/manager.py
+index 925be7a5ca..aa8be8df97 100644
+--- a/libqtile/core/manager.py
++++ b/libqtile/core/manager.py
+@@ -735,7 +735,7 @@ def manage(self, win: base.WindowType) -> None:
+         if self.current_screen and isinstance(win, base.Window):
+             # Window may have been bound to a group in the hook.
+             if not win.group and self.current_screen.group:
+-                self.current_screen.group.add(win, focus=win.can_steal_focus)
++                self.current_screen.group.add(win)
+ 
+         hook.fire("client_managed", win)
+ 
+diff --git a/libqtile/group.py b/libqtile/group.py
+index 044ec842f7..3897ca3090 100644
+--- a/libqtile/group.py
++++ b/libqtile/group.py
+@@ -251,7 +251,7 @@ def info(self):
+             screen=self.screen.index if self.screen else None,
+         )
+ 
+-    def add(self, win, focus=True, force=False):
++    def add(self, win, force=False):
+         hook.fire("group_window_add", self, win)
+         if win not in self.windows:
+             self.windows.append(win)
+@@ -266,7 +266,7 @@ def add(self, win, focus=True, force=False):
+             self.tiled_windows.add(win)
+             for i in self.layouts:
+                 i.add_client(win)
+-        if focus:
++        if win.can_steal_focus:
+             self.focus(win, warp=True, force=force)
+         else:
+             self.layout_all(focus=False)
+diff --git a/libqtile/hook.py b/libqtile/hook.py
+index 8d83e27b26..2704491473 100644
+--- a/libqtile/hook.py
++++ b/libqtile/hook.py
+@@ -497,6 +497,8 @@ def float_change():
+         "group_window_add",
+         """Called when a new window is added to a group
+ 
++        This hook can for example be used for focus decisions.
++
+         **Arguments**
+ 
+             * ``Group`` receiving the new window
+@@ -507,13 +509,15 @@ def float_change():
+         .. code:: python
+ 
+           from libqtile import hook
+-          from libqtile.utils import send_notification
++          from libqtile import qtile
+ 
+ 
+           @hook.subscribe.group_window_add
+           def group_window_add(group, window):
+-              send_notification("qtile", f"Window {window.name} added to {group.name}")
+-
++              #disallow focus steals except if there's no focus
++              if not qtile.current_window:
++                  return
++              window.can_steal_focus = False
+         """,
+     ),
+     Hook(
+@@ -546,6 +550,7 @@ def group_window_remove(group, window):
+ 
+         Use this hook to declare windows static, or add them to a group on
+         startup. This hook is not called for internal windows.
++        Use ``group_window_add`` for focus decisions.
+ 
+         **Arguments**
+ 
+diff --git a/libqtile/widget/prompt.py b/libqtile/widget/prompt.py
+index 500dea8703..a35e7262dc 100644
+--- a/libqtile/widget/prompt.py
++++ b/libqtile/widget/prompt.py
+@@ -408,11 +408,11 @@ def f(win):
+             if self.active and not win == self.bar.window:
+                 self._unfocus()
+ 
+-        def prevent_focus_steal(win):
++        def prevent_focus_steal(group, win):
+             if self.active:
+                 win.can_steal_focus = False
+ 
+-        hook.subscribe.client_new(prevent_focus_steal)
++        hook.subscribe.group_window_add(prevent_focus_steal)
+         hook.subscribe.client_focus(f)
+ 
+         # Define key handlers (action to do when a specific key is hit)

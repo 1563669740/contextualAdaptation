@@ -1,0 +1,22 @@
+[
+  "conans/test/functional/toolchains/gnu/autotools/test_basic.py::test_autotools_option_checking",
+  "conans/test/functional/toolchains/gnu/autotools/test_basic.py::test_autotools_arguments_override",
+  "conans/test/integration/build_requires/test_install_test_build_require.py::test_build_require_test_package[]",
+  "conans/test/integration/build_requires/test_install_test_build_require.py::test_build_require_test_package[-pr:b=default]",
+  "conans/test/integration/build_requires/test_install_test_build_require.py::test_both_types",
+  "conans/test/integration/command/create_test.py::test_python_requires_with_test_package",
+  "conans/test/integration/command/test_package_test.py::TestPackageTest::test_test_only",
+  "conans/test/integration/command/test_package_test.py::ConanTestTest::test_fail_test_package",
+  "conans/test/integration/command/test_package_test.py::ConanTestTest::test_partial_reference",
+  "conans/test/integration/command/test_package_test.py::ConanTestTest::test_test_package_env",
+  "conans/test/integration/command/test_package_test.py::test_folder_output",
+  "conans/test/integration/command/test_package_test.py::test_test_package_lockfile_location",
+  "conans/test/integration/command/test_package_test.py::test_package_missing_binary_msg",
+  "conans/test/integration/command/test_package_test.py::test_test_binary_missing",
+  "conans/test/integration/cross_building/test_package_test.py::TestPackageTestCase::test_command",
+  "conans/test/integration/lockfile/test_lock_requires.py::TestLockTestPackage::test_partial_approach",
+  "conans/test/integration/lockfile/test_lock_requires.py::TestLockTestPackage::test_create_lock_tool_requires_test",
+  "conans/test/integration/metadata/test_metadata_test_package.py::TestMetadataTestPackage::test_round_trip_with_hook",
+  "conans/test/integration/py_requires/python_requires_test.py::TestTestPackagePythonRequire::test_test_package_python_requires",
+  "conans/test/integration/py_requires/python_requires_test.py::TestTestPackagePythonRequire::test_test_package_python_requires_configs"
+]
