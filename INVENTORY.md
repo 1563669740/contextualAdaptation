@@ -80,7 +80,7 @@
 
 ## 4. 上传前需要知道的三件事
 
-1. **代码里的绝对路径未改**：`code/` 62 个文件中 55 个含 `C:\Users\Administrator\Desktop\project\...`，共 101 处引用（`experiment_root/` 67 处、`dataset/` 21 处、仓库根 13 处）。只读数据集与算法的脚本可直接跑；完整采集/评价链需要本机保留的 `experiment_root/`。详见 README「路径要求」。
+1. **代码里的绝对路径未改**：`code/` 62 个文件中 55 个含指向 `<仓库根>\experiment_root` 的硬编码路径，共 101 处引用（`experiment_root/` 67 处、`dataset/` 21 处、仓库根 13 处）。只读数据集与算法的脚本可直接跑；完整采集/评价链需要本机保留的 `experiment_root/`。详见 README「路径要求」。
 2. **答案材料随库分发**：`dataset/gold/`（10.8 MB 修复 patch）与 `dataset/benchmark_tests/`（41.9 MB F2P/P2P）等于答案。若仓库要公开、且后续仍用同一批任务做实采，建议把这两项也加到 `.gitignore`。
 3. **密钥扫描已过**：`dataset/` 全量扫描唯一命中是 `patroni__patroni-3045` 的 issue 原文，内容为上游已脱敏的 `password: 'REDACTED'`，非真实凭据。
 
@@ -89,7 +89,7 @@
 ## 5. 已执行的上传
 
 ```powershell
-cd C:\Users\Administrator\Desktop\project
+cd <仓库根>
 
 git add .
 git commit -m "project: repository-level repair delegation study -- code and dataset"

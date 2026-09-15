@@ -91,9 +91,7 @@ code/
 
 ## 3. 怎么跑
 
-所有脚本内部都硬编码了 `ROOT = <仓库根>\experiment_root`（本机脚本里写的是
-`.../Desktop/TIFS/experiment_root`；把工作区目录改名为 `project` 后即为
-`.../Desktop/project/experiment_root`），
+所有脚本内部都硬编码了 `ROOT = <仓库根>\experiment_root`，
 所以**副本照旧读写权威数据**，`code/` 只是入口而不是沙箱。运行会写进
 `experiment_root/` 的产物——这一点和直接在 `experiment_root/` 下跑完全一致。
 
@@ -155,10 +153,9 @@ CACHE = os.path.dirname(os.path.abspath(__file__))
 所以副本只改这一行，把 `CACHE` 钉死到权威目录：
 
 ```python
-CACHE = r"C:\Users\Administrator\Desktop\project\experiment_root\repo_cache"  # code-tree adapter: pin to the authoritative cache
-# 注：本行按「工作区目录名为 project」书写；本机副本与权威源当前仍指向
-#     .../Desktop/TIFS/experiment_root/repo_cache。改动此字符串会让
-#     code/verify.py 报 SOURCE_CHANGED（适配规则见 §4），改目录名后需重跑 code/sync.py。
+CACHE = r"<仓库根>\experiment_root\repo_cache"  # code-tree adapter: pin to the authoritative cache
+# 注：改动此字符串会让 code/verify.py 报 SOURCE_CHANGED（适配规则见 §4），
+#     换路径后需重跑 code/sync.py 刷新哈希。
 ```
 
 逻辑一行未改。适配规则写在 `code_map.json` 的 `adapters` 段，实际改动逐字记录在

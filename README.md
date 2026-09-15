@@ -47,11 +47,11 @@ ROOT = r"<仓库根>\experiment_root"
 PROJECT = r"<仓库根>"
 ```
 
-本机脚本里写的是 `C:\Users\Administrator\Desktop\TIFS\...`；把工作区目录改名为 `project` 后即为 `C:\Users\Administrator\Desktop\project\...`。`code/` 的 62 个文件中有 55 个含此类路径，共 101 处：67 处指向 `experiment_root/`（运行期根目录，不在本仓库内）、21 处指向 `dataset/`（已随仓库分发）、13 处指向仓库根。因此：
+`code/` 的 62 个文件中有 55 个含此类路径，共 101 处：67 处指向 `experiment_root/`（运行期根目录，不在本仓库内）、21 处指向 `dataset/`（已随仓库分发）、13 处指向仓库根。因此：
 
 * **只读数据集与算法**：`dataset/` 自带全部输入素材，`02_freeze_protocol/`、`03_leakage/`、`06_holdout/` 的构建类脚本可直接以 `dataset/` 为输入运行；
 * **完整跑通采集与评价链**：需要本机另有一份 `experiment_root/` 作为运行期根目录，或把仓库放到脚本里那两个绝对路径所指的位置；
-* 换路径就批量替换那个路径字符串；注意 `experiment_root/audit/freeze_manifest.json` 用 tree digest 冻结了产物与生成器源码哈希，改动实验目录会让冻结校验失败。
+* 换路径就批量替换那两个绝对路径字符串；注意 `experiment_root/audit/freeze_manifest.json` 用 tree digest 冻结了产物与生成器源码哈希，改动实验目录会让冻结校验失败。
 
 ### 代码索引
 
