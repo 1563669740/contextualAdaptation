@@ -1,26 +1,31 @@
 #!/usr/bin/env python
-"""统一入口：在 code/ 里跑任何一个归档脚本，不改变脚本本身的定位方式。
+"""Unified launcher: run any archived script from inside code/, without changing
+how that script locates itself.
 
-为什么需要它
-------------
-副本全部依赖**绝对路径** ROOT = r"...\\TIFS\\experiment_root" 来读写数据，
-因此复制到 code/ 之后仍然指向权威数据，这一点是好的。
-但有跨模块 import 的脚本（simulate→online_policy/rq2_coding，
-admission_gate/holdout_probe/holdout_author→task_env/evaluate）靠 sys.path
-找兄弟模块，而 code/ 的目录分层和 experiment_root/{tools,evaluation} 不同。
-本启动器把 code/ 的每个分组目录和 experiment_root 的三个源码目录都放进
-sys.path，于是副本可以原样运行，不需要为了搬家而改任何一行逻辑。
+Why it is needed
+----------------
+Every copy relies on the **absolute path** ROOT = r"<repository root>\\experiment_root" to
+read and write data, so after being copied into code/ it still points at the
+authoritative data -- which is exactly what we want.
+But scripts with cross-module imports (simulate→online_policy/rq2_coding,
+admission_gate/holdout_probe/holdout_author→task_env/evaluate) rely on sys.path
+to find their sibling modules, and the directory layout of code/ differs from
+that of experiment_root/{tools,evaluation}.
+This launcher puts every group directory of code/ and the three source
+directories of experiment_root onto sys.path, so the copies run as-is and no
+line of logic has to change just because they moved.
 
-用法
-----
+Usage
+-----
     python code/run.py --list
     python code/run.py 10_audit/audit.py
     python code/run.py audit.py --freeze
     python code/run.py 05_evaluation/aggregate_metrics.py
     python code/run.py 09_rq1_rq4_analysis/check_pipeline.py
 
-注意：脚本的行为与在 experiment_root 下直接运行完全相同（同一 ROOT、同一数据），
-它照旧会写 experiment_root 里的产物 —— code/ 只是入口，不是沙箱。
+Note: a script behaves exactly as if it were run directly under
+experiment_root (same ROOT, same data), and it still writes its artefacts into
+experiment_root -- code/ is only an entry point, not a sandbox.
 """
 from __future__ import annotations
 
@@ -28,8 +33,9 @@ import os
 import runpy
 import sys
 
-# 不让 Python 在 code/ 里留下 __pycache__：本目录是归档镜像，
-# 多出来的字节码会让 verify.py 的"归属检查"看上去像有陌生文件。
+# Keep Python from leaving __pycache__ inside code/: this directory is an
+# archive mirror, and the extra bytecode would make the verify.py "ownership
+# check" look as though unknown files had appeared.
 sys.dont_write_bytecode = True
 
 HERE = os.path.dirname(os.path.abspath(__file__))

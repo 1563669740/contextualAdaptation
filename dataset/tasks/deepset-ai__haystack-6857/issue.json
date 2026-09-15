@@ -9,5 +9,5 @@
   "problem_statement": "Allow setting metadata for ByteStream when created from file or from string\nRight now `ByteStream` supports metadata, but only when initialized directly. On the contrary, `from_file_path` and `from_string` don't let users set any metadata, and on top of that the class is frozen, so the metadata cannot be added after creation.\r\n\r\nWe should:\r\n- Unfreeze `ByteStream`\r\n- Add a `metadata` parameter to the two methods.\n",
   "hints_text": "Let's unfreeze the dataclass\n\n",
   "all_hints_text": "Let's unfreeze the dataclass\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

@@ -1,30 +1,37 @@
 # ============================================================================
-# TIFS —— 仓库级软件修复委托研究
-# 仓库只保留两类内容：
-#   (1) 业务代码  code/
-#   (2) 数据集    dataset/     —— 上游任务素材 + 本研究的任务/划分记录
-# 其余一切（实验结果、冻结资产、构造样本、实施方案提取、探针脚本、第三方仓库
-# 快照、上游原始数据归档、缓存）都不进版本库。
+# project -- repository-level software defect repair study
+# The repository holds two things only:
+#   (1) business code  code/
+#   (2) dataset        dataset/   -- upstream task material + this study's
+#                                    task and split records
+# Everything else (experiment outputs, frozen assets, synthetic samples,
+# implementation-plan extraction, probe scripts, third-party repository
+# snapshots, upstream data archives, caches) is never published.
 #
-# 本文件只放「跟仓库一起分发、对任何 clone 都成立」的忽略规则：
-# 上游原始数据归档、全量导出与第三方仓库快照都在这里；实验产物、构造样本、
-# 实施方案提取与探针脚本属于本机资产，规则放在 .git/info/exclude（不随仓库分发）。
-# 两个文件都不删除任何本地文件。
+# This file holds only the rules that ship with the repository and therefore
+# apply to every clone: upstream data archives, the full dataset export and
+# third-party repository snapshots. Experiment outputs, synthetic samples,
+# the implementation-plan extraction and probe scripts are local assets; their
+# rules live in .git/info/exclude and are not distributed. Neither file
+# deletes anything from disk.
 # ============================================================================
 
 # ---------------------------------------------------------------------------
-# 1. 上游原始数据与第三方仓库快照（仓库不含，需按 README §3 获取）
-#    dataset/raw/         SWE-bench-Live 月度 parquet / jsonl + 论文 PDF（1.36 GB）
-#    dataset/tasks.csv    同一数据集的全量导出（70,280 行 × 63 列 / 342 MB，
-#                         单文件超过 GitHub 100 MB 限制；逐任务素材见 dataset/tasks/）
-#    dataset/repositories/ 5 个第三方仓库快照（177 MB，含 .git，许可归上游）
+# 1. Upstream data and third-party repository snapshots
+#    (not in the repository; see README for how to obtain them)
+#    dataset/raw/          upstream monthly parquet/jsonl + paper PDF (1.36 GB)
+#    dataset/tasks.csv     full export of the same dataset (70,280 rows x 63
+#                          columns / 342 MB, above GitHub's 100 MB file limit;
+#                          per-task material lives in dataset/tasks/)
+#    dataset/repositories/ 5 third-party repository snapshots (177 MB, with
+#                          .git; licences belong to upstream)
 # ---------------------------------------------------------------------------
 dataset/raw/
 dataset/tasks.csv
 dataset/repositories/
 
 # ---------------------------------------------------------------------------
-# 2. 环境与缓存（可再生）
+# 2. Environments and caches (regenerable)
 # ---------------------------------------------------------------------------
 **/__pycache__/
 **/*.pyc
@@ -37,7 +44,7 @@ dataset/repositories/
 **/*.egg-info/
 
 # ---------------------------------------------------------------------------
-# 3. Windows 与编辑器产物
+# 3. Windows and editor artefacts
 # ---------------------------------------------------------------------------
 Thumbs.db
 ehthumbs.db
@@ -51,8 +58,9 @@ $RECYCLE.BIN/
 *.code-workspace
 
 # ---------------------------------------------------------------------------
-# 4. 密钥/凭据兜底（本工作区不含任何真实凭据；dataset/ 里唯一的 password
-#    字样是上游 issue 原文中已脱敏的 'REDACTED'）
+# 4. Credential fallback (the workspace holds no real credentials; the only
+#    `password` string in dataset/ is the upstream-redacted 'REDACTED' quoted
+#    in one issue body)
 # ---------------------------------------------------------------------------
 .env
 .env.*

@@ -1,13 +1,13 @@
 {
-  "schema": "tifs-code-map/1.0",
+  "schema": "project-code-map/1.0",
   "note": [
-    "代码索引表：把 TIFS 工作区里已经存在的复现代码，按论文位置归拢到 code/ 下。",
-    "本文件是 code/sync.py 与 code/verify.py 的唯一输入；手工维护。",
-    "source 路径相对 TIFS 根目录；target 路径相对 code/ 目录。",
-    "authoritative_root 始终是 experiment_root —— code/ 只是可追溯的镜像/入口，",
-    "因此 sync.py 只做复制，从不移动或删除 experiment_root 里的任何文件",
-    "（experiment_root 的 audit/freeze_manifest.json 记录了工具源码哈希，",
-    " 移动会直接破坏冻结包的 tree digest）。"
+    "Code map: gathers the reproduction code that already exists in the workspace into code/, grouped by its position in the paper.",
+    "This file is the sole input to code/sync.py and code/verify.py; it is maintained by hand.",
+    "source paths are relative to the repository root; target paths are relative to the code/ directory.",
+    "authoritative_root is always experiment_root — code/ is only a traceable archive mirror/entry point,",
+    "so sync.py only copies and never moves or deletes any file under experiment_root",
+    "(experiment_root's audit/freeze_manifest.json records the hashes of the tool source code,",
+    " and moving anything would directly break the frozen package's tree digest)."
   ],
   "authoritative": "experiment_root",
   "roots": {
@@ -18,19 +18,19 @@
   "adapters": {
     "path_pin": {
       "why": [
-        "fetch_repos.py 是全部复现代码中唯一用 __file__ 定位自身缓存目录的脚本：",
+        "fetch_repos.py is the only script among all the reproduction code that locates its own cache directory via __file__:",
         "  CACHE = os.path.dirname(os.path.abspath(__file__))",
-        "复制到 code/ 之后 __file__ 会指向 code/01_infra_noncontainer/，",
-        "脚本会去那里建 _inventory/_snapshots，与已冻结的 repo_cache 分叉。",
-        "因此对该文件的副本做一处行级适配：把 CACHE 钉死到权威 repo_cache。",
-        "逻辑一行未改，适配内容记录在 CODE_INDEX.json 的 adaptation 字段里。"
+        "once copied into code/, __file__ would point to code/01_infra_noncontainer/,",
+        "and the script would create _inventory/_snapshots there, diverging from the frozen repo_cache.",
+        "Therefore one line-level adaptation is applied to the copy of this file: pin CACHE to the authoritative repo_cache.",
+        "Not one line of logic is changed; the adaptation is recorded in the adaptation field of CODE_INDEX.json."
       ],
       "match": "CACHE = os.path.dirname(os.path.abspath(__file__))",
       "replace": "CACHE = r\"{repo_cache}\"  # code-tree adapter: pin to the authoritative cache"
     }
   },
   "authorship": [
-    "以下文件由本次整理新建，不是 experiment_root 的副本，不参与哈希比对：",
+    "The following files were newly created by this curation and are not copies of experiment_root, so they take no part in hash comparison:",
     "code/README.md, code/code_map.json, code/sync.py, code/verify.py, code/run.py,",
     "code/requirements.txt, code/CODE_INDEX.json, code/CODE_INDEX.md"
   ],
@@ -38,347 +38,347 @@
     {
       "source": "experiment_root/tools/task_env.py",
       "target": "01_infra_noncontainer/task_env.py",
-      "role": "任务环境底座：按 task manifest 重建工作树、装依赖、跑可见测试",
-      "paper": "§V-E 单个 Session 流程（步骤 2–3）；方案 §2.3 每任务 environment manifest"
+      "role": "Task environment base: rebuild the working tree from the task manifest, install dependencies, and run the visible tests",
+      "paper": "§V-E single-Session workflow (steps 2–3); plan §2.3 per-task environment manifest"
     },
     {
       "source": "experiment_root/repo_cache/fetch_repos.py",
       "target": "01_infra_noncontainer/fetch_repos.py",
-      "role": "38 个 base repository 抓取（git 路径）+ base commit 内容清单与快照",
-      "paper": "§IV-A 主数据源；§V-E 步骤 2 环境恢复",
+      "role": "Fetching of the 38 base repositories (git path) + content inventory and snapshots for the base commit",
+      "paper": "§IV-A primary data source; §V-E step 2 environment restoration",
       "adapter": "path_pin"
     },
     {
       "source": "experiment_root/repo_cache/fetch_repos_tarball.py",
       "target": "01_infra_noncontainer/fetch_repos_tarball.py",
-      "role": "codeload tarball 兜底抓取（git 协商失败时补齐剩余仓库），两条路径同一 schema",
-      "paper": "§IV-A 主数据源"
+      "role": "codeload tarball fallback fetching (tops up the remaining repositories when git negotiation fails); both paths share the same schema",
+      "paper": "§IV-A primary data source"
     },
 
     {
       "source": "experiment_root/tools/build_inventory.py",
       "target": "02_freeze_protocol/build_inventory.py",
-      "role": "参与者可见 manifest 与 evaluation_only spec 的物理分离（强制可见性）",
-      "paper": "§V-A context 暴露规则；§III-C 发现集与验证集隔离"
+      "role": "Physical separation of the participant-visible manifest from the evaluation_only spec (enforces visibility)",
+      "paper": "§V-A context exposure rules; §III-C isolation of the discovery set from the validation set"
     },
     {
       "source": "experiment_root/tools/build_allocation.py",
       "target": "02_freeze_protocol/build_allocation.py",
-      "role": "Pilot/Discovery/Held-out 划分、2×3 平衡分配、C1–C6 约束校验、种子 20260301 冻结",
-      "paper": "§V-C 2×3 因子与不完全区组设计；§III-D 冻结记录",
-      "note": "record['generator_sha256'] 记录的是本文件自身哈希，复制件不改变该值（它只读 experiment_root 的原件）"
+      "role": "Pilot/Discovery/Held-out split, 2×3 balanced allocation, C1–C6 constraint validation, freeze at seed 20260301",
+      "paper": "§V-C 2×3 factorial and incomplete block design; §III-D freeze records",
+      "note": "record['generator_sha256'] stores the hash of this file itself; a copy does not change that value (it only reads the original under experiment_root)"
     },
     {
       "source": "experiment_root/tools/build_protocol.py",
       "target": "02_freeze_protocol/build_protocol.py",
-      "role": "协议全文、事件 schema、codebook、Adaptive Policy、指标口径的冻结（M0）",
-      "paper": "§III-D 冻结记录与可复现性；§V-B 三种 delegation regime"
+      "role": "Freeze (M0) of the full protocol text, event schema, codebook, Adaptive Policy, and metric definitions",
+      "paper": "§III-D freeze records and reproducibility; §V-B the three delegation regimes"
     },
     {
       "source": "experiment_root/tools/build_env_manifests.py",
       "target": "02_freeze_protocol/build_env_manifests.py",
-      "role": "每任务环境 manifest 与 env_hash（实验机需重录）",
-      "paper": "§V-E 步骤 2；方案 §2.3"
+      "role": "Per-task environment manifest and env_hash (must be re-recorded on the experiment machine)",
+      "paper": "§V-E step 2; plan §2.3"
     },
     {
       "source": "experiment_root/tools/build_context_packages.py",
       "target": "02_freeze_protocol/build_context_packages.py",
-      "role": "Chigh context package 生成（六节结构 + 防泄漏自证，从不读 gold）",
-      "paper": "§V-A Context-Enriched（Chigh）"
+      "role": "Chigh context package generation (six-section structure + leakage-prevention self-attestation, never reads gold)",
+      "paper": "§V-A Context-Enriched (Chigh)"
     },
     {
       "source": "experiment_root/tools/build_understanding_quiz.py",
       "target": "02_freeze_protocol/build_understanding_quiz.py",
-      "role": "仓库理解检查题目（操纵检查：Chigh 8.4 vs Clow 5.9）",
-      "paper": "§V-A Manipulation 与 treatment-fidelity 检查"
+      "role": "Repository-comprehension check items (manipulation check: Chigh 8.4 vs Clow 5.9)",
+      "paper": "§V-A manipulation and treatment-fidelity checks"
     },
     {
       "source": "experiment_root/tools/build_role_artifacts.py",
       "target": "02_freeze_protocol/build_role_artifacts.py",
-      "role": "论文要求但实施方案未列出的 7 项冻结结构（理解检查、语义审查 rubric、可重放、冻结记录等）",
-      "paper": "§III-D、§V-A、§V-G、§VIII-A/B"
+      "role": "The 7 frozen structures required by the paper but not listed in the implementation plan (comprehension check, semantic review rubric, replayability, freeze records, etc.)",
+      "paper": "§III-D, §V-A, §V-G, §VIII-A/B"
     },
     {
       "source": "experiment_root/tools/build_paper_artefacts.py",
       "target": "02_freeze_protocol/build_paper_artefacts.py",
-      "role": "论文图表所需的派生材料的批量构建",
-      "paper": "§VI–§IX 表 V–XV 的材料来源"
+      "role": "Batch construction of the derived materials needed for the paper's figures and tables",
+      "paper": "§VI–§IX source material for Tables V–XV"
     },
     {
       "source": "experiment_root/_pipeline_tick.py",
       "target": "02_freeze_protocol/pipeline_tick.py",
-      "role": "续跑入口：把 repo 内容快照转成 context package + 环境 manifest",
-      "paper": "§V-A；§V-E 步骤 2"
+      "role": "Continuation entry point: turns repository content snapshots into context packages + environment manifests",
+      "paper": "§V-A; §V-E step 2"
     },
 
     {
       "source": "experiment_root/tools/screen_answer_leakage.py",
       "target": "03_leakage/screen_answer_leakage.py",
-      "role": "216 个任务的答案泄漏机器筛查（hints_text 评论区里的 diff 是最大发现）",
-      "paper": "§IV-B 第 6 条候选任务准入（不含明显答案泄漏）"
+      "role": "Machine screening for answer leakage across 216 tasks (the diffs in the hints_text comments were the biggest finding)",
+      "paper": "§IV-B item 6 of candidate-task admission (no obvious answer leakage)"
     },
     {
       "source": "experiment_root/tools/adjudicate_leakage.py",
       "target": "03_leakage/adjudicate_leakage.py",
-      "role": "双评审独立工作表、结论录入、一致性统计与仲裁",
-      "paper": "§IV-B 至少两名研究人员独立阅读 + 第三名仲裁"
+      "role": "Independent worksheets for the two reviewers, verdict entry, agreement statistics, and adjudication",
+      "paper": "§IV-B independent reading by at least two researchers + adjudication by a third"
     },
 
     {
       "source": "experiment_root/tools/session_runner.py",
       "target": "04_session/session_runner.py",
-      "role": "Session 时钟、events.jsonl、checkpoint、三 regime 权限守卫、75 分钟硬停止、结果冻结",
-      "paper": "§V-B 操作化定义；§V-E 步骤 3–6；§V-C 权限与 checkpoint 冻结"
+      "role": "Session clock, events.jsonl, checkpoints, permission guards for the three regimes, 75-minute hard stop, result freezing",
+      "paper": "§V-B operational definitions; §V-E steps 3–6; §V-C permission and checkpoint freezing"
     },
     {
       "source": "experiment_root/tools/rehearse_session.py",
       "target": "04_session/rehearse_session.py",
-      "role": "按 SOP 用真实 runner 跑一遍 14 步演练",
-      "paper": "§V-E 单个 Session 流程全链路"
+      "role": "Runs the 14-step rehearsal once with the real runner, following the SOP",
+      "paper": "§V-E the full single-Session workflow end to end"
     },
     {
       "source": "experiment_root/tools/pilot_gates.py",
       "target": "04_session/pilot_gates.py",
-      "role": "Pilot 八项技术门槛的机器判定（环境可重复、工作区隔离、日志完整、工具等价…）",
-      "paper": "§V-E；方案 §13.1 Pilot 技术门槛"
+      "role": "Machine determination of the eight Pilot technical gates (reproducible environment, workspace isolation, complete logs, tool equivalence, …)",
+      "paper": "§V-E; plan §13.1 Pilot technical gates"
     },
 
     {
       "source": "experiment_root/evaluation/evaluate.py",
       "target": "05_evaluation/evaluate.py",
-      "role": "隐藏评价 harness：benchmark F2P/P2P + holdout + holdout 准入验收，独立干净工作区",
-      "paper": "§V-F 因变量与评价指标；§V-G 增强正确性 oracle"
+      "role": "Hidden evaluation harness: benchmark F2P/P2P + holdout + holdout admission acceptance, in an independent clean workspace",
+      "paper": "§V-F dependent variables and evaluation metrics; §V-G augmented correctness oracle"
     },
     {
       "source": "experiment_root/tools/aggregate_metrics.py",
       "target": "05_evaluation/aggregate_metrics.py",
-      "role": "指标汇总：wall clock / human active / context prep 的活动口径与 overlap_warning",
-      "paper": "§V-F；方案 §11.3 时间口径（不得相加当 wall-clock）"
+      "role": "Metric aggregation: activity definitions for wall clock / human active / context prep, plus overlap_warning",
+      "paper": "§V-F; plan §11.3 time definitions (must not be summed as wall-clock)"
     },
     {
       "source": "experiment_root/tools/admission_gate.py",
       "target": "05_evaluation/admission_gate.py",
-      "role": "预注册准入闸门：gold 自己都过不了的任务分三类并给处理规则（必须在招募前跑）",
-      "paper": "§IV-B 候选任务筛选；§V-G holdout 准入"
+      "role": "Pre-registered admission gate: sorts the tasks that even gold cannot pass into three classes and gives handling rules for each (must be run before recruitment)",
+      "paper": "§IV-B candidate task screening; §V-G holdout admission"
     },
     {
       "source": "_f2p_check.py",
       "target": "05_evaluation/f2p_check.py",
-      "role": "一次性：核对 fail-to-pass 集合在 base/gold 上的实际表现",
+      "role": "One-off: check the actual behaviour of the fail-to-pass set on base/gold",
       "paper": "§V-F Benchmark resolved"
     },
     {
       "source": "_f2p_check2.py",
       "target": "05_evaluation/f2p_check2.py",
-      "role": "一次性：F2P 复检（第二版）",
+      "role": "One-off: F2P re-check (second version)",
       "paper": "§V-F Benchmark resolved"
     },
     {
       "source": "_which_fail.py",
       "target": "05_evaluation/which_fail.py",
-      "role": "一次性：从测试输出里定位到底哪条断言失败",
+      "role": "One-off: pinpoint from the test output exactly which assertion fails",
       "paper": "§V-F Regression count/rate"
     },
 
     {
       "source": "experiment_root/tools/holdout_author.py",
       "target": "06_holdout/holdout_author.py",
-      "role": "holdout 测试编写与三条件准入（base 失败 → gold 通过 → 5 次确定性）+ 可行性标定",
-      "paper": "§V-G 增强正确性 oracle 的构造",
-      "note": "本文件用 __file__ 推导 sys.path（唯一一处）；副本请用 code/run.py 启动，或让 experiment_root/tools 与 experiment_root/evaluation 在 sys.path 上"
+      "role": "Holdout test authoring and three-condition admission (base fails → gold passes → deterministic across 5 runs) + feasibility calibration",
+      "paper": "§V-G construction of the augmented correctness oracle",
+      "note": "This file derives sys.path from __file__ (the only place that does so); launch the copy through code/run.py, or keep experiment_root/tools and experiment_root/evaluation on sys.path"
     },
     {
       "source": "experiment_root/tools/holdout_probe.py",
       "target": "06_holdout/holdout_probe.py",
-      "role": "差分探针：在 base/gold 上探测可调用对象的真实行为差异",
-      "paper": "§V-G 每个新增 test 必须能暴露目标缺陷"
+      "role": "Differential probe: detects the real behavioural differences of callable objects on base/gold",
+      "paper": "§V-G every added test must be able to expose the target defect"
     },
     {
       "source": "_calib_summary.py",
       "target": "06_holdout/calib_summary.py",
-      "role": "汇总 holdout 标定结果（多少任务能区分缺陷与修复）",
-      "paper": "§V-G；STATUS §2.3 ① 非容器化 oracle 可行性 50%"
+      "role": "Aggregates the holdout calibration results (how many tasks can distinguish the defect from the fix)",
+      "paper": "§V-G; STATUS §2.3 ① non-containerized oracle feasibility 50%"
     },
     {
       "source": "_find_authorable.py",
       "target": "06_holdout/find_authorable.py",
-      "role": "筛出环境真能区分缺陷/修复的任务，作为可编写 holdout 的分母",
+      "role": "Selects the tasks whose environment can genuinely distinguish defect from fix, as the denominator for authorable holdout tests",
       "paper": "§V-G"
     },
     {
       "source": "_measure_authorable.py",
       "target": "06_holdout/measure_authorable.py",
-      "role": "测量真实的可编写分母",
+      "role": "Measures the true authorable denominator",
       "paper": "§V-G"
     },
     {
       "source": "_make_holdout_diff.py",
       "target": "06_holdout/make_holdout_diff.py",
-      "role": "把 tests_holdout_task.py 打成 holdout.diff 并验证（让 harness 对测试条数保持盲法）",
-      "paper": "§V-G holdout 以 patch 形式注入"
+      "role": "Packs tests_holdout_task.py into holdout.diff and verifies it (keeps the harness blind to the number of tests)",
+      "paper": "§V-G holdout tests injected as a patch"
     },
     {
       "source": "_make_holdout_diff2.py",
       "target": "06_holdout/make_holdout_diff2.py",
-      "role": "同上，批量化第二版",
+      "role": "Same as above, batched second version",
       "paper": "§V-G"
     },
     {
       "source": "_show_verify.py",
       "target": "06_holdout/show_verify.py",
-      "role": "打印 holdout 验收记录",
+      "role": "Prints the holdout acceptance record",
       "paper": "§V-G"
     },
     {
       "source": "_probe_babel.py",
       "target": "06_holdout/probes/probe_babel.py",
-      "role": "babel 仓探针",
+      "role": "Probe for the babel repository",
       "paper": "§V-G"
     },
     {
       "source": "_probe_holdout.py",
       "target": "06_holdout/probes/probe_holdout.py",
-      "role": "babel-1120 候选 holdout 行为的探针（只用公开 API 接受的输入）",
+      "role": "Probe of the candidate holdout behaviour for babel-1120 (uses only inputs accepted by the public API)",
       "paper": "§V-G"
     },
     {
       "source": "_probe_lines.py",
       "target": "06_holdout/probes/probe_lines.py",
-      "role": "按行号探测输出差异",
+      "role": "Probes output differences by line number",
       "paper": "§V-G"
     },
     {
       "source": "_probe_weak_quiz.py",
       "target": "06_holdout/probes/probe_weak_quiz.py",
-      "role": "探针：理解检查里偏弱的题目",
-      "paper": "§V-A 操纵检查"
+      "role": "Probe: the weaker items in the comprehension check",
+      "paper": "§V-A manipulation check"
     },
     {
       "source": "_probe_widths.py",
       "target": "06_holdout/probes/probe_widths.py",
-      "role": "找 base/gold 真正有差异的换行宽度，让断言描述事实而非预期",
+      "role": "Finds the wrap widths where base/gold genuinely differ, so that assertions describe facts rather than expectations",
       "paper": "§V-G"
     },
     {
       "source": "_probe_wrapper.py",
       "target": "06_holdout/probes/probe_wrapper.py",
-      "role": "探测 TextWrapper 与 pofile 在 base/gold 下的确切行为",
+      "role": "Probes the exact behaviour of TextWrapper and pofile on base/gold",
       "paper": "§V-G"
     },
 
     {
       "source": "experiment_root/tools/rq2_coding.py",
       "target": "07_rq2_coding/rq2_coding.py",
-      "role": "RQ2 编码手册迭代、盲法包生成、Cohen's κ 与 bootstrap CI 估计器",
-      "paper": "§VII RQ2；§V-G 语义审查 88.9% / κ = 0.82"
+      "role": "RQ2 codebook iteration, blind-package generation, Cohen's κ and bootstrap CI estimators",
+      "paper": "§VII RQ2; §V-G semantic review 88.9% / κ = 0.82"
     },
     {
       "source": "_kappa_prevalence.py",
       "target": "07_rq2_coding/kappa_prevalence.py",
-      "role": "一致性–κ 的边界核算：88.9% raw agreement 下二元题在任何 prevalence 都到不了 κ=0.82",
-      "paper": "§V-G 独立评审一致率与 κ 的口径核对",
-      "note": "结论要求逐 rubric 条目分别报告 agreement 与 κ，不混引"
+      "role": "Boundary analysis of agreement versus κ: at 88.9% raw agreement a binary item cannot reach κ = 0.82 at any prevalence",
+      "paper": "§V-G cross-check of the definition of the independent-review agreement rate and κ",
+      "note": "The conclusion requires agreement and κ to be reported separately for each rubric item, never cited interchangeably"
     },
 
     {
       "source": "experiment_root/tools/online_policy.py",
       "target": "08_rq3_policy/online_policy.py",
-      "role": "在线信号提取器 + Adaptive Policy 状态机（只用当时可见事件，含前瞻拒绝）",
-      "paper": "§VIII-A 从人工编码概念到在线信号；§VIII-B 从过程信号到委托规则"
+      "role": "Online signal extractor + Adaptive Policy state machine (uses only the events visible at the time, with look-ahead rejection)",
+      "paper": "§VIII-A from manually coded concepts to online signals; §VIII-B from process signals to delegation rules"
     },
     {
       "source": "_exercise_thresholds.py",
       "target": "08_rq3_policy/exercise_thresholds.py",
-      "role": "用真实 120 个 Discovery 任务构造的结构化替身，演练阈值选择机制",
-      "paper": "§VIII-B 阈值按 repository 分组 5 折 CV"
+      "role": "A structured stand-in built from the real 120 Discovery tasks, used to exercise the threshold-selection mechanism",
+      "paper": "§VIII-B thresholds with 5-fold CV grouped by repository"
     },
     {
       "source": "_diag_p1.py",
       "target": "08_rq3_policy/diagnostics/diag_p1.py",
-      "role": "一次性：P1 信号诊断",
-      "paper": "§VIII-A 过程信号 P1"
+      "role": "One-off: P1 signal diagnostics",
+      "paper": "§VIII-A process signal P1"
     },
     {
       "source": "_diag_p1b.py",
       "target": "08_rq3_policy/diagnostics/diag_p1b.py",
-      "role": "一次性：P1 信号诊断（第二版）",
+      "role": "One-off: P1 signal diagnostics (second version)",
       "paper": "§VIII-A"
     },
     {
       "source": "_diag_freq.py",
       "target": "08_rq3_policy/diagnostics/diag_freq.py",
-      "role": "一次性：信号触发频率诊断",
+      "role": "One-off: signal trigger-frequency diagnostics",
       "paper": "§VIII-A"
     },
 
     {
       "source": "experiment_root/tools/simulate.py",
       "target": "09_rq1_rq4_analysis/simulate.py",
-      "role": "按冻结分配生成 792 个合成 session（表 V / 表 XV 的目标结构），用于管线自检",
-      "paper": "§VI RQ1 表 V；§IX RQ4 表 XV",
-      "note": "产出标记 SYNTHETIC / NOT_A_RESULT，不得当作结果引用"
+      "role": "Generates 792 synthetic sessions from the frozen allocation (the target structure of Table V / Table XV), for pipeline self-checks",
+      "paper": "§VI RQ1 Table V; §IX RQ4 Table XV",
+      "note": "Output is marked SYNTHETIC / NOT_A_RESULT and must not be cited as a result"
     },
     {
       "source": "_check_pipeline.py",
       "target": "09_rq1_rq4_analysis/check_pipeline.py",
-      "role": "管线回收检验：能否从合成样本里找回刻意放进去的已知效应与精确 cell 平衡",
-      "paper": "§VI 2×3 交互；§IX 五种 policy"
+      "role": "Pipeline recovery check: whether the deliberately injected known effects and the exact cell balance can be recovered from the synthetic sample",
+      "paper": "§VI 2×3 interaction; §IX the five policies"
     },
 
     {
       "source": "experiment_root/tools/audit.py",
       "target": "10_audit/audit.py",
-      "role": "A–I 组审计、QA 报告、全量冻结清单（只扫 experiment_root 内固定目录）",
-      "paper": "§III-D 冻结记录；§XII 有效性威胁；方案 §13–16"
+      "role": "Group A–I audit, QA report, full frozen inventory (scans only the fixed directories inside experiment_root)",
+      "paper": "§III-D freeze records; §XII threats to validity; plan §13–16"
     },
 
     {
       "source": "_extract_paper.py",
       "target": "99_scratch/extract_paper.py",
-      "role": "一次性文档工具：PDF → _paper.txt",
-      "paper": "非论文产物"
+      "role": "One-off documentation tool: PDF → _paper.txt",
+      "paper": "Not a paper artefact"
     },
     {
       "source": "_fix_bcp.py",
       "target": "99_scratch/fix_bcp.py",
-      "role": "一次性：对 build_context_packages.py 做过的一处源码修补",
-      "paper": "非论文产物"
+      "role": "One-off: a single source patch applied to build_context_packages.py",
+      "paper": "Not a paper artefact"
     },
     {
       "source": "_fix_paths.py",
       "target": "99_scratch/fix_paths.py",
-      "role": "一次性：批量重写脚本里的绝对路径",
-      "paper": "非论文产物"
+      "role": "One-off: batch rewrite of the absolute paths inside the scripts",
+      "paper": "Not a paper artefact"
     },
     {
       "source": "_patch_fetch.py",
       "target": "99_scratch/patch_fetch.py",
-      "role": "一次性：对 fetch_repos.py 的抓取加固补丁",
-      "paper": "非论文产物"
+      "role": "One-off: fetching-hardening patch for fetch_repos.py",
+      "paper": "Not a paper artefact"
     },
     {
       "source": "_deep_diag.py",
       "target": "99_scratch/deep_diag.py",
-      "role": "一次性：子进程级深度诊断",
-      "paper": "非论文产物"
+      "role": "One-off: subprocess-level deep diagnostics",
+      "paper": "Not a paper artefact"
     },
     {
       "source": "_gold_diag.py",
       "target": "99_scratch/gold_diag.py",
-      "role": "一次性：gold patch 诊断",
-      "paper": "非论文产物"
+      "role": "One-off: gold patch diagnostics",
+      "paper": "Not a paper artefact"
     },
     {
       "source": "_probe_local.py",
       "target": "99_scratch/probe_local.py",
-      "role": "一次性：本地 dataset 探针",
-      "paper": "非论文产物"
+      "role": "One-off: local dataset probe",
+      "paper": "Not a paper artefact"
     },
     {
       "source": "_probe_po24.py",
       "target": "99_scratch/probe_po24.py",
-      "role": "一次性：pofile/Python 2.4 语法相关探针",
-      "paper": "非论文产物"
+      "role": "One-off: probe related to pofile/Python 2.4 syntax",
+      "paper": "Not a paper artefact"
     }
   ]
 }

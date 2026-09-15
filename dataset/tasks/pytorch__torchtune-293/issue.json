@@ -9,5 +9,5 @@
   "problem_statement": "Refactor llama2 default eps to be consistently 1e-5 everywhere\nCurrently default definition has it at 1e-6 making the outputs from HF not match native implementation. \n",
   "hints_text": "\n\n",
   "all_hints_text": "\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

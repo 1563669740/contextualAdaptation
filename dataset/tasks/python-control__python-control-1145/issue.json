@@ -9,5 +9,5 @@
   "problem_statement": "Nyquist plot uses incorrect subplot axes\n```python3\nimport control as ctl\nimport matplotlib.pyplot as plt\nP = ctl.tf([1], [2, 1])\n\nfig, ax = plt.subplots(2,2)\nctl.nyquist_plot(P, ax=ax[1,0])\nplt.show()\n```\n\nThe nyquist plot always shows up in the botom right corner, no matter what index into `ax` I use.\n\nWhen I replace the nyquist with step, it shows up at the correct position (bottom left in this case):\n```python3\nfig, ax = plt.subplots(2,2)\nctl.step_response(P).plot(ax=ax[1,0])\nplt.show()\n```\n\nVersion: control==0.10.1\n",
   "hints_text": "This was also pointed out by @JonHowMIT in [#1143](https://github.com/python-control/python-control/issues/1143#issuecomment-2780864522).\n\n",
   "all_hints_text": "This was also pointed out by @JonHowMIT in [#1143](https://github.com/python-control/python-control/issues/1143#issuecomment-2780864522).\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

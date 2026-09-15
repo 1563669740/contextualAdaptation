@@ -1,19 +1,25 @@
 #!/usr/bin/env python
-"""校验 code/ 与权威源 experiment_root/ 是否仍然一致（哈希 + 语法 + 归属）。
+"""Check that code/ is still consistent with the authoritative source
+experiment_root/ (hash + syntax + ownership).
 
-检查四件事：
-  1. 每个副本的字节  ==  源文件字节（或 == 源文件套用 code_map.json 适配器后的字节）
-  2. TARGET_DIVERGED  副本被就地改过（权威副本没变，镜像变了）
-  3. SOURCE_CHANGED   源文件在上次 sync 之后被改过 —— 说明 experiment_root 有新的编辑，
-                      code/ 需要重跑 sync.py 对齐（本脚本不会自动改，只报告）
-  4. code/ 里出现了既不在 CODE_INDEX.json、也不是本次整理新建的 .py 文件
+Four things are checked:
+  1. the bytes of every copy  ==  the bytes of the source file (or == the bytes
+     of the source file after its code_map.json adapter has been applied)
+  2. TARGET_DIVERGED  the copy was edited in place (the authoritative copy is
+     unchanged, the mirror changed)
+  3. SOURCE_CHANGED   the source file was edited after the last sync -- meaning
+     experiment_root has newer edits and code/ needs sync.py to realign (this
+     script never changes anything itself, it only reports)
+  4. a .py file appears under code/ that is neither listed in CODE_INDEX.json
+     nor one of the files authored by this archiving pass
 
-所有副本还会过一遍 ast.parse 语法检查（不写 .pyc，不执行任何业务逻辑）。
+Every copy is also run through an ast.parse syntax check (no .pyc written, no
+business logic executed).
 
-用法
-----
-    python code/verify.py            # 全部检查
-    python code/verify.py --quiet    # 只打印问题
+Usage
+-----
+    python code/verify.py            # all checks
+    python code/verify.py --quiet    # print problems only
 """
 from __future__ import annotations
 
@@ -112,7 +118,7 @@ def main() -> int:
             continue
         ok += 1
 
-    # 语法检查（纯解析，不执行、不写字节码）
+    # syntax check (pure parsing: no execution, no bytecode written)
     syntax_bad = 0
     for rel in all_py(HERE):
         p = os.path.join(HERE, rel)

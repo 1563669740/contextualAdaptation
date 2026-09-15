@@ -9,5 +9,5 @@
   "problem_statement": "Improve `PyPDFToDocument`\nCurrently this component is not very flexible or easy to customize.\r\n\r\nIn the past, we tried to make this component more flexible in #6258, introducing the possibility to pass custom `PyPDFConverter`s.\r\nThen we had issues with serialization (#6388) and solved the problem by temporarily introducing a registry (#6396).\r\n\r\nThis makes it difficult for users to introduce custom `PyPDFConverter`s (somewhat related: #6896).\r\n\r\nAs discussed with Silvano, now that proper type serialization is in place, we would like to\r\n- get rid of the registry\r\n- introduce `to_dict/from_dict` in the `PyPDFConverter` protocol\r\n- incorporate these changes into the Default Converter, which can also be a good example\r\n\n",
   "hints_text": "\n\n",
   "all_hints_text": "\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

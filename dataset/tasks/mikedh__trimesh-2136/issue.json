@@ -9,5 +9,5 @@
   "problem_statement": "The uv attribute is not well handled in ply exporter\nHi, thanks for the great library.\r\n\r\nAn issue is found when exporting a mesh to ply. When the `mesh.visual.uv` is `None`, direct access to `mesh.visual.uv[:, 0]` and `mesh.visual.uv[:, 1]` will raise an error.\r\n\r\nhttps://github.com/mikedh/trimesh/blob/021af1fedb3c6cff0e42cba9eed140eea7f819e3/trimesh/exchange/ply.py#L265-L271\r\n\r\nI think only using the `hasattr` to check the existence of attributes is not enough, additional not-None checks should be considered, since other exporters have handled this correctly as following.\r\n\r\nhttps://github.com/mikedh/trimesh/blob/021af1fedb3c6cff0e42cba9eed140eea7f819e3/trimesh/exchange/obj.py#L887-L889\n",
   "hints_text": "\n\n",
   "all_hints_text": "\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

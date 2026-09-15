@@ -86,10 +86,13 @@ def build_model_manifest():
         "snapshot_frozen": True,
     }
     cur["seed_policy"] = {
-        "paper_text": ("若服务端接口不暴露可控 sampling seed，则不把不可设置的 "
-                       "seed 写成复现参数；复现实验使用同一冻结模型快照、"
-                       "reasoning 级别、工具配置和完整调用记录，并将重复调用"
-                       "视为随机重复测量。"),
+        "paper_text": ("if the service-side interface does not expose a "
+                       "controllable sampling seed, an unsettable seed is not "
+                       "written down as a reproduction parameter; the "
+                       "reproduction experiment uses the same frozen model "
+                       "snapshot, reasoning level, tool configuration and "
+                       "complete call log, and repeated calls are treated as "
+                       "repeated random measures."),
         "decision": ("NO sampling seed is recorded as a reproduction parameter. "
                      "Reproduction rests on the frozen snapshot, reasoning "
                      "level, tool configuration and the complete call log; "
@@ -101,7 +104,8 @@ def build_model_manifest():
         "satisfied": True,
     }
     cur["gateway_requirements"] = {
-        "paper_text": "保存每次调用的完整prompt、tool trace、响应和服务端request identifier",
+        "paper_text": ("record the full prompt, tool trace, response and "
+                       "server-side request identifier of every call"),
         "must_record_per_call": [
             "full prompt", "tool trace", "response",
             "server-side request identifier", "model snapshot",

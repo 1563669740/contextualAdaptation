@@ -45,7 +45,7 @@ def w(path, text):
 PROTOCOL_MD = f"""# Frozen experiment protocol
 
 Generated: {NOW}
-Source: 《无Docker_论文复现实验数据采集实施方案》v1.0
+Source: the implementation plan, v1.0
 Status: **frozen** — changes after the first formal session require a documented
 protocol amendment and invalidate affected sessions.
 

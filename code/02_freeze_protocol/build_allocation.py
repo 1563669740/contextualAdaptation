@@ -250,8 +250,8 @@ def main():
     # ------------------------------------------------------------------ #
     # HELD-OUT  72 tasks x 5 policies = 360 sessions
     #
-    # Paper IX-B is explicit: "每个 task 的 context availability 在 policy 分配
-    # 前固定，五种 policy 共享同一 Clow/Chigh 条件及对应 package".  So context
+    # Paper IX-B is explicit: "each task's context availability is fixed before policy
+    # assignment; the five policies share the same Clow/Chigh condition and its corresponding package".  So context
     # is a property of the TASK here, not of the (task, policy) cell: all five
     # policy sessions for a task run under one context condition.
     #

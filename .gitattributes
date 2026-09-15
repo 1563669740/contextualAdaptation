@@ -1,30 +1,31 @@
-# 行尾规则：仓库内一律 LF，检出时不要转成 CRLF。
-# 原因：dataset/gold/patches/*.patch 与 dataset/holdout_tests/*/*.diff 是补丁文本，
-# 换行符被改写会让补丁失效；code/ 侧还有逐字节哈希校验（code/verify.py），
-# 工作树被转成 CRLF 会直接报不一致。
+# Line-ending policy: LF everywhere in the repository, never checked out as CRLF.
+# Reason: dataset/gold/patches/*.patch and dataset/holdout_tests/*/*.diff are patch
+# text -- rewriting their line endings breaks the patches; and code/ carries
+# byte-level hash checks (code/verify.py), which fail if the working tree is
+# converted to CRLF.
 * text=auto eol=lf
 
-# 明确按文本处理的扩展名
-*.py   text eol=lf
-*.md   text eol=lf
-*.json text eol=lf
+# Explicitly text
+*.py    text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
 *.jsonl text eol=lf
-*.yaml text eol=lf
-*.yml  text eol=lf
-*.csv  text eol=lf
-*.txt  text eol=lf
-*.sh   text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.csv   text eol=lf
+*.txt   text eol=lf
+*.sh    text eol=lf
 
-# 补丁与 diff 必须逐字节保留
+# Patches and diffs must stay byte-exact
 *.patch text eol=lf
 *.diff  text eol=lf
 
-# 二进制：不做任何转换
-*.pdf  binary
-*.png  binary
-*.jpg  binary
-*.jpeg binary
-*.gif  binary
-*.zip  binary
-*.gz   binary
+# Binary: no conversion at all
+*.pdf     binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.zip     binary
+*.gz      binary
 *.parquet binary

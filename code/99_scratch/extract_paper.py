@@ -1,6 +1,6 @@
 import re, os, json
 
-PDF = r"C:\Users\Administrator\Desktop\TIFS\TIFS_韩林峄 (1).pdf"
+PDF = r"C:\Users\Administrator\Desktop\TIFS\the paper manuscript.pdf"
 OUT = r"C:\Users\Administrator\Desktop\TIFS\_paper.txt"
 
 import fitz

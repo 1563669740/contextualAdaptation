@@ -1,13 +1,15 @@
-# code/ 运行依赖
+# Runtime dependencies for code/
 #
-# 复现代码刻意只用标准库 + PyYAML：整个采集链路要在一个固定的
-# 非容器 Linux 实验机上重放，依赖越少，环境指纹越好复现。
+# The reproduction code deliberately uses only the standard library + PyYAML: the entire
+# collection pipeline has to be replayed on one fixed non-container Linux experiment
+# machine, and the fewer the dependencies, the easier the environment fingerprint is to
+# reproduce.
 #
-# Python：3.11（宿主实测 3.11.7）
-# 其它外部依赖：git（fetch_repos.py 走 git 路径时需要）、
-#               能访问 github.com 与 codeload.github.com 的网络
+# Python: 3.11 (3.11.7 measured on the host)
+# Other external dependencies: git (needed when fetch_repos.py takes the git path),
+#                              network access to github.com and codeload.github.com
 #
-# PyYAML 的使用者：adjudicate_leakage.py, audit.py, build_role_artifacts.py,
-#                   evaluate.py, pilot_gates.py, rq2_coding.py,
-#                   screen_answer_leakage.py
+# Users of PyYAML: adjudicate_leakage.py, audit.py, build_role_artifacts.py,
+#                  evaluate.py, pilot_gates.py, rq2_coding.py,
+#                  screen_answer_leakage.py
 PyYAML>=6.0

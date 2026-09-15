@@ -9,5 +9,5 @@
   "problem_statement": "hu-Hu localization gives back non-capitalized city names\n* Faker version: 23.2.1\r\n* OS: Ubuntu 22.04.3 LTS\r\n\r\nFaker with hu-HU localization gives back non-capitalized cities, when it has either a city_prefix or city_part used in its format.\r\n\r\n### Steps to reproduce\r\n\r\n1. `Faker.seed(1234)`\r\n1. `Faker(\"hu-HU\").city()`\r\n\r\n### Expected behavior\r\n\r\n'Györgyháza'\r\n\r\n### Actual behavior\r\n\r\n'györgyháza'\r\n\n",
   "hints_text": "Feel free to submit a corresponding PR.\n\n",
   "all_hints_text": "Feel free to submit a corresponding PR.\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

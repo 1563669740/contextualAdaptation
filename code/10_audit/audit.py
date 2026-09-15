@@ -602,7 +602,7 @@ def check_reproducibility(r, index):
 
 
 def check_paper_requirements(r):
-    """Requirements taken from the paper itself (TIFS_韩林峄), which the plan
+    """Requirements taken from the paper manuscript itself, which the plan
     document did not enumerate.  Existence is a PASS; a null 'frozen_utc' or a
     'TO_BE_*' status is a WARN, because those need humans."""
     reqs = [

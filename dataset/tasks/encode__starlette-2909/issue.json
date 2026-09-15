@@ -9,5 +9,5 @@
   "problem_statement": "Index Errors in old-style Jinja2Templates.TemplateResponse\nThe parsing logic for the backward-compatible (pre-0.29.0) list of positional arguments uses index 2 twice:\n\nhttps://github.com/encode/starlette/blob/c8a46925366361e40b65b117473db1342895b904/starlette/templating.py#L168-L173\n\n`headers`, `media_type` and `background` should be at indices 3, 4 and 5, respectively.\n",
   "hints_text": "cc @alex-oleshkevich \nFixed by https://github.com/encode/starlette/pull/2909\n\n",
   "all_hints_text": "cc @alex-oleshkevich \nFixed by https://github.com/encode/starlette/pull/2909\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

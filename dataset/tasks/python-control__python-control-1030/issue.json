@@ -9,5 +9,5 @@
   "problem_statement": "`control.combine_time_responses` fails to combine time responses\nUsing `control.combine_time_responses` results in the following error:\r\n\r\n```python\r\nAttributeError: 'TimeResponseData' object has no attribute 'types'\r\n```\r\nThis is because the code that adds new trace labels to the combined data has a bug where is trying to access a `types` attribute from the `TimeResponseData` objects instead of `trace_types`.\n",
   "hints_text": "\n\n",
   "all_hints_text": "\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

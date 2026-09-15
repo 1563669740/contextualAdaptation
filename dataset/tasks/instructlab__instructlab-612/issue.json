@@ -9,5 +9,5 @@
   "problem_statement": "TESTING: lint flag styles\nFlags should be hyphen-only\r\n\r\ne.g. `--model-dir` and not `--model_dir`\n",
   "hints_text": "\n\n",
   "all_hints_text": "\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

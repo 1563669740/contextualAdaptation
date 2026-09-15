@@ -4,7 +4,7 @@
 Phase N -- Artefacts the *paper* requires that the implementation plan implied
 but never materialised.
 
-Reading the paper (TIFS_韩林峄) surfaced seven data requirements that have no
+Reading the paper manuscript surfaced seven data requirements that have no
 counterpart in the plan document or in what was already collected.  Each is
 built here with the paper's own numbers as the acceptance criteria.
 
@@ -71,7 +71,7 @@ def sha256_file(p):
 QUIZ = {
     "schema_version": "1.0",
     "instrument_id": "repository_understanding_v1",
-    "paper_reference": "Section V-A 'Manipulation 与 treatment-fidelity 检查'",
+    "paper_reference": "Section V-A 'Manipulation and treatment-fidelity check'",
     "status": "template_frozen_structure_per_task_items_required",
     "frozen_utc": None,
     "why": ("The paper does not only compare outcomes; it first shows the "
@@ -91,7 +91,7 @@ QUIZ = {
     "domains": {
         "module_responsibility": {
             "weight": 4,
-            "paper_text": "覆盖模块职责",
+            "paper_text": "module responsibilities covered",
             "item_template": {
                 "id": "mr_{n}",
                 "question": ("Which component is responsible for {behaviour}?"),
@@ -104,7 +104,7 @@ QUIZ = {
         },
         "dependency_relations": {
             "weight": 3,
-            "paper_text": "覆盖依赖关系",
+            "paper_text": "dependency relationships covered",
             "item_template": {
                 "id": "dr_{n}",
                 "question": ("Which module does {component} import or depend on "
@@ -118,7 +118,7 @@ QUIZ = {
         },
         "test_structure": {
             "weight": 3,
-            "paper_text": "覆盖测试结构",
+            "paper_text": "test structure covered",
             "item_template": {
                 "id": "ts_{n}",
                 "question": ("Where do the tests for {component} live, and how "
@@ -163,7 +163,9 @@ QUIZ = {
                       "difference with 95% CI and test statistic"],
     },
     "ai_side_audit": {
-        "paper_text": "对AI 侧，平台审计初始上下文以确认package 在所有Chigh session 中可见、在Clow 中不可见",
+        "paper_text": ("on the AI side, the platform audits the initial context "
+                       "to confirm that the package is visible in every Chigh "
+                       "session and not visible in Clow"),
         "procedure": [
             "for every session, read provenance_hashes.context_package from session_meta.json",
             "Chigh sessions must carry a non-null hash; Clow sessions must carry none",
@@ -180,7 +182,7 @@ QUIZ = {
 RUBRIC = {
     "schema_version": "1.0",
     "instrument_id": "semantic_review_v1",
-    "paper_reference": "Section V-G 'Semantic Correctness 保持为独立结果'",
+    "paper_reference": "Section V-G 'Semantic correctness kept as an independent outcome'",
     "status": "frozen_structure_pending_human_reviewers",
     "frozen_utc": NOW,
     "reviewers": {
@@ -249,7 +251,7 @@ RUBRIC = {
 EXTRACTOR = {
     "schema_version": "1.0",
     "extractor_id": "online_signal_extractor_v1",
-    "paper_reference": "Section VIII-A '从人工编码概念到在线信号'",
+    "paper_reference": "Section VIII-A 'From human-coded concepts to online signals'",
     "status": "TO_BE_FROZEN_BEFORE_HELD_OUT",
     "frozen_utc": None,
     "cardinal_rule": ("the held-out Adaptive Policy must never read post-hoc "
@@ -353,7 +355,7 @@ def freeze_record():
     alloc_hash = sha256_file(alloc) if os.path.exists(alloc) else None
     fr = {
         "schema_version": "1.0",
-        "paper_reference": "Section III-D '冻结记录与可复现性'",
+        "paper_reference": "Section III-D 'Frozen record and reproducibility'",
         "why": ("the paper only calls content 'frozen' when it carries a "
                 "verifiable timestamp, and its own record names a timestamp, a "
                 "code version, an allocation hash and the split manifest"),
@@ -394,8 +396,10 @@ def freeze_record():
             "frozen_artefact_tree_digest (from audit/freeze_manifest.json)",
             "release_identifier and release_url",
         ],
-        "paper_statement": ("本文仅将有可核查时间戳的内容称为“冻结”，不以事后分析"
-                            "替代预先规定的主要检验。"),
+        "paper_statement": ("this paper calls content 'frozen' only when it "
+                            "carries a verifiable timestamp, and never "
+                            "substitutes post-hoc analysis for the pre-specified "
+                            "primary test"),
     }
     return fr
 
@@ -405,7 +409,7 @@ def freeze_record():
 # --------------------------------------------------------------------------- #
 REPLAY = {
     "schema_version": "1.0",
-    "paper_reference": "Section V-H '为支持RQ2，轨迹还需可重放'",
+    "paper_reference": "Section V-H 'To support RQ2, trajectories must also be replayable'",
     "status": "specification",
     "requirement": ("every key modification must have recoverable working-tree "
                     "state, test result and chat context around it"),
@@ -433,8 +437,10 @@ REPLAY = {
     },
     "session_summary": {
         "required": True,
-        "paper_text": "所有event 使用统一schema 并生成session-level summary",
-        "caveat": ("自动summary 仅支持检索，定性编码以原始轨迹为准 -- the "
+        "paper_text": ("all events use a unified event schema and generate a "
+                       "session-level summary"),
+        "caveat": ("the automatic summary supports retrieval only; qualitative "
+                   "coding follows the raw trajectory -- the "
                    "summary is a retrieval index, never the coding input"),
         "fields": ["session_id", "condition", "outcome", "wall_clock_sec",
                    "human_active_sec", "n_events", "per_signal_counts",
@@ -452,7 +458,7 @@ REPLAY = {
 # --------------------------------------------------------------------------- #
 HOLDOUT_LOG = {
     "schema_version": "1.0",
-    "paper_reference": "Section V-G '增强正确性Oracle 的构造'",
+    "paper_reference": "Section V-G 'Construction of the enhanced correctness oracle'",
     "status": "schema_ready_no_tests_authored",
     "authoring_constraints": [
         "author must not have run any session",

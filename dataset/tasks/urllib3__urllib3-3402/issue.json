@@ -9,5 +9,5 @@
   "problem_statement": "Add check for correct h2 version range\nSimilar to our other third-party package support, we should be checking which version of h2 is installed and raise an error in the case we get an unsupported version. We know that h2 uses semver, so we can check the major version is in our desired range.\n",
   "hints_text": "@sethmlarson Took the freedom to create the check. Looking forward to some feedback.\n\n",
   "all_hints_text": "@sethmlarson Took the freedom to create the check. Looking forward to some feedback.\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

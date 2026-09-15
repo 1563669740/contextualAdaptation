@@ -1,24 +1,24 @@
 #!/usr/bin/env python
-"""把 TIFS 工作区里已有的复现代码，按论文位置同步到 code/ 下（幂等，只复制）。
+"""Sync the reproduction code already present in the TIFS workspace into code/, by paper anchor (idempotent, copy only).
 
-为什么是"复制"而不是"移动"
+Why "copy" rather than "move"
 ------------------------------------------------
-experiment_root/audit/freeze_manifest.json 与 splits/randomisation.json 记录了
-复现产物的 tree digest 与生成器源码 SHA256。把 experiment_root/tools/*.py 移走
-会直接改变冻结包的内容哈希 —— 那份冻结包是已经交付的、可核验的权威副本。
-所以：
+experiment_root/audit/freeze_manifest.json and splits/randomisation.json record the
+tree digest of the reproduction artefacts and the SHA256 of the generator sources.
+Moving experiment_root/tools/*.py away would directly change the content hash of the frozen manifest —— that frozen manifest is an already delivered, verifiable authoritative copy.
+Therefore:
 
-    权威副本 = experiment_root/          （永不改动：本脚本只读）
-    归档镜像 = code/                     （本脚本的写入目标）
+    authoritative copy = experiment_root/          (never modified: this script only reads)
+    archive mirror     = code/                     (this script's write target)
 
-对这个工作区里仍在进行的编辑，sync.py 是幂等的：任何时候重跑一次，
-code/ 就重新对齐到 experiment_root 的当前状态，并更新 CODE_INDEX.json 里的哈希。
+For the edits still in progress in this workspace, sync.py is idempotent: rerun it at
+any time and code/ is realigned with the current state of experiment_root, and the hashes in CODE_INDEX.json are updated.
 
-用法
+Usage
 ----
-    python code/sync.py                     # 同步 + 写索引
-    python code/sync.py --check             # 只报告差异，不写任何文件
-    python code/sync.py --adopt-unmapped    # 把未登记的 *_*.py 收进 99_scratch/_unmapped/
+    python code/sync.py                     # sync + write the file index
+    python code/sync.py --check             # report differences only, write no files
+    python code/sync.py --adopt-unmapped    # collect unmapped *_*.py into 99_scratch/_unmapped/
 """
 from __future__ import annotations
 
@@ -35,13 +35,13 @@ MAP_PATH = os.path.join(HERE, "code_map.json")
 INDEX_JSON = os.path.join(HERE, "CODE_INDEX.json")
 INDEX_MD = os.path.join(HERE, "CODE_INDEX.md")
 
-# 由本脚本手工新建、不作为副本参与哈希比对的文件
+# Files created by hand by this script; they are not copies and take no part in hash comparison
 AUTHORED = {
     "README.md", "code_map.json", "sync.py", "verify.py", "run.py",
     "requirements.txt", "CODE_INDEX.json", "CODE_INDEX.md",
 }
 
-# 未登记脚本的搜索范围（相对 TIFS）
+# Search scope for unmapped scripts (relative to TIFS)
 SCAN_DIRS = ["", "experiment_root", "experiment_root/tools",
              "experiment_root/evaluation", "experiment_root/repo_cache"]
 
@@ -66,7 +66,7 @@ def now() -> str:
 
 
 def apply_adapter(raw: bytes, adapter: dict, name: str) -> tuple[bytes, dict]:
-    """行级适配：必须恰好命中一次，否则报错而不是猜。"""
+    """Line-level adaptation: it must match exactly once, otherwise fail with an error rather than guess."""
     match = adapter["match"].encode("utf-8")
     repl = adapter["replace"].format(
         repo_cache=os.path.join(TIFS, "experiment_root", "repo_cache")
@@ -96,7 +96,7 @@ def scan_unmapped(m: dict) -> list:
             if not fn.endswith(".py"):
                 continue
             if d == "" and not fn.startswith("_"):
-                continue          # TIFS 根目录只看 _*.py 这类临时脚本
+                continue          # at the TIFS root only temporary scripts such as _*.py are considered
             rel = os.path.normpath(os.path.join(TIFS, d, fn)) if d \
                 else os.path.normpath(os.path.join(TIFS, fn))
             rel = os.path.relpath(rel, TIFS)
@@ -115,8 +115,8 @@ def collect_unmapped_bodies(paths: list) -> list:
         out.append({
             "source": rel.replace(os.sep, "/"),
             "target": "99_scratch/_unmapped/" + os.path.basename(rel),
-            "role": "未登记：sync.py 自动收拢（新出现的临时脚本）",
-            "paper": "非论文产物",
+            "role": "Unmapped: auto-adopted by sync.py (newly appeared temporary script)",
+            "paper": "Not a paper artefact",
             "auto": True,
             "_bytes": raw,
         })
@@ -127,9 +127,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true",
-                    help="只报告差异，不写任何文件")
+                    help="report differences only, write no files")
     ap.add_argument("--adopt-unmapped", action="store_true",
-                    help="把未登记的临时脚本复制进 99_scratch/_unmapped/")
+                    help="copy unmapped temporary scripts into 99_scratch/_unmapped/")
     args = ap.parse_args()
 
     m = json.load(open(MAP_PATH, encoding="utf-8"))
@@ -204,14 +204,14 @@ def main() -> int:
         groups.setdefault(r["path"].split("/")[0], []).append(r)
 
     index = {
-        "schema": "tifs-code-index/1.0",
+        "schema": "project-code-index/1.0",
         "generated_utc": now(),
         "authoritative_root": m["authoritative"],
         "code_root": "code/",
         "note": [
-            "code/ 是 experiment_root 的可追溯归档镜像 + 统一入口；权威副本始终是 experiment_root。",
-            "byte_identical_to_source=false 的文件带 adaptation 字段，逐字说明改了什么。",
-            "本目录不参与 experiment_root 的冻结哈希，也不被 tools/audit.py 扫描。",
+            "code/ is a traceable archive mirror of experiment_root + the single entry point; the authoritative copy is always experiment_root.",
+            "Files with byte_identical_to_source=false carry an adaptation field that states line by line what was changed.",
+            "This directory takes no part in the frozen hashes of experiment_root, and tools/audit.py does not scan it.",
         ],
         "counts": {
             "files": len(entries),
@@ -258,36 +258,36 @@ def main() -> int:
 
 
 def render_md(index: dict) -> str:
-    L = ["# CODE_INDEX — code/ 文件索引", "",
-         f"生成时间（UTC）：`{index['generated_utc']}`　·　"
-         f"权威副本：`{index['authoritative_root']}/`　·　"
-         f"本目录：`code/`", "",
-         "> 本文件由 `code/sync.py` 生成，请勿手改。",
-         "> 论文位置 ↔ 文件的完整对照另见 `code/README.md`。", ""]
+    L = ["# CODE_INDEX — code/ file index", "",
+         f"Generated (UTC): `{index['generated_utc']}` · "
+         f"Authoritative copy: `{index['authoritative_root']}/` · "
+         f"This directory: `code/`", "",
+         "> This file is generated by `code/sync.py`; do not edit it by hand.",
+         "> For the full paper anchor ↔ file mapping see `code/README.md`.", ""]
     c = index["counts"]
-    L += ["| 统计 | 值 |", "|---|---|",
-          f"| 文件总数 | {c['files']} |",
-          f"| 与源逐字节一致 | {c['byte_identical']} |",
-          f"| 带显式适配 | {c['adapted']} |",
-          f"| 自动收拢（未登记） | {c['auto_adopted']} |",
-          f"| 分组 | {c['groups']} |",
-          f"| 本次同步 | 新增 {c['sync_added']} · 更新 {c['sync_updated']} · 未变 {c['sync_unchanged']} |",
+    L += ["| Metric | Value |", "|---|---|",
+          f"| Total files | {c['files']} |",
+          f"| Byte-identical to source | {c['byte_identical']} |",
+          f"| With explicit adaptation | {c['adapted']} |",
+          f"| Auto-adopted (unmapped) | {c['auto_adopted']} |",
+          f"| Groups | {c['groups']} |",
+          f"| This sync | added {c['sync_added']} · updated {c['sync_updated']} · unchanged {c['sync_unchanged']} |",
           ""]
     by_path = {r["path"]: r for r in index["files"]}
     for g, v in sorted(index["groups"].items()):
-        L += [f"## {g}（{v['n']}）", "",
-              "| # | 文件 | 源 | 字节 | SHA256(源) | 适配 |", "|---|---|---|---|---|---|"]
+        L += [f"## {g} ({v['n']})", "",
+              "| # | File | Source | Bytes | SHA256(source) | Adaptation |", "|---|---|---|---|---|---|"]
         for i, path in enumerate(v["files"], 1):
             ref = by_path[path]
             p = path.split("/", 1)[1] if "/" in path else path
             L.append("| {} | `{}` | `{}` | {} | `{}…` | {} |".format(
                 i, p, ref["source"], ref["bytes"],
                 ref["source_sha256"][:12],
-                "逐字节一致" if ref["byte_identical_to_source"]
+                "byte-identical" if ref["byte_identical_to_source"]
                 else "`" + ref["adaptation"]["adapter"] + "`"))
         L.append("")
     if index.get("unmapped_not_copied"):
-        L += ["## 未登记、未复制（需要人工归位）", ""]
+        L += ["## Unmapped, not copied (manual placement required)", ""]
         L += [f"- `{u}`" for u in index["unmapped_not_copied"]]
         L.append("")
     return "\n".join(L)

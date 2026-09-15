@@ -9,5 +9,5 @@
   "problem_statement": "OBJ export doesn't have newline on last line.\nCurrently this breaks Prusa Slicer.\r\nI reported it to them too, but I think it best if both sides fix it.\r\n(PS should be more forgiving, Trimesh really should end the line properly.)\r\n\n",
   "hints_text": "\n\n",
   "all_hints_text": "Thanks for the report!\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }

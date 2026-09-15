@@ -9,5 +9,5 @@
   "problem_statement": "v63.0 flexbox issue overflow hidden\nWith v63.0 the following code breaks:\n\n```\n<html>\n<head>\n<style>\n    .wrapper {\n      display: flex;\n    }\n    .cell {\n      flex: 1;\n      border: 1px solid black;\n      padding: 10px;\n      overflow: hidden;\n    }\n  </style>\n</head>\n<body>\n  <div class=\"wrapper\">\n    <div class=\"cell\">one</div>\n    <div class=\"cell\">two</div>\n    <div class=\"cell\">three</div>\n    <div class=\"cell\">four</div>\n    <div class=\"cell\">five</div>\n    <div class=\"cell\">six</div>\n    <div class=\"cell\">seven</div>\n    <div class=\"cell\">eight</div>\n    <div class=\"cell\">nine</div>\n  </div>\n</body>\n</html>\n```\n\nWhen overflow: hidden is added to .cell, all cells appear on top of each other instead of next to each other.\n",
   "hints_text": "Thanks for your useful sample (and on other issues too!)\n\n",
   "all_hints_text": "Thanks for your useful sample (and on other issues too!)\n\n",
-  "note": "problem_statement is the exact participant-facing task text (方案.txt section 11.1, Low/Cold Context)."
+  "note": "problem_statement is the exact participant-facing task text (implementation plan, section 11.1, Low/Cold Context)."
 }
