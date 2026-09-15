@@ -1,4 +1,4 @@
-# 内容清单（TIFS 仓库 = 业务代码 + 数据集）
+# 内容清单（project 仓库 = 业务代码 + 数据集）
 
 生成时间：2026-09-15　实测命令：`git ls-files -o --exclude-standard`
 
@@ -80,23 +80,23 @@
 
 ## 4. 上传前需要知道的三件事
 
-1. **代码里的绝对路径未改**：`code/` 62 个文件中 55 个含 `C:\Users\Administrator\Desktop\TIFS\...`，共 101 处引用（`experiment_root/` 67 处、`dataset/` 21 处、TIFS 根 13 处）。只读数据集与算法的脚本可直接跑；完整采集/评价链需要本机保留的 `experiment_root/`。详见 README §4。
+1. **代码里的绝对路径未改**：`code/` 62 个文件中 55 个含 `C:\Users\Administrator\Desktop\project\...`，共 101 处引用（`experiment_root/` 67 处、`dataset/` 21 处、仓库根 13 处）。只读数据集与算法的脚本可直接跑；完整采集/评价链需要本机保留的 `experiment_root/`。详见 README「路径要求」。
 2. **答案材料随库分发**：`dataset/gold/`（10.8 MB 修复 patch）与 `dataset/benchmark_tests/`（41.9 MB F2P/P2P）等于答案。若仓库要公开、且后续仍用同一批任务做实采，建议把这两项也加到 `.gitignore`。
 3. **密钥扫描已过**：`dataset/` 全量扫描唯一命中是 `patroni__patroni-3045` 的 issue 原文，内容为上游已脱敏的 `password: 'REDACTED'`，非真实凭据。
 
 ---
 
-## 5. 上传命令
-
-`.git` 已初始化（`git init -b main`），尚未 commit。
+## 5. 已执行的上传
 
 ```powershell
-cd C:\Users\Administrator\Desktop\TIFS
+cd C:\Users\Administrator\Desktop\project
 
 git add .
-git status --short -uall | Measure-Object -Line     # 预期 3,564
-git commit -m "TIFS: repository-level repair delegation study -- code and dataset"
-
-git remote add origin <你的仓库地址>
+git commit -m "project: repository-level repair delegation study -- code and dataset"
+git remote add origin https://github.com/1563669740/contextualAdaptation.git
 git push -u origin main
 ```
+
+远端：`https://github.com/1563669740/contextualAdaptation`，分支 `main`，3,565 个文件。
+提交前已把仓库级 `core.autocrlf` 设为 `false` 并加入 `.gitattributes`（`* text=auto eol=lf`），
+避免 `dataset/gold/patches/*.patch` 与 `dataset/holdout_tests/*/*.diff` 的行尾被改写成 CRLF。
