@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Sync the reproduction code already present in the TIFS workspace into code/, by paper anchor (idempotent, copy only).
+"""Sync the reproduction code already present in the workspace into code/, by paper anchor (idempotent, copy only).
 
 Why "copy" rather than "move"
 ------------------------------------------------
@@ -41,7 +41,7 @@ AUTHORED = {
     "requirements.txt", "CODE_INDEX.json", "CODE_INDEX.md",
 }
 
-# Search scope for unmapped scripts (relative to TIFS)
+# Search scope for unmapped scripts (paths relative to the workspace root)
 SCAN_DIRS = ["", "experiment_root", "experiment_root/tools",
              "experiment_root/evaluation", "experiment_root/repo_cache"]
 
@@ -96,7 +96,7 @@ def scan_unmapped(m: dict) -> list:
             if not fn.endswith(".py"):
                 continue
             if d == "" and not fn.startswith("_"):
-                continue          # at the TIFS root only temporary scripts such as _*.py are considered
+                continue          # at the workspace root only temporary scripts such as _*.py are considered
             rel = os.path.normpath(os.path.join(TIFS, d, fn)) if d \
                 else os.path.normpath(os.path.join(TIFS, fn))
             rel = os.path.relpath(rel, TIFS)

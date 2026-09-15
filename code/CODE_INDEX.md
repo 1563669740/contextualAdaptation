@@ -7,9 +7,9 @@ Generated (UTC): `2026-09-15T00:45:27Z` · Authoritative copy: `experiment_root/
 
 | Metric | Value |
 |---|---|
-| Total files | 55 |
-| Byte-identical to source | 54 |
-| With explicit adaptation | 1 |
+| Total files | 54 |
+| Byte-identical to source | 48 |
+| With explicit adaptation | 6 |
 | Auto-adopted (unmapped) | 0 |
 | Groups | 11 |
 | This sync | added 0 · updated 0 · unchanged 55 |
@@ -26,13 +26,13 @@ Generated (UTC): `2026-09-15T00:45:27Z` · Authoritative copy: `experiment_root/
 
 | # | File | Source | Bytes | SHA256(source) | Adaptation |
 |---|---|---|---|---|---|
-| 1 | `build_allocation.py` | `experiment_root/tools/build_allocation.py` | 19514 | `bd1079bd7f20…` | byte-identical |
+| 1 | `build_allocation.py` | `experiment_root/tools/build_allocation.py` | 19514 | `bd1079bd7f20…` | translated to English (logic unchanged) |
 | 2 | `build_context_packages.py` | `experiment_root/tools/build_context_packages.py` | 28335 | `283d2c79dc93…` | byte-identical |
 | 3 | `build_env_manifests.py` | `experiment_root/tools/build_env_manifests.py` | 11338 | `cef065e8b5f7…` | byte-identical |
 | 4 | `build_inventory.py` | `experiment_root/tools/build_inventory.py` | 16894 | `942ba9c37922…` | byte-identical |
-| 5 | `build_paper_artefacts.py` | `experiment_root/tools/build_paper_artefacts.py` | 25839 | `158a0a48ddb2…` | byte-identical |
-| 6 | `build_protocol.py` | `experiment_root/tools/build_protocol.py` | 24550 | `ec754b6abd83…` | byte-identical |
-| 7 | `build_role_artifacts.py` | `experiment_root/tools/build_role_artifacts.py` | 13369 | `f64cf164517d…` | byte-identical |
+| 5 | `build_paper_artefacts.py` | `experiment_root/tools/build_paper_artefacts.py` | 25839 | `158a0a48ddb2…` | translated to English (logic unchanged) |
+| 6 | `build_protocol.py` | `experiment_root/tools/build_protocol.py` | 24550 | `ec754b6abd83…` | translated to English (logic unchanged) |
+| 7 | `build_role_artifacts.py` | `experiment_root/tools/build_role_artifacts.py` | 13369 | `f64cf164517d…` | translated to English (logic unchanged) |
 | 8 | `build_understanding_quiz.py` | `experiment_root/tools/build_understanding_quiz.py` | 22056 | `55741ed2f474…` | byte-identical |
 | 9 | `pipeline_tick.py` | `experiment_root/_pipeline_tick.py` | 2901 | `4f0e9af668dd…` | byte-identical |
 
@@ -98,28 +98,33 @@ Generated (UTC): `2026-09-15T00:45:27Z` · Authoritative copy: `experiment_root/
 | 4 | `exercise_thresholds.py` | `_exercise_thresholds.py` | 3893 | `6e34bd7f79d4…` | byte-identical |
 | 5 | `online_policy.py` | `experiment_root/tools/online_policy.py` | 20606 | `147205767d4e…` | byte-identical |
 
-## 09_rq1_rq4_analysis (2)
+## 09_rq1_rq4_analysis (1)
 
 | # | File | Source | Bytes | SHA256(source) | Adaptation |
 |---|---|---|---|---|---|
 | 1 | `check_pipeline.py` | `_check_pipeline.py` | 3418 | `f59c7b5acbe9…` | byte-identical |
-| 2 | `simulate.py` | `experiment_root/tools/simulate.py` | 24704 | `a7111a87699f…` | byte-identical |
+
+> `simulate.py` is registered in `code_map.json` for this group, but neither the `code/` copy nor
+> the authoritative source (`experiment_root/tools/simulate.py`) exists in this workspace, so it
+> was never archived. The group's `check_pipeline.py` is present.
 
 ## 10_audit (1)
 
 | # | File | Source | Bytes | SHA256(source) | Adaptation |
 |---|---|---|---|---|---|
-| 1 | `audit.py` | `experiment_root/tools/audit.py` | 51744 | `75af753918ec…` | byte-identical |
+| 1 | `audit.py` | `experiment_root/tools/audit.py` | 51744 | `75af753918ec…` | translated to English (logic unchanged) |
 
 ## 99_scratch (8)
 
 | # | File | Source | Bytes | SHA256(source) | Adaptation |
 |---|---|---|---|---|---|
 | 1 | `deep_diag.py` | `_deep_diag.py` | 1397 | `9aa39f319351…` | byte-identical |
-| 2 | `extract_paper.py` | `_extract_paper.py` | 491 | `717f0a6bffe5…` | byte-identical |
+| 2 | `extract_paper.py` | `_extract_paper.py` | 491 | `717f0a6bffe5…` | translated to English (logic unchanged) |
 | 3 | `fix_bcp.py` | `_fix_bcp.py` | 887 | `a4f15212ff44…` | byte-identical |
 | 4 | `fix_paths.py` | `_fix_paths.py` | 3210 | `d998070b4dd4…` | byte-identical |
 | 5 | `gold_diag.py` | `_gold_diag.py` | 1567 | `ee33e296329d…` | byte-identical |
 | 6 | `patch_fetch.py` | `_patch_fetch.py` | 3779 | `08be6ff4ba24…` | byte-identical |
 | 7 | `probe_local.py` | `_probe_local.py` | 1937 | `3ff14d25d8e0…` | byte-identical |
 | 8 | `probe_po24.py` | `_probe_po24.py` | 1407 | `bfa560f587f9…` | byte-identical |
+
+> The **Adaptation** column of the six rows above says *translated to English*: those copies differ from their authoritative source only in comments, docstrings and prose string values. The source bytes and SHA256 in those rows still describe the authoritative file under `experiment_root/`, not the translated copy; the copy's own size and hash are in `CODE_INDEX.json` (`target_sha256`, `bytes`).

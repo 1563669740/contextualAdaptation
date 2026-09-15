@@ -9,9 +9,9 @@
   "This directory takes no part in the frozen hashes of experiment_root, and tools/audit.py does not scan it."
  ],
  "counts": {
-  "files": 55,
-  "byte_identical": 54,
-  "adapted": 1,
+  "files": 54,
+  "byte_identical": 48,
+  "adapted": 6,
   "auto_adopted": 0,
   "groups": 11,
   "sync_added": 0,
@@ -130,7 +130,14 @@
    ]
   }
  },
- "unmapped_not_copied": [],
+ "unmapped_not_copied": [
+  {
+   "source": "experiment_root/tools/simulate.py",
+   "reason": "registered in code_map.json, but neither the code/ copy nor the authoritative source exists in this workspace -- not archived",
+   "role": "Generates 792 synthetic sessions from the frozen allocation (the target structure of Table V / Table XV), for pipeline self-checks",
+   "paper": "§VI RQ1 Table V; §IX RQ4 Table XV"
+  }
+ ],
  "files": [
   {
    "path": "01_infra_noncontainer/fetch_repos.py",
@@ -138,15 +145,9 @@
    "bytes": 16189,
    "source_sha256": "274f56be72e2e10261661032e31f1c86da9bde26c23e5dafcc2067fdefda598a",
    "target_sha256": "2f4371f38e7534b40ea0838cca1402521d16a81081d5b06f022bd6654c38fc2d",
-   "byte_identical_to_source": false,
-   "role": "Fetching the 38 base repositories (git path) + base commit content inventory and snapshot",
-   "paper": "§IV-A primary data source; §V-E step 2 environment restore",
-   "adaptation": {
-    "adapter": "path_pin",
-    "line": "CACHE = os.path.dirname(os.path.abspath(__file__))",
-    "replaced_with": "CACHE = r\"C:\\Users\\Administrator\\Desktop\\TIFS\\experiment_root\\repo_cache\"  # code-tree adapter: pin to the authoritative cache",
-    "n_matches": 1
-   }
+   "byte_identical_to_source": true,
+   "role": "Fetching of the 38 base repositories (git path) + content inventory and snapshots for the base commit",
+   "paper": "§IV-A primary data source; §V-E step 2 environment restoration"
   },
   {
    "path": "01_infra_noncontainer/fetch_repos_tarball.py",
@@ -155,7 +156,7 @@
    "source_sha256": "7ef3ff97bcaaf80587b27d055935a7a950f77464c217cfdfe3646cfaf7dd52da",
    "target_sha256": "7ef3ff97bcaaf80587b27d055935a7a950f77464c217cfdfe3646cfaf7dd52da",
    "byte_identical_to_source": true,
-   "role": "codeload tarball fallback fetch (fills in the remaining repositories when git negotiation fails); both paths share the same schema",
+   "role": "codeload tarball fallback fetching (tops up the remaining repositories when git negotiation fails); both paths share the same schema",
    "paper": "§IV-A primary data source"
   },
   {
@@ -165,19 +166,23 @@
    "source_sha256": "5e54600a3af9b34525cb605ed2fb667288d5febbbdc812d7fc93d496a60dba7f",
    "target_sha256": "5e54600a3af9b34525cb605ed2fb667288d5febbbdc812d7fc93d496a60dba7f",
    "byte_identical_to_source": true,
-   "role": "Task environment substrate: rebuild the working tree from the task manifest, install dependencies, run the visible tests",
-   "paper": "§V-E single-Session flow (steps 2–3); plan §2.3 per-task environment manifest"
+   "role": "Task environment base: rebuild the working tree from the task manifest, install dependencies, and run the visible tests",
+   "paper": "§V-E single-Session workflow (steps 2–3); plan §2.3 per-task environment manifest"
   },
   {
    "path": "02_freeze_protocol/build_allocation.py",
    "source": "experiment_root/tools/build_allocation.py",
-   "bytes": 19514,
+   "bytes": 19537,
    "source_sha256": "bd1079bd7f20b5c5fd7307b2f08315ae5123f4ebfa523f6799a8dbbc53ff4c4f",
-   "target_sha256": "bd1079bd7f20b5c5fd7307b2f08315ae5123f4ebfa523f6799a8dbbc53ff4c4f",
-   "byte_identical_to_source": true,
-   "role": "Pilot/Discovery/Held-out split, 2×3 balanced allocation, C1–C6 constraint validation, frozen with seed 20260301",
-   "paper": "§V-C 2×3 factorial and incomplete block design; §III-D frozen record",
-   "note": "record['generator_sha256'] records the hash of this file itself; the copy does not change that value (it only reads the original in experiment_root)"
+   "target_sha256": "1f77947383639d333e06a8382f911ed4a10889af1de6b6e8dd4a6f962369f636",
+   "byte_identical_to_source": false,
+   "role": "Pilot/Discovery/Held-out split, 2×3 balanced allocation, C1–C6 constraint validation, freeze at seed 20260301",
+   "paper": "§V-C 2×3 factorial and incomplete block design; §III-D freeze records",
+   "note": "record['generator_sha256'] stores the hash of this file itself; a copy does not change that value (it only reads the original under experiment_root)",
+   "adaptation": {
+    "adapter": "translation",
+    "note": "translated to English in place (comments, docstrings and prose string values only; logic, identifiers and emitted structure unchanged)"
+   }
   },
   {
    "path": "02_freeze_protocol/build_context_packages.py",
@@ -186,7 +191,7 @@
    "source_sha256": "283d2c79dc93cabcd2b470a789c289172351ba0890219fedf54086058fee9581",
    "target_sha256": "283d2c79dc93cabcd2b470a789c289172351ba0890219fedf54086058fee9581",
    "byte_identical_to_source": true,
-   "role": "Chigh context package generation (six-section structure + leak-proof self-certification, never reads gold)",
+   "role": "Chigh context package generation (six-section structure + leakage-prevention self-attestation, never reads gold)",
    "paper": "§V-A Context-Enriched (Chigh)"
   },
   {
@@ -206,38 +211,50 @@
    "source_sha256": "942ba9c37922af96c773b45328a771236dfc046ad34f2c23452417ca3e90c096",
    "target_sha256": "942ba9c37922af96c773b45328a771236dfc046ad34f2c23452417ca3e90c096",
    "byte_identical_to_source": true,
-   "role": "Physical separation of the participant-visible manifest from the evaluation_only spec (enforced visibility)",
+   "role": "Physical separation of the participant-visible manifest from the evaluation_only spec (enforces visibility)",
    "paper": "§V-A context exposure rules; §III-C isolation of the discovery set from the validation set"
   },
   {
    "path": "02_freeze_protocol/build_paper_artefacts.py",
    "source": "experiment_root/tools/build_paper_artefacts.py",
-   "bytes": 25839,
+   "bytes": 26189,
    "source_sha256": "158a0a48ddb2485e5e94904622e042c2b98e34dd4327fa5031dcb8e4fd290bd7",
-   "target_sha256": "158a0a48ddb2485e5e94904622e042c2b98e34dd4327fa5031dcb8e4fd290bd7",
-   "byte_identical_to_source": true,
-   "role": "Batch build of the derived material required by the paper's figures and tables",
-   "paper": "§VI–§IX source material for Tables V–XV"
+   "target_sha256": "be3e5e252fc47c030b675c827f4c61e207b69cf53029e5432d7bfe3ad3e6c287",
+   "byte_identical_to_source": false,
+   "role": "Batch construction of the derived materials needed for the paper's figures and tables",
+   "paper": "§VI–§IX source material for Tables V–XV",
+   "adaptation": {
+    "adapter": "translation",
+    "note": "translated to English in place (comments, docstrings and prose string values only; logic, identifiers and emitted structure unchanged)"
+   }
   },
   {
    "path": "02_freeze_protocol/build_protocol.py",
    "source": "experiment_root/tools/build_protocol.py",
-   "bytes": 24550,
+   "bytes": 24517,
    "source_sha256": "ec754b6abd835d6aa3c8ca87f4e30aec74dfd5d441e49ef5509455db1e63f7b4",
-   "target_sha256": "ec754b6abd835d6aa3c8ca87f4e30aec74dfd5d441e49ef5509455db1e63f7b4",
-   "byte_identical_to_source": true,
-   "role": "Freezing of the full protocol text, event schema, codebook, Adaptive Policy and metric definitions (M0)",
-   "paper": "§III-D frozen record and reproducibility; §V-B the three delegation regimes"
+   "target_sha256": "f5f4771618e25c69ef5bb4a9994fa97c48d4a647d9ac654845a234b346604894",
+   "byte_identical_to_source": false,
+   "role": "Freeze (M0) of the full protocol text, event schema, codebook, Adaptive Policy, and metric definitions",
+   "paper": "§III-D freeze records and reproducibility; §V-B the three delegation regimes",
+   "adaptation": {
+    "adapter": "translation",
+    "note": "translated to English in place (comments, docstrings and prose string values only; logic, identifiers and emitted structure unchanged)"
+   }
   },
   {
    "path": "02_freeze_protocol/build_role_artifacts.py",
    "source": "experiment_root/tools/build_role_artifacts.py",
-   "bytes": 13369,
+   "bytes": 13564,
    "source_sha256": "f64cf164517d1181c2dbecd64dbc65f5b18cf4aa95f05a95a6ae0a51271d84c9",
-   "target_sha256": "f64cf164517d1181c2dbecd64dbc65f5b18cf4aa95f05a95a6ae0a51271d84c9",
-   "byte_identical_to_source": true,
-   "role": "The 7 frozen structures required by the paper but not listed in the implementation plan (understanding check, semantic review rubric, replayability, frozen record, etc.)",
-   "paper": "§III-D, §V-A, §V-G, §VIII-A/B"
+   "target_sha256": "f7520d75d39c329fce749e136476d6abe6209dec2f43f1741f0f70fae65680e6",
+   "byte_identical_to_source": false,
+   "role": "The 7 frozen structures required by the paper but not listed in the implementation plan (comprehension check, semantic review rubric, replayability, freeze records, etc.)",
+   "paper": "§III-D, §V-A, §V-G, §VIII-A/B",
+   "adaptation": {
+    "adapter": "translation",
+    "note": "translated to English in place (comments, docstrings and prose string values only; logic, identifiers and emitted structure unchanged)"
+   }
   },
   {
    "path": "02_freeze_protocol/build_understanding_quiz.py",
@@ -246,7 +263,7 @@
    "source_sha256": "55741ed2f474f1eb51ecac1c1b581b292a3c7e36fc7386280b1053c17703046f",
    "target_sha256": "55741ed2f474f1eb51ecac1c1b581b292a3c7e36fc7386280b1053c17703046f",
    "byte_identical_to_source": true,
-   "role": "Repository understanding check items (manipulation check: Chigh 8.4 vs Clow 5.9)",
+   "role": "Repository-comprehension check items (manipulation check: Chigh 8.4 vs Clow 5.9)",
    "paper": "§V-A manipulation and treatment-fidelity checks"
   },
   {
@@ -256,7 +273,7 @@
    "source_sha256": "4f0e9af668dd5e126e612161ebeeaa8db56d772dc85b43d94416af6477902483",
    "target_sha256": "4f0e9af668dd5e126e612161ebeeaa8db56d772dc85b43d94416af6477902483",
    "byte_identical_to_source": true,
-   "role": "Resume entry point: turn a repository content snapshot into a context package + environment manifest",
+   "role": "Continuation entry point: turns repository content snapshots into context packages + environment manifests",
    "paper": "§V-A; §V-E step 2"
   },
   {
@@ -266,8 +283,8 @@
    "source_sha256": "98e3477300c686da74a276cbd8d722b28fbaf6f7ede25ee1ffc6bf294399dbc2",
    "target_sha256": "98e3477300c686da74a276cbd8d722b28fbaf6f7ede25ee1ffc6bf294399dbc2",
    "byte_identical_to_source": true,
-   "role": "Independent worksheets for the two reviewers, verdict entry, agreement statistics and adjudication",
-   "paper": "§IV-B at least two researchers read independently + a third adjudicates"
+   "role": "Independent worksheets for the two reviewers, verdict entry, agreement statistics, and adjudication",
+   "paper": "§IV-B independent reading by at least two researchers + adjudication by a third"
   },
   {
    "path": "03_leakage/screen_answer_leakage.py",
@@ -276,8 +293,8 @@
    "source_sha256": "70da8c49638868e3659b3adb1ce010e86af2238fa7a31ab32900c54aae76a3ed",
    "target_sha256": "70da8c49638868e3659b3adb1ce010e86af2238fa7a31ab32900c54aae76a3ed",
    "byte_identical_to_source": true,
-   "role": "Machine screening of 216 tasks for answer leakage (the diff in the hints_text comment section was the biggest find)",
-   "paper": "§IV-B criterion 6 for candidate task admission (no obvious answer leakage)"
+   "role": "Machine screening for answer leakage across 216 tasks (the diffs in the hints_text comments were the biggest finding)",
+   "paper": "§IV-B item 6 of candidate-task admission (no obvious answer leakage)"
   },
   {
    "path": "04_session/pilot_gates.py",
@@ -286,7 +303,7 @@
    "source_sha256": "5b0b29481d4c9a5250d0794d9ea027ebe684a3c3dfea3b4821e318473a2b622c",
    "target_sha256": "5b0b29481d4c9a5250d0794d9ea027ebe684a3c3dfea3b4821e318473a2b622c",
    "byte_identical_to_source": true,
-   "role": "Machine evaluation of the eight Pilot technical gates (reproducible environment, workspace isolation, complete logs, tool equivalence…)",
+   "role": "Machine determination of the eight Pilot technical gates (reproducible environment, workspace isolation, complete logs, tool equivalence, …)",
    "paper": "§V-E; plan §13.1 Pilot technical gates"
   },
   {
@@ -296,8 +313,8 @@
    "source_sha256": "e46f3bea453f722075ba12c02242a91757fb87219d7029c7b7202a803cf727d5",
    "target_sha256": "e46f3bea453f722075ba12c02242a91757fb87219d7029c7b7202a803cf727d5",
    "byte_identical_to_source": true,
-   "role": "Dry run of the 14 steps with the real runner, following the SOP",
-   "paper": "§V-E full chain of the single-Session flow"
+   "role": "Runs the 14-step rehearsal once with the real runner, following the SOP",
+   "paper": "§V-E the full single-Session workflow end to end"
   },
   {
    "path": "04_session/session_runner.py",
@@ -316,7 +333,7 @@
    "source_sha256": "2ed02e1e503bd1a6d190a20783da1156c64652cf4193ee7b9db6ca2b30781c40",
    "target_sha256": "2ed02e1e503bd1a6d190a20783da1156c64652cf4193ee7b9db6ca2b30781c40",
    "byte_identical_to_source": true,
-   "role": "Pre-registered admission gate: tasks that even gold cannot pass are sorted into three classes with handling rules (must be run before recruitment)",
+   "role": "Pre-registered admission gate: sorts the tasks that even gold cannot pass into three classes and gives handling rules for each (must be run before recruitment)",
    "paper": "§IV-B candidate task screening; §V-G holdout admission"
   },
   {
@@ -326,8 +343,8 @@
    "source_sha256": "646991aeda4e0ea32c32d183d66fa0b034996b6f3f078ff978b13d79f1e56d88",
    "target_sha256": "646991aeda4e0ea32c32d183d66fa0b034996b6f3f078ff978b13d79f1e56d88",
    "byte_identical_to_source": true,
-   "role": "Metric aggregation: activity definitions for wall clock / human active / context prep, and overlap_warning",
-   "paper": "§V-F; plan §11.3 time definitions (must not be added together as wall clock)"
+   "role": "Metric aggregation: activity definitions for wall clock / human active / context prep, plus overlap_warning",
+   "paper": "§V-F; plan §11.3 time definitions (must not be summed as wall-clock)"
   },
   {
    "path": "05_evaluation/evaluate.py",
@@ -337,7 +354,7 @@
    "target_sha256": "765986f6b91ab21d016b8c99c67799ec0a2ff9d14449dc23e583994a4e3e21ea",
    "byte_identical_to_source": true,
    "role": "Hidden evaluation harness: benchmark F2P/P2P + holdout + holdout admission acceptance, in an independent clean workspace",
-   "paper": "§V-F dependent variables and evaluation metrics; §V-G enhanced-correctness oracle"
+   "paper": "§V-F dependent variables and evaluation metrics; §V-G augmented correctness oracle"
   },
   {
    "path": "05_evaluation/f2p_check.py",
@@ -346,7 +363,7 @@
    "source_sha256": "35fbea7fea667ff61b00a4c851703ffc83bcf1c34829b5300c84b332e2d7d5ae",
    "target_sha256": "35fbea7fea667ff61b00a4c851703ffc83bcf1c34829b5300c84b332e2d7d5ae",
    "byte_identical_to_source": true,
-   "role": "One-off: verify the actual behaviour of the fail-to-pass set on base/gold",
+   "role": "One-off: check the actual behaviour of the fail-to-pass set on base/gold",
    "paper": "§V-F Benchmark resolved"
   },
   {
@@ -366,7 +383,7 @@
    "source_sha256": "c894d54ea305f80b2ede338d8b4fb5c44f3874d0bbe409e7e3215325e10f99c7",
    "target_sha256": "c894d54ea305f80b2ede338d8b4fb5c44f3874d0bbe409e7e3215325e10f99c7",
    "byte_identical_to_source": true,
-   "role": "One-off: pinpoint which assertion actually fails from the test output",
+   "role": "One-off: pinpoint from the test output exactly which assertion fails",
    "paper": "§V-F Regression count/rate"
   },
   {
@@ -376,8 +393,8 @@
    "source_sha256": "0cd57d7c132c6718c27d4e95f0ca767632c3b1b9b8420cc45b2347f8859a5886",
    "target_sha256": "0cd57d7c132c6718c27d4e95f0ca767632c3b1b9b8420cc45b2347f8859a5886",
    "byte_identical_to_source": true,
-   "role": "Summarise the holdout calibration results (how many tasks can distinguish the defect from the fix)",
-   "paper": "§V-G; STATUS §2.3 ① non-containerised oracle feasibility 50%"
+   "role": "Aggregates the holdout calibration results (how many tasks can distinguish the defect from the fix)",
+   "paper": "§V-G; STATUS §2.3 ① non-containerized oracle feasibility 50%"
   },
   {
    "path": "06_holdout/find_authorable.py",
@@ -386,7 +403,7 @@
    "source_sha256": "e5d2961c85942df0faea34194bcc35595b1fbdb442aa5bc6fc2dafc2dda83ac7",
    "target_sha256": "e5d2961c85942df0faea34194bcc35595b1fbdb442aa5bc6fc2dafc2dda83ac7",
    "byte_identical_to_source": true,
-   "role": "Screen for tasks where the environment genuinely distinguishes defect from fix, as the denominator of authorable holdouts",
+   "role": "Selects the tasks whose environment can genuinely distinguish defect from fix, as the denominator for authorable holdout tests",
    "paper": "§V-G"
   },
   {
@@ -396,9 +413,9 @@
    "source_sha256": "5dcb7eba1370badd9e0cc6ff7102baf087d39aa3d995728557af9f07bc23b3c5",
    "target_sha256": "5dcb7eba1370badd9e0cc6ff7102baf087d39aa3d995728557af9f07bc23b3c5",
    "byte_identical_to_source": true,
-   "role": "Holdout test authoring and three-condition admission (fails on base → passes on gold → deterministic over 5 runs) + feasibility calibration",
-   "paper": "§V-G construction of the enhanced-correctness oracle",
-   "note": "This file derives sys.path from __file__ (the only place that does so); launch the copy through code/run.py, or put experiment_root/tools and experiment_root/evaluation on sys.path"
+   "role": "Holdout test authoring and three-condition admission (base fails → gold passes → deterministic across 5 runs) + feasibility calibration",
+   "paper": "§V-G construction of the augmented correctness oracle",
+   "note": "This file derives sys.path from __file__ (the only place that does so); launch the copy through code/run.py, or keep experiment_root/tools and experiment_root/evaluation on sys.path"
   },
   {
    "path": "06_holdout/holdout_probe.py",
@@ -407,7 +424,7 @@
    "source_sha256": "73f395675542bbc4d9ed5419d7e7077f9fc1a1fd3299ee4c11fe24fd9be339ed",
    "target_sha256": "73f395675542bbc4d9ed5419d7e7077f9fc1a1fd3299ee4c11fe24fd9be339ed",
    "byte_identical_to_source": true,
-   "role": "Differential probe: probe the real behavioural differences of the callables on base/gold",
+   "role": "Differential probe: detects the real behavioural differences of callable objects on base/gold",
    "paper": "§V-G every added test must be able to expose the target defect"
   },
   {
@@ -417,8 +434,8 @@
    "source_sha256": "7e7f706b0d3477b2ce1a17263aa4c1282607e2928fc15b0de98da380b8b79952",
    "target_sha256": "7e7f706b0d3477b2ce1a17263aa4c1282607e2928fc15b0de98da380b8b79952",
    "byte_identical_to_source": true,
-   "role": "Pack tests_holdout_task.py into holdout.diff and verify it (keeping the harness blind to the number of tests)",
-   "paper": "§V-G holdout injected as a patch"
+   "role": "Packs tests_holdout_task.py into holdout.diff and verifies it (keeps the harness blind to the number of tests)",
+   "paper": "§V-G holdout tests injected as a patch"
   },
   {
    "path": "06_holdout/make_holdout_diff2.py",
@@ -437,7 +454,7 @@
    "source_sha256": "53cc056d86871f39ea8aba0131afc07c3e707109dd642967142f41ce8c4ded01",
    "target_sha256": "53cc056d86871f39ea8aba0131afc07c3e707109dd642967142f41ce8c4ded01",
    "byte_identical_to_source": true,
-   "role": "Measure the real authorable denominator",
+   "role": "Measures the true authorable denominator",
    "paper": "§V-G"
   },
   {
@@ -447,7 +464,7 @@
    "source_sha256": "bc9336435960bf1270e2f9d9ba47abb4d9753a34af9c12a0a65923c0851fc9cc",
    "target_sha256": "bc9336435960bf1270e2f9d9ba47abb4d9753a34af9c12a0a65923c0851fc9cc",
    "byte_identical_to_source": true,
-   "role": "babel repository probe",
+   "role": "Probe for the babel repository",
    "paper": "§V-G"
   },
   {
@@ -457,7 +474,7 @@
    "source_sha256": "aa36c6706a101e1fe55eb900593388d12c77d66e8342d330e26034ee6250524f",
    "target_sha256": "aa36c6706a101e1fe55eb900593388d12c77d66e8342d330e26034ee6250524f",
    "byte_identical_to_source": true,
-   "role": "Probe of the babel-1120 candidate holdout behaviour (using only inputs accepted by the public API)",
+   "role": "Probe of the candidate holdout behaviour for babel-1120 (uses only inputs accepted by the public API)",
    "paper": "§V-G"
   },
   {
@@ -467,7 +484,7 @@
    "source_sha256": "f8205cb6197e394d5424242a7009a9fcba9039f4788922ec034aa4e3d82309b1",
    "target_sha256": "f8205cb6197e394d5424242a7009a9fcba9039f4788922ec034aa4e3d82309b1",
    "byte_identical_to_source": true,
-   "role": "Probe output differences by line number",
+   "role": "Probes output differences by line number",
    "paper": "§V-G"
   },
   {
@@ -477,7 +494,7 @@
    "source_sha256": "91a4a4a643fa38f7eefa1b1ffa42b0c893e518454573c2b1ff5d97535734bf15",
    "target_sha256": "91a4a4a643fa38f7eefa1b1ffa42b0c893e518454573c2b1ff5d97535734bf15",
    "byte_identical_to_source": true,
-   "role": "Probe: the weaker items of the understanding check",
+   "role": "Probe: the weaker items in the comprehension check",
    "paper": "§V-A manipulation check"
   },
   {
@@ -487,7 +504,7 @@
    "source_sha256": "77a04a46cfb8006fb6f1e5545effa0145dac4df9a9708bc6b168a55d6e0d8eb7",
    "target_sha256": "77a04a46cfb8006fb6f1e5545effa0145dac4df9a9708bc6b168a55d6e0d8eb7",
    "byte_identical_to_source": true,
-   "role": "Find the line widths where base/gold really do differ, so that assertions describe facts rather than expectations",
+   "role": "Finds the wrap widths where base/gold genuinely differ, so that assertions describe facts rather than expectations",
    "paper": "§V-G"
   },
   {
@@ -497,7 +514,7 @@
    "source_sha256": "6da9e82c32230fb9e0ded86c3bc0b75e480e75531dfb5e31e98be9c09faa0281",
    "target_sha256": "6da9e82c32230fb9e0ded86c3bc0b75e480e75531dfb5e31e98be9c09faa0281",
    "byte_identical_to_source": true,
-   "role": "Probe the exact behaviour of TextWrapper and pofile under base/gold",
+   "role": "Probes the exact behaviour of TextWrapper and pofile on base/gold",
    "paper": "§V-G"
   },
   {
@@ -507,7 +524,7 @@
    "source_sha256": "756f034b4dd864200525359b36a1876ced1aa8aa29911992d217d1de4adad1f3",
    "target_sha256": "756f034b4dd864200525359b36a1876ced1aa8aa29911992d217d1de4adad1f3",
    "byte_identical_to_source": true,
-   "role": "Print the holdout acceptance record",
+   "role": "Prints the holdout acceptance record",
    "paper": "§V-G"
   },
   {
@@ -517,9 +534,9 @@
    "source_sha256": "fed0f8ca1c6917d480fb97c2d631e6097c04b2a30a0ab0790889e0875fabd624",
    "target_sha256": "fed0f8ca1c6917d480fb97c2d631e6097c04b2a30a0ab0790889e0875fabd624",
    "byte_identical_to_source": true,
-   "role": "Boundary calculation for agreement–κ: at 88.9% raw agreement a binary item cannot reach κ=0.82 at any prevalence",
-   "paper": "§V-G cross-check of the independent-review agreement rate and κ",
-   "note": "The conclusion requires agreement and κ to be reported separately per rubric item, not cited interchangeably"
+   "role": "Boundary analysis of agreement versus κ: at 88.9% raw agreement a binary item cannot reach κ = 0.82 at any prevalence",
+   "paper": "§V-G cross-check of the definition of the independent-review agreement rate and κ",
+   "note": "The conclusion requires agreement and κ to be reported separately for each rubric item, never cited interchangeably"
   },
   {
    "path": "07_rq2_coding/rq2_coding.py",
@@ -528,7 +545,7 @@
    "source_sha256": "0efe51983a1f0616179126d4bc0cce3897407b8c774cdcda32caaf2f5de80bc4",
    "target_sha256": "0efe51983a1f0616179126d4bc0cce3897407b8c774cdcda32caaf2f5de80bc4",
    "byte_identical_to_source": true,
-   "role": "RQ2 codebook iteration, blind package generation, Cohen's κ and bootstrap CI estimators",
+   "role": "RQ2 codebook iteration, blind-package generation, Cohen's κ and bootstrap CI estimators",
    "paper": "§VII RQ2; §V-G semantic review 88.9% / κ = 0.82"
   },
   {
@@ -538,7 +555,7 @@
    "source_sha256": "26f9af29cd7118e83a51952dfad2a874993d552ee1855f17bf871fd936730c14",
    "target_sha256": "26f9af29cd7118e83a51952dfad2a874993d552ee1855f17bf871fd936730c14",
    "byte_identical_to_source": true,
-   "role": "One-off: signal trigger frequency diagnostic",
+   "role": "One-off: signal trigger-frequency diagnostics",
    "paper": "§VIII-A"
   },
   {
@@ -548,7 +565,7 @@
    "source_sha256": "21d4d007d585314fc651cea92458d149f6fa1ce712cb6668936fe05028054e93",
    "target_sha256": "21d4d007d585314fc651cea92458d149f6fa1ce712cb6668936fe05028054e93",
    "byte_identical_to_source": true,
-   "role": "One-off: P1 signal diagnostic",
+   "role": "One-off: P1 signal diagnostics",
    "paper": "§VIII-A process signal P1"
   },
   {
@@ -558,7 +575,7 @@
    "source_sha256": "e4e93f5a366df79af516a779130a7f6c56de6ab6d8f0f5c61df3c8d5d14634cd",
    "target_sha256": "e4e93f5a366df79af516a779130a7f6c56de6ab6d8f0f5c61df3c8d5d14634cd",
    "byte_identical_to_source": true,
-   "role": "One-off: P1 signal diagnostic (second version)",
+   "role": "One-off: P1 signal diagnostics (second version)",
    "paper": "§VIII-A"
   },
   {
@@ -568,8 +585,8 @@
    "source_sha256": "6e34bd7f79d4be7532a3d44a134b88e9a51ee221b7038a3fd8f1c1545355163d",
    "target_sha256": "6e34bd7f79d4be7532a3d44a134b88e9a51ee221b7038a3fd8f1c1545355163d",
    "byte_identical_to_source": true,
-   "role": "A structured stand-in built from the real 120 Discovery tasks, to exercise the threshold selection mechanism",
-   "paper": "§VIII-B 5-fold CV of thresholds grouped by repository"
+   "role": "A structured stand-in built from the real 120 Discovery tasks, used to exercise the threshold-selection mechanism",
+   "paper": "§VIII-B thresholds with 5-fold CV grouped by repository"
   },
   {
    "path": "08_rq3_policy/online_policy.py",
@@ -578,8 +595,8 @@
    "source_sha256": "147205767d4ef9646d5f3f6520abb2a36b7b78898f04d6ea2fae14645fc69c5a",
    "target_sha256": "147205767d4ef9646d5f3f6520abb2a36b7b78898f04d6ea2fae14645fc69c5a",
    "byte_identical_to_source": true,
-   "role": "Online signal extractor + Adaptive Policy state machine (using only events visible at the time, including look-ahead rejection)",
-   "paper": "§VIII-A from hand-coded concepts to online signals; §VIII-B from process signals to delegation rules"
+   "role": "Online signal extractor + Adaptive Policy state machine (uses only the events visible at the time, with look-ahead rejection)",
+   "paper": "§VIII-A from manually coded concepts to online signals; §VIII-B from process signals to delegation rules"
   },
   {
    "path": "09_rq1_rq4_analysis/check_pipeline.py",
@@ -588,29 +605,22 @@
    "source_sha256": "f59c7b5acbe9cb42d0f6d7a920c1fc58cf12fb57e6c9d62d3cabf39629b50d5a",
    "target_sha256": "f59c7b5acbe9cb42d0f6d7a920c1fc58cf12fb57e6c9d62d3cabf39629b50d5a",
    "byte_identical_to_source": true,
-   "role": "Pipeline recovery check: can the deliberately planted known effects and the exact cell balance be recovered from the synthetic sample",
+   "role": "Pipeline recovery check: whether the deliberately injected known effects and the exact cell balance can be recovered from the synthetic sample",
    "paper": "§VI 2×3 interaction; §IX the five policies"
-  },
-  {
-   "path": "09_rq1_rq4_analysis/simulate.py",
-   "source": "experiment_root/tools/simulate.py",
-   "bytes": 24704,
-   "source_sha256": "a7111a87699fc0a330a5dcbc6ddbfa32c12ed90a87befc69233ae2b5072719d2",
-   "target_sha256": "a7111a87699fc0a330a5dcbc6ddbfa32c12ed90a87befc69233ae2b5072719d2",
-   "byte_identical_to_source": true,
-   "role": "Generate 792 synthetic sessions from the frozen allocation (the target structure of Table V / Table XV), for pipeline self-checks",
-   "paper": "§VI RQ1 Table V; §IX RQ4 Table XV",
-   "note": "The output is marked SYNTHETIC / NOT_A_RESULT and must not be cited as a result"
   },
   {
    "path": "10_audit/audit.py",
    "source": "experiment_root/tools/audit.py",
-   "bytes": 51744,
+   "bytes": 51738,
    "source_sha256": "75af753918ec76124193436c60b6cbb4a4535f41855975f089811973d4259219",
-   "target_sha256": "75af753918ec76124193436c60b6cbb4a4535f41855975f089811973d4259219",
-   "byte_identical_to_source": true,
-   "role": "Group A–I audit, QA report, full frozen manifest (scans only the fixed directories inside experiment_root)",
-   "paper": "§III-D frozen record; §XII threats to validity; plan §13–16"
+   "target_sha256": "1d5d1ec635607ec9ae2d9d2ecc063aaecd597e22b33c78cf2b27011bc265e3a8",
+   "byte_identical_to_source": false,
+   "role": "Group A–I audit, QA report, full frozen inventory (scans only the fixed directories inside experiment_root)",
+   "paper": "§III-D freeze records; §XII threats to validity; plan §13–16",
+   "adaptation": {
+    "adapter": "translation",
+    "note": "translated to English in place (comments, docstrings and prose string values only; logic, identifiers and emitted structure unchanged)"
+   }
   },
   {
    "path": "99_scratch/deep_diag.py",
@@ -619,18 +629,22 @@
    "source_sha256": "9aa39f3193511c838a1075bcd45abae5a1d79fefe18664786457528de4af6090",
    "target_sha256": "9aa39f3193511c838a1075bcd45abae5a1d79fefe18664786457528de4af6090",
    "byte_identical_to_source": true,
-   "role": "One-off: subprocess-level deep diagnostic",
+   "role": "One-off: subprocess-level deep diagnostics",
    "paper": "Not a paper artefact"
   },
   {
    "path": "99_scratch/extract_paper.py",
    "source": "_extract_paper.py",
-   "bytes": 491,
+   "bytes": 493,
    "source_sha256": "717f0a6bffe5f4a71d1a2df8aa4e5e3d2a476c99643a53f9d4c71db4e0a6c006",
-   "target_sha256": "717f0a6bffe5f4a71d1a2df8aa4e5e3d2a476c99643a53f9d4c71db4e0a6c006",
-   "byte_identical_to_source": true,
+   "target_sha256": "ac0b185feed8ee22a3fa4568d0fe973d3b743cdf43362fa4dded8a617d2d1f7a",
+   "byte_identical_to_source": false,
    "role": "One-off documentation tool: PDF → _paper.txt",
-   "paper": "Not a paper artefact"
+   "paper": "Not a paper artefact",
+   "adaptation": {
+    "adapter": "translation",
+    "note": "translated to English in place (comments, docstrings and prose string values only; logic, identifiers and emitted structure unchanged)"
+   }
   },
   {
    "path": "99_scratch/fix_bcp.py",
@@ -649,7 +663,7 @@
    "source_sha256": "d998070b4dd48637f4cfdca85a7c5ff5dbe94c00d28546497fc7c8e8b18a368b",
    "target_sha256": "d998070b4dd48637f4cfdca85a7c5ff5dbe94c00d28546497fc7c8e8b18a368b",
    "byte_identical_to_source": true,
-   "role": "One-off: bulk rewrite of absolute paths in the scripts",
+   "role": "One-off: batch rewrite of the absolute paths inside the scripts",
    "paper": "Not a paper artefact"
   },
   {
@@ -659,7 +673,7 @@
    "source_sha256": "ee33e296329d9f33a739d941f9835a3ef50ed54f46fd3678b3d87fa7cd343cce",
    "target_sha256": "ee33e296329d9f33a739d941f9835a3ef50ed54f46fd3678b3d87fa7cd343cce",
    "byte_identical_to_source": true,
-   "role": "One-off: gold patch diagnostic",
+   "role": "One-off: gold patch diagnostics",
    "paper": "Not a paper artefact"
   },
   {
@@ -669,7 +683,7 @@
    "source_sha256": "08be6ff4ba2443f96fe2c1fcc9212be801175d76a738ba0b251dcb212a3939a1",
    "target_sha256": "08be6ff4ba2443f96fe2c1fcc9212be801175d76a738ba0b251dcb212a3939a1",
    "byte_identical_to_source": true,
-   "role": "One-off: fetch-hardening patch for fetch_repos.py",
+   "role": "One-off: fetching-hardening patch for fetch_repos.py",
    "paper": "Not a paper artefact"
   },
   {
