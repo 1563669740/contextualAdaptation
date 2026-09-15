@@ -31,7 +31,7 @@
   },
   "authorship": [
     "The following files were newly created by this curation and are not copies of experiment_root, so they take no part in hash comparison:",
-    "code/README.md, code/code_map.json, code/sync.py, code/verify.py, code/run.py,",
+    "code/code_map.json, code/sync.py, code/verify.py, code/run.py,",
     "code/requirements.txt, code/CODE_INDEX.json, code/CODE_INDEX.md"
   ],
   "files": [

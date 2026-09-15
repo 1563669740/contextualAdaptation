@@ -6,16 +6,16 @@ Generated 2026-09-15. Measured with `git ls-files -o --exclude-standard`.
 
 | | Files | Size |
 |---|---:|---:|
-| **In the repository** (`code/` + `dataset/`) | **3,565** | **96.6 MB** |
+| **In the repository** (`code/` + `dataset/`) | **3,563** | **96.6 MB** |
 | Kept locally, not published | ~114,000 | ~5.0 GB |
 
-The repository holds two parts: **business code** in `code/` (62 files) and the **dataset** in `dataset/` (3,499 files), plus three root-level documents (`README.md`, `INVENTORY.md`, `.gitignore`) and `.gitattributes`. There are no experiment outputs, no participant data, no synthetic samples and no run workspaces.
+The repository holds two parts: **business code** in `code/` (61 files) and the **dataset** in `dataset/` (3,499 files), plus the root documents (`README.md`, `INVENTORY.md`, `.gitignore`, `.gitattributes`). There are no experiment outputs, no participant data, no synthetic samples and no run workspaces.
 
 The largest single file is 19.3 MB (`dataset/splits/discovery.csv`); every file is below GitHub's 100 MB per-file limit. Most of the volume comes from the split manifests and the F2P/P2P test-node listings.
 
 ## Repository contents
 
-### `code/` — business code (62 files / 0.55 MB)
+### `code/` — business code (61 files / 0.55 MB)
 
 | Directory | Files | Paper section | Responsibility |
 |---|---:|---|---|
@@ -30,7 +30,7 @@ The largest single file is 19.3 MB (`dataset/splits/discovery.csv`); every file 
 | `09_rq1_rq4_analysis/` | 2 | §VI, §IX | synthetic session generator + pipeline recovery check |
 | `10_audit/` | 1 | §III-D, §XII | A–I audit groups, QA report, full freeze manifest |
 | `99_scratch/` | 8 | — | one-off diagnostics, path repair, PDF extraction (not a paper artefact) |
-| 8 root files | 8 | — | `README.md`, `code_map.json`, `sync.py`, `verify.py`, `run.py`, `requirements.txt`, `CODE_INDEX.md`, `CODE_INDEX.json` |
+| 7 root files | 7 | — | `code_map.json`, `sync.py`, `verify.py`, `run.py`, `requirements.txt`, `CODE_INDEX.md`, `CODE_INDEX.json` |
 
 Per-file purpose, paper anchor, source path and SHA256 are in `code/CODE_INDEX.md`.
 
