@@ -1,7 +1,3 @@
-# project
-
-Repository-level software defect repair: business code (`code/`) and dataset (`dataset/`), covering 216 tasks from 38 repositories.
-
 ## Environment
 
 ```bash
